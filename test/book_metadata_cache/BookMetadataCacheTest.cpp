@@ -514,6 +514,20 @@ TEST_F(MetadataBuildFault, RawSpineReadsFailClosedForSmallAndIndexedTocPasses) {
       if (fault == 0) cache_test::failRead = 0;
       if (fault == 1) cache_test::shortRead = 0;
       if (fault == 2) cache_test::failSeek = 0;
+      if (chapters == 400 && fault == 1) {
+        // Buffered short reads can complete on refill without dropping any record bytes.
+        ASSERT_TRUE(writer.beginTocPass());
+        for (int i = 0; i < chapters; ++i)
+          writer.createTocEntry("Chapter", "chapter" + std::to_string(i) + ".xhtml", "", 0);
+        ASSERT_TRUE(writer.endTocPass());
+        ASSERT_TRUE(writer.endWrite());
+        ASSERT_TRUE(build(writer));
+        BookMetadataCache reader("/book");
+        ASSERT_TRUE(reader.load());
+        for (int i = 0; i < chapters; ++i) EXPECT_EQ(reader.getTocEntry(i).spineIndex, i);
+        cache_test::resetFaults();
+        continue;
+      }
       if (chapters == 400)
         EXPECT_FALSE(writer.beginTocPass());
       else {
@@ -887,4 +901,59 @@ TEST_F(MetadataBuildFault, PublicationFailedCleanupOrOpenCannotReplacePreviousCa
   ASSERT_TRUE(build(writer));
   EXPECT_FALSE(cache_test::files.contains("/book/book.bin.new"));
   EXPECT_FALSE(cache_test::files.contains("/book/book.bin.bak"));
+}
+
+TEST_F(MetadataBuildFault, SpineIndexBufferOomMatchesBufferedCacheBytes) {
+  std::vector<uint8_t> expected;
+  for (bool failBuffer : {false, true}) {
+    BookMetadataCache writer("/book");
+    stageSpines(writer, 512);
+    cache_test::resetFaults();
+    {
+      parser_test::ScopedAllocationFailure oom(parser_test::ScopedAllocationFailure::Kind::Array,
+                                               failBuffer ? 512 : SIZE_MAX);
+      ASSERT_TRUE(writer.beginTocPass());
+      EXPECT_EQ(oom.failures(), failBuffer ? 1u : 0u);
+    }
+    const int reads = cache_test::reads;
+    if (failBuffer)
+      EXPECT_GE(reads, 512 * 4);
+    else
+      EXPECT_LT(reads, 40);
+    for (int i = 511; i >= 0; --i)
+      writer.createTocEntry("Chapter", "chapter" + std::to_string(i) + ".xhtml", "anchor", 0);
+    ASSERT_TRUE(writer.endTocPass());
+    ASSERT_TRUE(writer.endWrite());
+    ASSERT_TRUE(build(writer));
+    if (failBuffer)
+      EXPECT_EQ(expected, cache_test::files["/book/book.bin"]);
+    else
+      expected = cache_test::files["/book/book.bin"];
+  }
+}
+
+TEST_F(MetadataBuildFault, EverySpineIndexRefillFailureRejectsThePass) {
+  int reads;
+  {
+    BookMetadataCache writer("/book");
+    stageSpines(writer, 512);
+    cache_test::resetFaults();
+    ASSERT_TRUE(writer.beginTocPass());
+    reads = cache_test::reads;
+    ASSERT_GT(reads, 1);
+    ASSERT_TRUE(writer.endTocPass());
+    ASSERT_TRUE(writer.endWrite());
+  }
+  for (int call = 0; call < reads; ++call) {
+    SCOPED_TRACE(call);
+    BookMetadataCache writer("/book");
+    stageSpines(writer, 512);
+    cache_test::resetFaults();
+    cache_test::failRead = call;
+    EXPECT_FALSE(writer.beginTocPass());
+    EXPECT_FALSE(writer.endWrite());
+    EXPECT_FALSE(cache_test::files.contains("/book/book.bin"));
+    EXPECT_EQ(cache_test::handles, 0);
+    cache_test::resetFaults();
+  }
 }
