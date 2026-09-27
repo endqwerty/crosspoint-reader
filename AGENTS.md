@@ -1,5 +1,8 @@
 # CrossPoint Reader Development Guide
 
+Read [docs/FORK.md](docs/FORK.md) before working in this fork. It defines the
+fork-specific workflow and preferences alongside the upstream guidance below.
+
 Project: Open-source e-reader firmware for Xteink X4 (ESP32-C3)
 Mission: Provide a lightweight, high-performance reading experience focused on EPUB rendering on constrained hardware.
 
