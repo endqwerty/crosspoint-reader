@@ -18,6 +18,11 @@ struct StorageFaults {
 };
 inline StorageFaults storageFaults;
 
+struct StorageMetrics {
+  size_t reads = 0, readBytes = 0, seeks = 0, writes = 0;
+};
+inline StorageMetrics storageMetrics;
+
 struct TestFile {
   std::vector<uint8_t> bytes;
 };
@@ -36,6 +41,7 @@ class HalFile {
   int available() const { return static_cast<int>(size() - std::min(size(), pos)); }
   bool seek(const size_t p) {
     if (!data || p > size()) return false;
+    ++storageMetrics.seeks;
     pos = p;
     return true;
   }
@@ -43,11 +49,14 @@ class HalFile {
     if (!data) return -1;
     const size_t got = pos < size() ? std::min(n, size() - pos) : 0;
     if (got) memcpy(dst, data->bytes.data() + pos, got);
+    ++storageMetrics.reads;
+    storageMetrics.readBytes += got;
     pos += got;
     return static_cast<int>(got);
   }
   size_t write(const void* src, const size_t n) {
     if (!data) return 0;
+    ++storageMetrics.writes;
     heapcap::Untracked guard;
     if (pos + n > size()) data->bytes.resize(pos + n);
     memcpy(data->bytes.data() + pos, src, n);
