@@ -1,4 +1,68 @@
-# WIP handoff — X4 Pro reader, r50
+# WIP handoff — X4 Pro reader, r51
+
+The requested upstream review and cold EPUB-open profiling are complete.
+Current branch: `feature/epub-cold-open`, based on the preserved r50 local merge
+`1b73e1c96c229ebd3ad3520c6b8994cdaba7bd19`. The user requested a local commit;
+the reader branch has not been pushed and no PR was opened.
+
+During the initial push request, personal reader/SDK forks were created and the
+existing SDK commit `703f269a1ea5bf738820db91e6a6ca6b22b68adc` was pushed to
+`endqwerty/freeink-sdk`, branch `codex/x4pro-r50-sdk`. The user then canceled
+further pushes. Do not push the reader branch without renewed authorization.
+`.gitmodules` retains the upstream URL; local SDK source is unchanged. Both repos
+have `origin` for upstream and `fork` for the personal fork.
+
+## Current flash image
+
+Use `build/x4pro-epub-r51/firmware-x4pro-epub-r51-final.bin`.
+The authoritative pointer is `build/FLASH-LATEST.md`.
+Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
+SHA-256: `a53470a2e253fcf5804f0f3c91ebc3b6dac9e017abb481dae0a8cb92f3cd0040`.
+Version: `1.6.5-dev-x4pro-r51-93e98bb`.
+
+## Completed in this continuation
+
+- Fetched upstream develop: still `93e98bb78702e29868a16a13b80c40e6b36ccdff`.
+  Reviewed eight recent/relevant PRs; no upstream code imported. Decisions and
+  pinned PR metadata/patches are in `build/upstream-review-r50/REVIEW.md` and the
+  r51 package's `verification/upstream-review/`. #3705 and #3675 remain deferred.
+- Added cold/warm index profiling through production Epub::load and parsers,
+  with archive/storage doubles. It does not profile ZIP decompression, CSS or
+  initial page layout.
+- Batched the existing large-book spine-index scan through a transient 512-byte
+  nothrow buffer, with checked direct-read fallback on OOM. See
+  `docs/cold-index-io-r51.md`. No cache-format or foreground reading changes.
+- Cold HAL reads: 512 chapters 4,139 → 2,117; 2,048 chapters 16,512 → 8,426.
+  Bytes/seeks/writes/warm opens unchanged. Native fixture peak allocation bytes
+  unchanged; one extra transient allocation. These are not device latency gains.
+- All 1,599 native Release and LLVM22 ASan/UBSan tests passed, preserving all
+  1,596 prior test names. All 16 validation gates passed, including target build,
+  SDK runners, image/dependency verification and scoped static analysis.
+  Firmware compiler log is warning-free; cppcheck has four low style findings,
+  no medium/high findings. Static RAM 102,320 bytes; linked flash 5,675,354 bytes.
+- Packaged 6,441 source files and 100 checksummed artifact files.
+  Build mirror/scripts/evidence are under
+  `/Users/danielyang/.local/share/crosspoint-build/epub-r51/`.
+
+## Resume boundaries
+
+The release source archive contains the exact tested source. **Only WIP.md changed
+after packaging**, to record this handoff. Do not rebuild for that documentation
+or the local commit. r50 remains available as the prior baseline. Historical r50 instructions
+below apply only to its package and merge, not the current flash recommendation.
+
+The remaining measured hotspot is the small-book linear TOC lookup (128 chapters:
+33,556 HAL reads). A follow-up should compare memory/correctness before changing
+that policy. Broader cold-open profiling should include real ZIP/container, CSS
+and first-page fixtures. No additional feature work is in progress.
+
+Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
+unmeasured. Check an uncached long EPUB, TOC jumps, reopen and sleep/wake with AA
+off. No cache deletion or recording required.
+
+---
+
+# Historical r50 baseline handoff
 
 The user requested wrap-up and a local merge of `feature/x4pro-library-ux` into
 `develop`. Do not restart open-ended roadmap work without a new request. Nothing
