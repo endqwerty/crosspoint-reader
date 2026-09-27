@@ -249,3 +249,34 @@ TEST(EpubIndexingOom, LargeIndexedTocFallbackPreservesEverySpineMapping) {
     expectNoOpenFiles();
   }
 }
+
+TEST(EpubColdOpen, ProfilesColdIndexAndWarmMetadataLoads) {
+  for (const int chapters : {32, 128, 512, 2048}) {
+    SCOPED_TRACE(chapters);
+    prepare(true, false, chapters);
+    storageMetrics = {};
+    heapcap::reset(200 * 1024);
+    Epub book;
+    const bool loaded = book.load();
+    const auto cold = storageMetrics;
+    const auto allocations = heapcap::allocationCalls();
+    const auto peak = heapcap::peak();
+    const auto aborts = heapcap::aborts();
+    heapcap::stop();
+    ASSERT_TRUE(loaded);
+    ASSERT_EQ(aborts, 0u);
+    if (chapters >= 400) EXPECT_LT(cold.reads, static_cast<size_t>(chapters) * 5);
+    expectToc(book, "NAV", chapters);
+    expectNoXmlLeaks();
+    storageMetrics = {};
+    Epub warm;
+    ASSERT_TRUE(warm.load());
+    const auto cached = storageMetrics;
+    expectToc(warm, "NAV", chapters);
+    printf(
+        "EPUB_OPEN chapters=%d cold_reads=%zu cold_bytes=%zu cold_seeks=%zu cold_writes=%zu "
+        "allocations=%zu peak=%zu warm_reads=%zu warm_bytes=%zu warm_seeks=%zu\n",
+        chapters, cold.reads, cold.readBytes, cold.seeks, cold.writes, allocations, peak, cached.reads,
+        cached.readBytes, cached.seeks);
+  }
+}
