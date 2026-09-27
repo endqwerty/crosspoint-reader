@@ -63,6 +63,7 @@ constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
 // Buffer size for the buildBookBin streams. 3 buffers x 4KB, transient (freed on
 // return); 4KB = 8 SD sectors per transfer, enough to stop the sector-cache thrash.
 constexpr size_t BUILD_IO_BUFFER_SIZE = 4096;
+constexpr size_t SPINE_INDEX_IO_BUFFER_SIZE = 512;
 constexpr uint32_t TOC_INDEX_HEAP_RESERVE = 16 * 1024;
 constexpr uint32_t BOOK_BIN_HEAP_RESERVE = 32 * 1024;
 constexpr size_t BOOK_BIN_ITEM_BYTES = sizeof(ZipFile::SizeTarget) + sizeof(uint32_t) + sizeof(int16_t);
@@ -208,14 +209,16 @@ bool BookMetadataCache::beginTocPass() {
     if (!spineHrefIndex || !spineFile.seek(0)) return failPass();
     const auto spineBytes = spineFile.fileSize64();
     if (spineBytes > UINT32_MAX) return failPass();
+    // A transient sector buffer batches the sequential index scan; OOM uses direct reads.
+    serialization::BufferedFileReader in(spineFile, SPINE_INDEX_IO_BUFFER_SIZE);
     SpineEntry entry;
     for (int i = 0; i < spineCount; i++) {
-      if (!readSpineEntryFrom(spineFile, entry, spineBytes)) return failPass();
+      if (!readSpineEntryFrom(in, entry, spineBytes)) return failPass();
       const SpineHrefIndexEntry idx{fnvHash64(entry.href), static_cast<uint16_t>(entry.href.size()),
                                     static_cast<int16_t>(i)};
       if (!spineHrefIndex->push_back(idx)) return failPass();
     }
-    if (spineFile.position() != spineBytes) return failPass();
+    if (in.position() != spineBytes) return failPass();
     std::sort(spineHrefIndex->begin(), spineHrefIndex->end(),
               [](const SpineHrefIndexEntry& a, const SpineHrefIndexEntry& b) {
                 return a.hrefHash < b.hrefHash || (a.hrefHash == b.hrefHash && a.hrefLen < b.hrefLen);
