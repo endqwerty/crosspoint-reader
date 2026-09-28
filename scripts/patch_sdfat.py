@@ -2,8 +2,8 @@
 PlatformIO post: script: apply CrossPoint's SdFat patches via `git apply`.
 
 The patches in `scripts/sdfat_patches/` make USE_SEPARATE_FAT_CACHE
-overridable and invalidate the sector cache after a failed read (see the
-file headers). They target SdFat 2.3.1 only.
+overridable, invalidate a failed cache fill and guard directory-output pointer
+arithmetic (see the file headers). They target SdFat 2.3.1 only.
 
 Unlike JPEGDEC, SdFat is a registry dependency of the SDK, so the script
 patches only the copy that the current environment actually builds:
@@ -25,6 +25,9 @@ import subprocess
 
 # Reviewed upstream and patched bytes. A dependency upgrade requires re-review.
 PATCHES = (
+    ("0003-guard-directory-output-pointer.patch", "src/FatLib/FatFile.cpp",
+     "c1757a57ea134df2aab650d2db109b7d731f66cf309e5a070a9b50667c258948",
+     "9606171df761f10f3b9540091b8ecfc91c03dcd7bdb11891a8fa8da94673b2e1"),
     ("0001-invalidate-failed-cache-fill.patch", "src/common/FsCache.cpp",
      "ba4f99dd660c7c6a747b20abcf11354379aa689115d1ee1ad1cf9577706a67bb",
      "f46a551f97c674ab00c9c25385af7c370a776725f17e14502fcc357858f583da"),
@@ -64,7 +67,8 @@ def apply_patches(project_dir, dependency_dir):
     # Archive dependencies must not discover the enclosing application Git repo.
     process_env = {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG") if key in os.environ}
     process_env.update(GIT_CEILING_DIRECTORIES=str(dependency.parent),
-                       GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+                       GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+                       GIT_OPTIONAL_LOCKS="0")
     pending = []
     for name, relative, upstream, patched in PATCHES:
         target = dependency / relative
