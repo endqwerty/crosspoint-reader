@@ -1,6 +1,7 @@
 #include <Epub/Page.h>
 #include <GfxRenderer.h>
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include <filesystem>
 #include <memory>
@@ -44,7 +45,18 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
                                nullptr,
                                &cssParser};
 
-  void SetUp() override { parser.currentTextBlock = std::make_unique<ParsedText>(); }
+  void SetUp() override {
+    filepath = (std::filesystem::temp_directory_path() / "crosspoint-parser-unit-XXXXXX").string();
+    const int descriptor = mkstemp(filepath.data());
+    ASSERT_NE(descriptor, -1);
+    close(descriptor);
+    parser.currentTextBlock = std::make_unique<ParsedText>();
+  }
+  void TearDown() override {
+    parser.abortParse();
+    std::error_code error;
+    std::filesystem::remove(filepath, error);
+  }
 };
 
 TEST_F(ChapterHtmlSlimParserTest, RubySurvivesPartialParagraphExtraction) {
@@ -59,6 +71,7 @@ TEST_F(ChapterHtmlSlimParserTest, RubySurvivesPartialParagraphExtraction) {
       [&](std::unique_ptr<TextBlock> line, auto) {
         ++lines;
         EXPECT_TRUE(line->getRubyTexts().empty());
+        return true;
       },
       false);
   EXPECT_EQ(lines, 1u);
@@ -67,11 +80,44 @@ TEST_F(ChapterHtmlSlimParserTest, RubySurvivesPartialParagraphExtraction) {
   ASSERT_LT(retainedWords, 3u);
   text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, auto) {
     ++lines;
-    ASSERT_EQ(line->getRubyTexts().size(), retainedWords);
+    EXPECT_EQ(line->getRubyTexts().size(), retainedWords);
+    if (line->getRubyTexts().size() != retainedWords) return false;
     EXPECT_EQ(line->getRubyTexts().back(), "c");
     for (size_t i = 0; i + 1 < retainedWords; ++i) EXPECT_TRUE(line->getRubyTexts()[i].empty());
+    return true;
   });
   EXPECT_EQ(lines, 2u);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, SoftFlushKeepsIndentAndVerticalSpacingAtParagraphBoundaries) {
+  BlockStyle style;
+  style.alignment = CssTextAlign::Left;
+  style.textIndentDefined = true;
+  style.marginTop = 11;
+  style.paddingTop = 7;
+  style.marginBottom = 9;
+  style.paddingBottom = 3;
+  parser.viewportWidth = 100;
+  parser.viewportHeight = 800;
+  parser.currentTextBlock = std::make_unique<ParsedText>(false, false, style, 3);
+  for (int i = 0; i < 30; ++i) parser.currentTextBlock->addWord("word", EpdFontFamily::REGULAR);
+  ASSERT_TRUE(parser.makePages(false));
+  ASSERT_GT(parser.wordsExtractedInBlock, 0u);
+  ASSERT_FALSE(parser.currentTextBlock->isEmpty());
+  ASSERT_TRUE(parser.makePages(true));
+  ASSERT_TRUE(parser.currentPage);
+  size_t words = 0;
+  int y = style.topInset();
+  for (const auto& element : parser.currentPage->elements) {
+    ASSERT_EQ(element->getTag(), TAG_PageLine);
+    const auto& block = *static_cast<const PageLine&>(*element).getBlock();
+    EXPECT_EQ(element->yPos, y);
+    EXPECT_EQ(block.wordXpos(0), words == 0 ? 12 : 0);
+    words += block.wordCount();
+    y += renderer.getLineHeight(0, 1.0f);
+  }
+  EXPECT_EQ(words, 30u);
+  EXPECT_EQ(parser.currentPageNextY, y + style.bottomInset());
 }
 
 TEST_F(ChapterHtmlSlimParserTest, UnequalTableCellsAndRubySurvivePageBreaks) {
@@ -158,7 +204,7 @@ INSTANTIATE_TEST_SUITE_P(CssVerticalAlign, ChapterHtmlSlimParserTest,
 TEST_F(ChapterHtmlSlimParserTest, ParagraphWithHiddenAttributeShouldBeSkipped) {
   const XML_Char* attributes[] = {"hidden", "hidden", nullptr};
 
-  parser.beginParse();
+  ASSERT_TRUE(parser.beginParse());
   ChapterHtmlSlimParser::startElement(&parser, "p", attributes);
   ChapterHtmlSlimParser::characterData(&parser, "[HIDDEN]", 8);
 
@@ -168,7 +214,7 @@ TEST_F(ChapterHtmlSlimParserTest, ParagraphWithHiddenAttributeShouldBeSkipped) {
 TEST_F(ChapterHtmlSlimParserTest, HeaderWithHiddenAttributeShouldBeSkipped) {
   const XML_Char* attributes[] = {"hidden", "hidden", nullptr};
 
-  parser.beginParse();
+  ASSERT_TRUE(parser.beginParse());
   ChapterHtmlSlimParser::startElement(&parser, "h1", attributes);
   ChapterHtmlSlimParser::characterData(&parser, "[HIDDEN]", 8);
 
@@ -178,7 +224,7 @@ TEST_F(ChapterHtmlSlimParserTest, HeaderWithHiddenAttributeShouldBeSkipped) {
 TEST_F(ChapterHtmlSlimParserTest, SpanWithHiddenAttributeShouldBeSkipped) {
   const XML_Char* attributes[] = {"hidden", "hidden", nullptr};
 
-  parser.beginParse();
+  ASSERT_TRUE(parser.beginParse());
   ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
   ChapterHtmlSlimParser::characterData(&parser, "Before ", 7);
   ChapterHtmlSlimParser::startElement(&parser, "span", attributes);
@@ -194,7 +240,7 @@ TEST_F(ChapterHtmlSlimParserTest, SpanWithHiddenAttributeShouldBeSkipped) {
 TEST_F(ChapterHtmlSlimParserTest, DivWithHiddenAttributeContentShouldBeSkipped) {
   const XML_Char* attributes[] = {"hidden", "hidden", nullptr};
 
-  parser.beginParse();
+  ASSERT_TRUE(parser.beginParse());
   ChapterHtmlSlimParser::startElement(&parser, "div", attributes);
   ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
   ChapterHtmlSlimParser::characterData(&parser, "[HIDDEN]", 8);
@@ -213,6 +259,28 @@ TEST_F(ChapterHtmlSlimParserTest, PassesIndentSettingsToNewTextBlock) {
   }
 }
 
+TEST_F(ChapterHtmlSlimParserTest, HiddenListTextCountsOffsetsButGeneratedMarkersDoNot) {
+  const XML_Char* hidden[] = {"hidden", "hidden", nullptr};
+  ASSERT_TRUE(parser.beginParse());
+  ChapterHtmlSlimParser::startElement(&parser, "body", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "ol", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  EXPECT_EQ(parser.visibleTextOffset, 0u);
+  ChapterHtmlSlimParser::characterData(&parser, "alpha", 5);
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  ChapterHtmlSlimParser::startElement(&parser, "li", hidden);
+  ChapterHtmlSlimParser::characterData(&parser, "concealed", 9);
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  EXPECT_EQ(parser.visibleTextOffset, 14u);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  EXPECT_EQ(parser.visibleTextOffset, 14u);
+  ChapterHtmlSlimParser::characterData(&parser, "needle ", 7);
+  ASSERT_EQ(parser.currentTextBlock->size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->wordAt(0), "2.");
+  EXPECT_EQ(parser.currentTextBlock->wordAt(1), "needle");
+  EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(1), 14u);
+}
+
 }  // namespace
 
 TEST(ParagraphIndentation, OverridesNonnegativeCssAndPreservesHangingIndent) {
@@ -229,6 +297,7 @@ TEST(ParagraphIndentation, OverridesNonnegativeCssAndPreservesHangingIndent) {
       text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, auto) {
         sawLine = true;
         EXPECT_EQ(line->wordXpos(0), cssIndent < 0 ? cssIndent : 4 * spaces);
+        return true;
       });
       EXPECT_TRUE(sawLine);
     }
@@ -238,8 +307,10 @@ TEST(ParagraphIndentation, OverridesNonnegativeCssAndPreservesHangingIndent) {
     style.alignment = CssTextAlign::Left;
     ParsedText text(false, false, style, spaces);
     text.addWord("word", EpdFontFamily::REGULAR);
-    text.layoutAndExtractLines(
-        renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, auto) { EXPECT_EQ(line->wordXpos(0), 4 * spaces); });
+    text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, auto) {
+      EXPECT_EQ(line->wordXpos(0), 4 * spaces);
+      return true;
+    });
   }
 }
 
@@ -258,6 +329,7 @@ TEST(ParagraphIndentation, PreservesAlignmentEligibilityAndScaledSpaceRounding) 
           EXPECT_EQ(line->wordXpos(0), 4 * spaces);
         else
           EXPECT_EQ(line->wordXpos(0), 84);
+        return true;
       });
     }
   }
@@ -266,7 +338,12 @@ TEST(ParagraphIndentation, PreservesAlignmentEligibilityAndScaledSpaceRounding) 
   ParsedText text(false, false, style, 2);
   text.addWord("word", EpdFontFamily::REGULAR);
   text.layoutAndExtractLines(
-      renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, auto) { EXPECT_EQ(line->wordXpos(0), 6); }, true, 0, 75);
+      renderer, 0, 200,
+      [&](std::unique_ptr<TextBlock> line, auto) {
+        EXPECT_EQ(line->wordXpos(0), 6);
+        return true;
+      },
+      true, 0, 75);
 }
 
 TEST(ParagraphIndentation, ReducesOnlyFirstLineAvailableWidth) {
@@ -278,7 +355,10 @@ TEST(ParagraphIndentation, ReducesOnlyFirstLineAvailableWidth) {
     text.addWord("ab", EpdFontFamily::REGULAR);
     text.addWord("cd", EpdFontFamily::REGULAR);
     unsigned lines = 0;
-    text.layoutAndExtractLines(renderer, 0, 40, [&](std::unique_ptr<TextBlock>, auto) { ++lines; });
+    text.layoutAndExtractLines(renderer, 0, 40, [&](std::unique_ptr<TextBlock>, auto) {
+      ++lines;
+      return true;
+    });
     EXPECT_EQ(lines, spaces == 1 ? 1u : 2u);
   }
 }
@@ -314,18 +394,20 @@ TEST(TextSpacingLayout, TrackingSeparatesCjkTokensAndScalesWordSpaces) {
     text.addWord("一二三", EpdFontFamily::REGULAR);
     text.addWord("四五", EpdFontFamily::REGULAR);
     unsigned lines = 0;
-    text.layoutAndExtractLines(
+    ASSERT_TRUE(text.layoutAndExtractLines(
         renderer, 0, 200,
         [&](std::unique_ptr<TextBlock> line, auto) {
           ++lines;
-          ASSERT_EQ(line->wordCount(), 5);
+          EXPECT_EQ(line->wordCount(), 5);
+          if (line->wordCount() != 5) return false;
           EXPECT_EQ(line->wordXpos(0), 0);
           EXPECT_EQ(line->wordXpos(1), 7);  // 8 px glyph, -1 px tracking
           EXPECT_EQ(line->wordXpos(2), 14);
           EXPECT_EQ(line->wordXpos(3), 28);  // 8 px glyph plus 150% of a 4 px space, no tracking
           EXPECT_EQ(line->wordXpos(4), 35);
+          return true;
         },
-        true, -1, 150);
+        true, -1, 150));
     EXPECT_EQ(lines, 1u);
   }
   EXPECT_EQ(renderer.getTextAdvanceX(0, "ab", EpdFontFamily::REGULAR), 16);
@@ -342,50 +424,65 @@ TEST(TextSpacingLayout, WordSpacingChangesWrapThreshold) {
     text.addWord("ab", EpdFontFamily::REGULAR);
     text.addWord("cd", EpdFontFamily::REGULAR);
     unsigned lines = 0;
-    text.layoutAndExtractLines(renderer, 0, 36, [&](std::unique_ptr<TextBlock>, auto) { ++lines; }, true, 0, percent);
+    ASSERT_TRUE(text.layoutAndExtractLines(
+        renderer, 0, 36,
+        [&](std::unique_ptr<TextBlock>, auto) {
+          ++lines;
+          return true;
+        },
+        true, 0, percent));
     EXPECT_EQ(lines, percent > 100 ? 2u : 1u);  // 16 + 16 + scaled 4 px space
   }
 }
 
 TEST(TextSpacingLayout, CachedPageRestoresSpacing) {
   GfxRenderer renderer;
+  struct TemporaryCache {
+    std::string filepath;
+    ~TemporaryCache() {
+      std::error_code error;
+      std::filesystem::remove(filepath, error);
+    }
+  } cache{(std::filesystem::temp_directory_path() / "crosspoint-text-spacing-XXXXXX").string()};
+  const int descriptor = mkstemp(cache.filepath.data());
+  ASSERT_NE(descriptor, -1);
+  close(descriptor);
+  const auto& filepath = cache.filepath;
   BlockStyle style;
   style.alignment = CssTextAlign::Left;
   style.textIndentDefined = true;
   ParsedText text(false, false, style);
   text.addWord("一二三", EpdFontFamily::REGULAR);
   text.addWord("四五", EpdFontFamily::REGULAR);
-  const auto path = (std::filesystem::temp_directory_path() / "crosspoint-text-spacing.bin").string();
-  unsigned lines = 0;
-  text.layoutAndExtractLines(
+  Page page;
+  page.elements.reserve(1);
+  ASSERT_TRUE(text.layoutAndExtractLines(
       renderer, 0, 200,
       [&](std::unique_ptr<TextBlock> line, auto) {
-        ++lines;
-        Page page;
         page.elements.push_back(std::make_unique<PageLine>(std::move(line), 4, 12));
-        const auto* original = static_cast<const PageLine&>(*page.elements[0]).getBlock();
-        {
-          HalFile file;
-          ASSERT_TRUE(file.open(path.c_str(), "wb"));
-          ASSERT_TRUE(page.serialize(file));
-        }
-        HalFile file;
-        ASSERT_TRUE(file.open(path.c_str(), "rb"));
-        auto cachedPage = Page::deserialize(file);
-        ASSERT_NE(cachedPage, nullptr);
-        ASSERT_EQ(cachedPage->elements.size(), 1);
-        const auto* cached = static_cast<const PageLine&>(*cachedPage->elements[0]).getBlock();
-        ASSERT_NE(cached, nullptr);
-        EXPECT_EQ(cached->getBlockStyle().characterSpacing, -2);
-        ASSERT_EQ(cached->wordCount(), 5);
-        EXPECT_EQ(cached->wordXpos(3) - cached->wordXpos(2), 10);  // 8 + half-width space
-        EXPECT_EQ(file.position(), file.size());
-        ASSERT_EQ(cached->wordCount(), original->wordCount());
-        for (uint16_t i = 0; i < original->wordCount(); ++i) EXPECT_EQ(cached->wordXpos(i), original->wordXpos(i));
+        return true;
       },
-      true, -2, 50);
-  EXPECT_EQ(lines, 1u);
-  std::filesystem::remove(path);
+      true, -2, 50));
+  ASSERT_EQ(page.elements.size(), 1u);
+  const auto* original = static_cast<const PageLine&>(*page.elements[0]).getBlock();
+  {
+    HalFile file;
+    ASSERT_TRUE(file.open(filepath.c_str(), "wb"));
+    ASSERT_TRUE(page.serialize(file));
+  }
+  HalFile file;
+  ASSERT_TRUE(file.open(filepath.c_str(), "rb"));
+  auto cachedPage = Page::deserialize(file);
+  ASSERT_NE(cachedPage, nullptr);
+  ASSERT_EQ(cachedPage->elements.size(), 1);
+  const auto* cached = static_cast<const PageLine&>(*cachedPage->elements[0]).getBlock();
+  ASSERT_NE(cached, nullptr);
+  EXPECT_EQ(cached->getBlockStyle().characterSpacing, -2);
+  ASSERT_EQ(cached->wordCount(), 5);
+  EXPECT_EQ(cached->wordXpos(3) - cached->wordXpos(2), 10);  // 8 + half-width space
+  EXPECT_EQ(file.position(), file.size());
+  ASSERT_EQ(cached->wordCount(), original->wordCount());
+  for (uint16_t i = 0; i < original->wordCount(); ++i) EXPECT_EQ(cached->wordXpos(i), original->wordXpos(i));
 }
 
 TEST_F(ChapterHtmlSlimParserTest, ParserAppliesTextSpacingToParagraphs) {
@@ -425,6 +522,7 @@ TEST(KoreanLayout, HangulWordsStayWholeAndWrapAtSpaces) {
     text.layoutAndExtractLines(renderer, 0, 60, [&](std::unique_ptr<TextBlock> line, auto) {
       auto& words = lines.emplace_back();
       for (uint16_t i = 0; i < line->wordCount(); ++i) words.emplace_back(line->wordText(i));
+      return true;
     });
     // 가나다 라마 is 24 + 4 + 16 px; adding 3개를 would need 72 px, and no break exists inside it.
     const std::vector<std::vector<std::string>> expected{{"가나다", "라마"}, {"3개를"}, {"iPhone을"}};
@@ -441,12 +539,14 @@ TEST(KoreanLayout, JustifiedHangulStretchesOnlyWordSpaces) {
   for (const char* word : {"가나", "다라", "마바", "사아"}) text.addWord(word, EpdFontFamily::REGULAR);
   unsigned lines = 0;
   text.layoutAndExtractLines(renderer, 0, 60, [&](std::unique_ptr<TextBlock> line, auto) {
-    if (lines++ != 0) return;
+    if (lines++ != 0) return true;
     // 3 x 16 px words + 2 x 4 px spaces leave 4 px, split across the two spaces only.
-    ASSERT_EQ(line->wordCount(), 3);
+    EXPECT_EQ(line->wordCount(), 3);
+    if (line->wordCount() != 3) return false;
     EXPECT_EQ(line->wordXpos(0), 0);
     EXPECT_EQ(line->wordXpos(1), 22);
     EXPECT_EQ(line->wordXpos(2), 44);
+    return true;
   });
   EXPECT_EQ(lines, 2u);
 }
@@ -464,6 +564,7 @@ TEST(KoreanLayout, HangulGluedAcrossInlineStyleIsUnbreakable) {
   text.layoutAndExtractLines(renderer, 0, 40, [&](std::unique_ptr<TextBlock> line, auto) {
     auto& words = lines.emplace_back();
     for (uint16_t i = 0; i < line->wordCount(); ++i) words.emplace_back(line->wordText(i));
+    return true;
   });
   // 가나 한국 fits in 36 px, but 어 is glued to 한국, so the whole word moves down.
   const std::vector<std::vector<std::string>> expected{{"가나"}, {"한국", "어"}};
