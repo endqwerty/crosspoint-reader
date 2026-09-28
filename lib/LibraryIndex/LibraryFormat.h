@@ -38,8 +38,11 @@ inline constexpr char CLIX_MAGIC[4] = {'C', 'L', 'X', '1'};
 //    reference, all in sections of their own — the record is exactly full at 128
 //    bytes and widening it would cost the properties that stride buys.
 // 4: persist the full normalized series-name digest before display truncation.
-// Versions 2 and 3 are accepted only for arrival-history reconciliation.
-inline constexpr uint8_t CLIX_FORMAT_VERSION = 4;
+// 5: title order folds the book's title sort, and the name blob gains the chosen
+//    and source author sorts and the book UUID.
+// Versions 2 to 4 are accepted only for arrival-history reconciliation.
+inline constexpr uint8_t CLIX_FORMAT_VERSION = 5;
+inline constexpr size_t CLIX_UUID_BYTES = 16;
 
 // Bump when folding or sort ordering changes. Forces fold and ranks to be
 // rebuilt while firstSeen values are preserved, so "recently added" survives.
@@ -230,7 +233,7 @@ inline ClixValidity validateHeaderStructure(const ClixHeader& h, const uint64_t 
     if (h.magic[i] != CLIX_MAGIC[i]) return ClixValidity::BadMagic;
   }
   if (h.formatVersion != CLIX_FORMAT_VERSION &&
-      !(acceptPreviousFormat && (h.formatVersion == 2 || h.formatVersion == 3)))
+      !(acceptPreviousFormat && h.formatVersion >= 2 && h.formatVersion < CLIX_FORMAT_VERSION))
     return ClixValidity::UnknownFormatVersion;
   if (h.bookCount > CLIX_MAX_RECORDS) return ClixValidity::CountOutOfRange;
   if (h.metadataEnabled > 1) return ClixValidity::SectionsInconsistent;
