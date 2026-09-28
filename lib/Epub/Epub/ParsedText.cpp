@@ -752,13 +752,17 @@ int ParsedText::resolveFirstLineIndent(const bool isFirstLine, const GfxRenderer
   return scaleSpace(renderer.getSpaceWidth(fontId, EpdFontFamily::REGULAR), wordSpacingPercent) * paragraphIndentSpaces;
 }
 // Consumes data to minimize memory usage
-void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
-                                       const std::function<void(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
+bool ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
+                                       const std::function<bool(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
                                        const bool includeLastLine, const int8_t characterSpacing,
                                        const uint8_t wordSpacingPercent, const size_t maxLines,
                                        const bool* stopRequested) {
+  if (droppedWords) {
+    LOG_ERR("PTX", "Cannot lay out incomplete word storage");
+    return false;
+  }
   if (words.empty() || maxLines == 0 || (stopRequested && *stopRequested)) {
-    return;
+    return true;
   }
   // Stamped here rather than at construction: the parser replaces blockStyle as CSS resolves.
   blockStyle.characterSpacing = characterSpacing;
@@ -841,15 +845,22 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   } else {
     lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, wordWidths, wordContinues, wordNoSpaceBefore);
   }
+  if (droppedWords) {
+    LOG_ERR("PTX", "Word storage failed during line breaking");
+    return false;
+  }
   const bool allLinesComputed = lineBreakIndices.back() == words.size();
   const size_t lineCount = lineBreakIndices.size() - (!includeLastLine && allLinesComputed ? 1 : 0);
 
   const bool endIsKnown = includeLastLine && allLinesComputed;
   for (size_t i = 0; i < lineCount; ++i) {
-    if (stopRequested && *stopRequested) return;
+    if (stopRequested && *stopRequested) return true;
     linesAfterCurrent = endIsKnown ? static_cast<int>(lineCount - 1 - i) : -1;
-    extractLine(i, pageWidth, wordWidths, wordContinues, wordNoSpaceBefore, lineBreakIndices, processLine, renderer,
-                fontId);
+    if (!extractLine(i, pageWidth, wordWidths, wordContinues, wordNoSpaceBefore, lineBreakIndices, processLine,
+                     renderer, fontId)) {
+      linesAfterCurrent = -1;
+      return false;
+    }
   }
   linesAfterCurrent = -1;
 
@@ -875,6 +886,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
       rubyTexts.erase(rubyTexts.begin(), rubyTexts.begin() + rtConsumed);
     }
   }
+  return true;
 }
 
 static inline bool isCjkIdeograph(uint32_t cp) {
@@ -1448,10 +1460,10 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   return true;
 }
 
-void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const std::vector<uint16_t>& wordWidths,
+bool ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const std::vector<uint16_t>& wordWidths,
                              const std::vector<bool>& continuesVec, const std::vector<bool>& noSpaceBeforeVec,
                              const std::vector<size_t>& lineBreakIndices,
-                             const std::function<void(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
+                             const std::function<bool(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
                              const GfxRenderer& renderer, const int fontId) {
   const size_t lineBreak = lineBreakIndices[breakIndex];
   size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
@@ -1870,15 +1882,11 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
                                               std::vector<uint16_t>{}, blockStyle, std::move(lineRubyTexts),
                                               std::move(lineLinks), sourceRanges, paragraphStartWord);
     if (!block || !block->valid() || !attachWordFonts(*block)) {
-      LOG_ERR("PTX", "Dropping line: TextBlock or arena allocation failed");
-      // Latch through the same flag as addWord() OOM: the caller releases the
-      // consumed words right after this returns, so without it the section
-      // would commit with this line silently missing.
+      LOG_ERR("PTX", "Line construction failed: TextBlock, arena or word font allocation");
       droppedWords = true;
-      return;
+      return false;
     }
-    processLine(std::move(block), lineVisibleOffset);
-    return;
+    return processLine(std::move(block), lineVisibleOffset);
   }
 
   // Each word is one TextBlock entry carrying its own boundary; all that remains is the suffix x
@@ -1902,9 +1910,9 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
       makeUniqueNoThrow<TextBlock>(lineWords, lineXPos, lineWordStyles, outBoundaries, outSuffixX, blockStyle,
                                    std::move(lineRubyTexts), std::move(lineLinks), sourceRanges, paragraphStartWord);
   if (!block || !block->valid() || !attachWordFonts(*block)) {
-    LOG_ERR("PTX", "Dropping line: TextBlock or arena allocation failed");
-    droppedWords = true;  // see the non-focus branch above
-    return;
+    LOG_ERR("PTX", "Line construction failed: TextBlock, arena or word font allocation");
+    droppedWords = true;
+    return false;
   }
-  processLine(std::move(block), lineVisibleOffset);
+  return processLine(std::move(block), lineVisibleOffset);
 }

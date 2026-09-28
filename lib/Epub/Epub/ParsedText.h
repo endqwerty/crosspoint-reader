@@ -129,10 +129,10 @@ class ParsedText {
                                                   std::vector<bool>& noSpaceBeforeVec, size_t maxLines);
   bool hyphenateWordAtIndex(size_t wordIndex, int availableWidth, const GfxRenderer& renderer, int fontId,
                             std::vector<uint16_t>& wordWidths, bool allowFallbackBreaks);
-  void extractLine(size_t breakIndex, int pageWidth, const std::vector<uint16_t>& wordWidths,
+  bool extractLine(size_t breakIndex, int pageWidth, const std::vector<uint16_t>& wordWidths,
                    const std::vector<bool>& continuesVec, const std::vector<bool>& noSpaceBeforeVec,
                    const std::vector<size_t>& lineBreakIndices,
-                   const std::function<void(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
+                   const std::function<bool(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
                    const GfxRenderer& renderer, int fontId);
   std::vector<uint16_t> calculateWordWidths(const GfxRenderer& renderer, int fontId);
 
@@ -168,8 +168,7 @@ class ParsedText {
   BlockStyle& getBlockStyle() { return blockStyle; }
   size_t size() const { return words.size(); }
   bool isEmpty() const { return words.empty(); }
-  // True once any word was dropped because the text arena could not allocate.
-  // Callers must treat the block as incomplete and fail the section build.
+  // True once word or line storage could not allocate.
   bool hadDroppedWords() const { return droppedWords; }
   // While a line is being handed to layoutAndExtractLines' callback: how many lines of the
   // paragraph follow it, or -1 when the rest of the paragraph is not laid out yet.
@@ -179,9 +178,10 @@ class ParsedText {
   uint8_t sizeSlotsInUse() const { return sizeSlotCount; }
   float sizeSlotScale(uint8_t slot) const { return sizeSlotScales[slot]; }
   void setSizeSlotFontId(uint8_t slot, int32_t fontId) { sizeSlotFontIds[slot] = fontId; }
-  // A set stop flag abandons extraction; the caller must discard this block.
-  void layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
-                             const std::function<void(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
+  // A set stop flag abandons extraction and returns true; the caller must discard this block.
+  // False means a line allocation or consumer failed; discard this paragraph and restart the chapter.
+  bool layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
+                             const std::function<bool(std::unique_ptr<TextBlock>, uint32_t)>& processLine,
                              bool includeLastLine = true, int8_t characterSpacing = 0, uint8_t wordSpacingPercent = 100,
                              size_t maxLines = SIZE_MAX, const bool* stopRequested = nullptr);
 };
