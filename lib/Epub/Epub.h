@@ -23,6 +23,18 @@ class Epub {
     std::optional<float> seriesIndex;
   };
 
+  // What the Library index reads from a package document. The reader's book
+  // cache holds none of the extra fields, so this always reads the package.
+  struct LibraryMetadata {
+    std::string title;
+    std::string author;
+    std::string series;
+    std::string seriesIndexText;
+    std::string titleSort;
+    std::string authorSort;
+    std::string uuid;  // canonical lowercase, or empty
+  };
+
  private:
   // the ncx file (EPUB 2)
   std::string tocNcxItem;
@@ -48,8 +60,7 @@ class Epub {
 
   bool findContentOpfFile(std::string* contentOpfFile, ZipFile* sharedZip = nullptr) const;
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, bool writeSpineEntries = true,
-                       bool metadataOnly = false, ZipFile* sharedZip = nullptr, std::string* seriesOut = nullptr,
-                       std::string* seriesIndexTextOut = nullptr);
+                       bool metadataOnly = false, ZipFile* sharedZip = nullptr, LibraryMetadata* libraryOut = nullptr);
   bool generateThumbBmpForCover(int height, const std::string& coverImageHref) const;
   bool openProtection();
   bool parseTocNcxFile() const;
@@ -64,10 +75,7 @@ class Epub {
   bool load(bool buildIfMissing = true, bool skipLoadingCss = false);
   bool loadMetadata(std::string& title, std::string& author);
   bool loadSyncMetadata(SyncMetadata& metadata);
-  // Series-aware form. The reader's book cache holds no series, so this one
-  // always reads the package document rather than accepting a cached answer
-  // that could only ever say "no series".
-  bool loadMetadata(std::string& title, std::string& author, std::string& series, std::string& seriesIndexText);
+  bool loadMetadata(LibraryMetadata& out);
   bool clearCache() const;
   void setupCacheDir() const;
   const std::string& getCachePath() const;
