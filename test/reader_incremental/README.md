@@ -1,0 +1,7 @@
+This target compiles the production EPUB reader's section initialization, pending navigation, incremental build orchestration, page loading, and progress commit path. A deterministic section double supplies complete/partial caches, parser progress, and failures; the production control flow decides when to run it.
+
+The tests compare Go to % and last-page navigation with ordinary page opening. A synthetic 8,000-page chapter with a 4,000-page partial watermark must take 4,000 two-page ticks, with zero foreground pagination and no progress saves before the resolved page commits. Other cases cover heap thresholds, render-lock exclusion, empty chapters, cancellation, cached offset precedence, and allocation/start/background/panel failures.
+
+These tests establish a bound on requested pagination work per background tick. They do not measure wall time, HTML inflation at startBuild(), SD throughput, actual heap headroom, or the display waveform; those remain device-dependent. Section's real parser and persistence are exercised by their separate integration targets.
+
+The real `SectionParserIntegration` pacing tests confirm that a partial-cache watermark does not force a full rebuild in one tick. They also record overshoot from layout batches: a two-page request produced up to three pages at 480x800 and seven at 480x160 for the synthetic long paragraph. The requested budget is not a strict upper bound on emitted pages or wall time.
