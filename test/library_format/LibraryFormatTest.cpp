@@ -30,7 +30,7 @@ TEST(LibraryFormat, StructSizesAreFrozen) {
   EXPECT_EQ(sizeof(ClixHeader), 64u);
   EXPECT_EQ(sizeof(ClixRecord), 128u);
   EXPECT_EQ(sizeof(ClixFolderHeader), 1u);
-  EXPECT_EQ(CLIX_FORMAT_VERSION, 4u);
+  EXPECT_EQ(CLIX_FORMAT_VERSION, 5u);
 }
 
 TEST(LibraryFormat, RecordsTileSectorsExactly) {
@@ -153,6 +153,12 @@ TEST(LibraryFormatValidation, RejectsUnknownVersionsSeparately) {
 
   // Reconciliation may ignore only the fold version, never damaged layout.
   EXPECT_EQ(validateHeaderStructure(h, h.selfSize - 1), ClixValidity::SizeMismatch);
+
+  // The previous format still carries arrival history, but only reconciliation reads it.
+  h = makeHeader(60, 116);
+  h.formatVersion = CLIX_FORMAT_VERSION - 1;
+  EXPECT_EQ(validateHeaderStructure(h, h.selfSize), ClixValidity::UnknownFormatVersion);
+  EXPECT_EQ(validateHeaderStructure(h, h.selfSize, true), ClixValidity::Ok);
 }
 
 TEST(LibraryFormatValidation, RejectsLengthsBeyondTheFile) {
