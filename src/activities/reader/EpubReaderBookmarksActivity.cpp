@@ -33,7 +33,9 @@ void EpubReaderBookmarksActivity::onEnter() {
     return;
   }
 
-  BookmarkFile::load(epubPath, bookmarks);  // clears `bookmarks` first; a missing file leaves it empty
+  bool exists = false;
+  loadFailed = !BookmarkFile::load(epubPath, bookmarks, nullptr, &exists) && exists;
+  if (loadFailed) LOG_ERR("EPB", "Could not load bookmarks");
   LOG_DBG("EPB", "Loaded %d bookmarks for book: %s", static_cast<int>(bookmarks.size()), epubPath.c_str());
   rebuildBookmarkRowItems();
 }
@@ -71,7 +73,7 @@ void EpubReaderBookmarksActivity::rebuildBookmarkRowItems() {
 }
 
 void EpubReaderBookmarksActivity::openSelectedBookmark() {
-  if (bookmarks.empty()) {
+  if (!epub || nav.selected < 0 || nav.selected >= listCount()) {
     return;
   }
   const auto& bookmark = bookmarks.at(nav.selected);
@@ -162,6 +164,7 @@ void EpubReaderBookmarksActivity::startRename() {
     return;
   }
   startActivityForResult(std::move(keyboard), [this, renameIndex](const ActivityResult& result) {
+    RenderLock lock;
     if (result.isCancelled || renameIndex < 0 || renameIndex >= listCount()) {
       return;
     }
@@ -176,6 +179,7 @@ void EpubReaderBookmarksActivity::startRename() {
       bookmarks[renameIndex].name = std::move(previousName);
       bookmarks[renameIndex].synced = previousSynced;
       rebuildBookmarkRowItems();
+      GUI.drawPopup(renderer, tr(STR_BOOKMARK_SAVE_FAILED));
     }
     requestUpdate();
   });
@@ -222,14 +226,19 @@ void EpubReaderBookmarksActivity::swipeDelete(const int index) {
 #endif
 
 void EpubReaderBookmarksActivity::deleteSelectedBookmark() {
-  bookmarks.erase(bookmarks.begin() + nav.selected);
-  // Deleting shifts every later bookmark's index, so the cached subtitles and
-  // actionValues must be re-derived, not just trimmed — and before the SD
-  // save, so the render task never sees rows aliasing the erased storage.
-  rebuildBookmarkRowItems();
-  if (!BookmarkFile::save(epubPath, bookmarks)) {
+  RenderLock lock;
+  if (nav.selected < 0 || nav.selected >= listCount()) return;
+  const auto exclude = [](const BookmarkEntry& bookmark, const void* context) { return &bookmark == context; };
+  if (!BookmarkFile::save(epubPath, bookmarks, {nullptr, exclude, &bookmarks[nav.selected]})) {
     LOG_ERR("EPB", "Failed to save bookmarks after delete");
+    GUI.drawPopup(renderer, tr(STR_BOOKMARK_SAVE_FAILED));
+    requestUpdate();
+    return;
   }
+  closeRouting();
+  bookmarks.erase(bookmarks.begin() + nav.selected);
+  // Deleting shifts every later bookmark's index and invalidates its row text.
+  rebuildBookmarkRowItems();
 
   // Move selector up if we deleted the last item
   if (nav.selected >= static_cast<int>(bookmarks.size()) && nav.selected > 0) {
@@ -259,7 +268,7 @@ void EpubReaderBookmarksActivity::buildScreen(UiScreen& screen) {
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 
   if (bookmarks.empty()) {
-    screen.centeredText(tr(STR_NO_BOOKMARKS), screen.theme().bodyText);
+    screen.centeredText(loadFailed ? tr(STR_BOOKMARK_LOAD_FAILED) : tr(STR_NO_BOOKMARKS), screen.theme().bodyText);
     return;
   }
 
