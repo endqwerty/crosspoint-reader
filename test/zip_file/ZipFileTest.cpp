@@ -261,9 +261,10 @@ TEST_F(ZipFileTest, AlternatingLookupsWrapAroundTheDirectoryCursor) {
   EXPECT_EQ(sizeOf(zip, "four"), 4u);
   HalFile::readOffsets.clear();
   EXPECT_EQ(sizeOf(zip, "one"), 1u);
-  // The scan resumed after "four", hit the end record, and only then wrapped.
+  // The scan resumed after "four", the last entry, so its entry count sent it
+  // straight back to the directory start without probing the end record.
   ASSERT_FALSE(HalFile::readOffsets.empty());
-  EXPECT_EQ(HalFile::readOffsets.front(), endOfDirectoryOffset);
+  EXPECT_EQ(HalFile::readOffsets.front(), centralDirOffset);
   EXPECT_EQ(sizeOf(zip, "three"), 3u);
   EXPECT_EQ(sizeOf(zip, "two"), 2u);
   EXPECT_EQ(sizeOf(zip, "four"), 4u);
