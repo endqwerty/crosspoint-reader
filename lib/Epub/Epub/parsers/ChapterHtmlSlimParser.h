@@ -240,12 +240,15 @@ class ChapterHtmlSlimParser {
   XML_Parser xmlParser_ = nullptr;
   HalFile parseFile_;
   uint32_t parseStartTime_ = 0;
+  enum class ParsePhase : uint8_t { New, Parsing, Done, Finished, Failed, Aborted };
+  ParsePhase parsePhase = ParsePhase::New;
 
   void updateEffectiveInlineStyle();
-  void startNewTextBlock(const BlockStyle& blockStyle, bool paragraphEnd = true);
+  bool startNewTextBlock(const BlockStyle& blockStyle, bool paragraphEnd = true);
+  bool startNewPage();
   void flushPendingAnchor();
-  void completeCurrentPage();
-  void emitCurrentPage();
+  bool completeCurrentPage();  // emit, then start the next page
+  bool emitCurrentPage();
   void noteContent(int top, int bottom);
   int lastLineGlyphBottom() const;
   void openBoxScope(BlockStyle& ownStyle, const CssStyle& cssStyle);
@@ -254,9 +257,9 @@ class ChapterHtmlSlimParser {
   void armFirstLetterDropCap(const char* tagName, const std::string& classAttr, const char* idAttr);
   bool captureDropCapCodepoint(const char* bytes, int length);
   void cancelDropCapToWord();
-  void layoutCurrentBlock(bool includeLastLine);
-  void layoutDropCapLines(int layoutFontId, uint16_t effectiveWidth,
-                          const std::function<void(std::unique_ptr<TextBlock>, uint32_t)>& emitLine,
+  bool layoutCurrentBlock(bool includeLastLine);
+  bool layoutDropCapLines(int layoutFontId, uint16_t effectiveWidth,
+                          const std::function<bool(std::unique_ptr<TextBlock>, uint32_t)>& emitLine,
                           bool includeLastLine);
   static uint8_t dropCapLines(const CssStyle& style);
   bool measureTableColumns(HalFile& file, TableColumnMeasure& out) const;
@@ -270,7 +273,7 @@ class ChapterHtmlSlimParser {
   void finishTableRow();
   void addTableRowSeparator();
   void setCurrentPageVisibleOffset(uint32_t offset);
-  void makePages(bool includeLastLine = true, bool paragraphEnd = true);
+  bool makePages(bool includeLastLine = true, bool paragraphEnd = true);
   void applyBlockFontScale(BlockStyle& blockStyle, const CssStyle& cssStyle, const char* tagName) const;
   int fontIdForScale(float scale) const;
   int prepareBlockFont(ParsedText& text, float scale);
@@ -335,14 +338,16 @@ class ChapterHtmlSlimParser {
   // Pages are emitted via completePageFn as they complete during parseStep(), so
   // the caller can stop once enough pages are built and resume on a later tick.
   enum class ParseStatus { More, Done, Error };
-  bool beginParse();
+  bool beginParse();  // Each parser instance owns one parse; retries use a fresh instance.
   ParseStatus parseStep();
-  bool finishParse();  // flush the trailing page and tear down; false on OOM/stop
+  bool finishParse();  // flush after Done; false on any failure, idempotent after success
   void abortParse();   // tear down without flushing (error / abandon)
-  // Safe from completePageFn; cleanup waits until the active callback returns.
+  bool hasError() const noexcept { return parsePhase == ParsePhase::Failed; }
+  void markFailed() noexcept;  // Safe from a page callback; does not free the active XML parser.
+  // Fails the build like markFailed(); safe from completePageFn.
   void requestStop();
 
-  void addLineToPage(std::unique_ptr<TextBlock> line, uint32_t visibleOffset);
+  bool addLineToPage(std::unique_ptr<TextBlock> line, uint32_t visibleOffset);
   const std::deque<std::pair<std::string, uint16_t>>& getAnchors() const { return anchorData; }
 
   // Byte progress of the in-flight parse, used to estimate a still-building section's total page
