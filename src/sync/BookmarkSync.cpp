@@ -175,8 +175,8 @@ bool bookmarkSync::run(SyncRequest& sync, const std::string& bookPath, const std
 
   std::vector<BookmarkEntry> bookmarks;
   BookmarkFile::SyncState state;
-  if (!BookmarkFile::load(bookPath, bookmarks, &state) &&
-      Storage.exists(BookmarkUtil::getBookmarkPath(bookPath).c_str())) {
+  bool exists = false;
+  if (!BookmarkFile::load(bookPath, bookmarks, &state, &exists) && exists) {
     // An unreadable file is not an empty list: saving the server's list over it would drop local bookmarks.
     LOG_ERR("BKS", "Bookmark file unreadable; sync skipped");
     return false;

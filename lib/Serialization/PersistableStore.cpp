@@ -7,27 +7,35 @@
 #include <cstring>
 #include <limits>
 
+#include "AtomicFile.h"
+
 bool PersistableStoreBase::writeDocToFile(const char* path, const JsonDocument& doc) {
-  Storage.mkdir("/.crosspoint");
-  String json;
-  serializeJson(doc, json);
-  // String drops text it cannot allocate; a short result must not replace the file.
-  if (json.length() != measureJson(doc)) {
-    LOG_ERR("PERSIST", "Out of memory writing %s", path);
+  if (doc.overflowed()) {
+    LOG_ERR("PERSIST", "Incomplete JSON for %s", path);
     return false;
   }
-  if (!Storage.writeFile(path, json)) {
+  const size_t expected = measureJson(doc);
+  if (expected > atomic_file::MAX_FILE_BYTES) {
+    LOG_ERR("PERSIST", "Document exceeds %zu bytes: %s", atomic_file::MAX_FILE_BYTES, path);
+    return false;
+  }
+  Storage.mkdir("/.crosspoint");
+  String json;
+  if (serializeJson(doc, json) != expected || json.length() != expected ||
+      !atomic_file::write(path, json.c_str(), json.length())) {
     LOG_ERR("PERSIST", "Failed to write %s", path);
     return false;
   }
   return true;
 }
 
-bool PersistableStoreBase::readDocFromFile(const char* path, JsonDocument& doc) {
-  if (!Storage.exists(path)) {
+bool PersistableStoreBase::readDocFromFile(const char* path, JsonDocument& doc, bool* exists) {
+  bool found = false;
+  String json = atomic_file::read(path, &found);
+  if (exists) *exists = found;
+  if (!found) {
     return false;  // Expected on first boot — not an error.
   }
-  String json = Storage.readFile(path);
   if (json.isEmpty()) {
     LOG_ERR("PERSIST", "Failed to read %s (empty)", path);
     return false;
