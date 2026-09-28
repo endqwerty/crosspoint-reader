@@ -12,6 +12,60 @@ inline bool failNextClose = false;
 constexpr int O_WRITE = 1;
 constexpr int O_CREAT = 2;
 constexpr int O_TRUNC = 4;
+namespace parser_test {
+
+inline thread_local size_t openFileCount = 0;
+
+class ScopedReadFailure {
+ public:
+  explicit ScopedReadFailure(size_t successfulReads = 0, int errorResult = -1)
+      : remaining_(successfulReads), errorResult_(errorResult), previous_(active_) {
+    active_ = this;
+  }
+  ~ScopedReadFailure() { active_ = previous_; }
+  ScopedReadFailure(const ScopedReadFailure&) = delete;
+  ScopedReadFailure& operator=(const ScopedReadFailure&) = delete;
+  size_t failures() const { return failures_; }
+  static int errorResult() { return active_->errorResult_; }
+
+  static bool shouldFail() {
+    if (!active_ || active_->failures_ != 0) return false;
+    if (active_->remaining_ != 0) {
+      --active_->remaining_;
+      return false;
+    }
+    ++active_->failures_;
+    return true;
+  }
+
+ private:
+  size_t remaining_;
+  int errorResult_;
+  size_t failures_ = 0;
+  ScopedReadFailure* previous_;
+  static inline thread_local ScopedReadFailure* active_ = nullptr;
+};
+
+class ScopedWriteFailure {
+ public:
+  ScopedWriteFailure() : previous_(active_) { active_ = this; }
+  ~ScopedWriteFailure() { active_ = previous_; }
+  ScopedWriteFailure(const ScopedWriteFailure&) = delete;
+  ScopedWriteFailure& operator=(const ScopedWriteFailure&) = delete;
+  size_t failures() const { return failures_; }
+  static bool shouldFail() {
+    if (!active_ || active_->failures_) return false;
+    ++active_->failures_;
+    return true;
+  }
+
+ private:
+  size_t failures_ = 0;
+  ScopedWriteFailure* previous_;
+  static inline thread_local ScopedWriteFailure* active_ = nullptr;
+};
+
+}  // namespace parser_test
 
 class HalFile {
  public:
@@ -24,11 +78,18 @@ class HalFile {
   bool open(const char* path, const char* mode) {
     close();
     file_ = std::fopen(path, mode);
+    if (file_) ++parser_test::openFileCount;
     return file_ != nullptr;
   }
   int available() const { return file_ ? static_cast<int>(size() - position()) : 0; }
-  size_t read(void* buffer, size_t count) { return file_ ? std::fread(buffer, 1, count, file_) : 0; }
+  int read(void* buffer, size_t count) {
+    if (!file_) return -1;
+    if (parser_test::ScopedReadFailure::shouldFail()) return parser_test::ScopedReadFailure::errorResult();
+    const auto bytes = std::fread(buffer, 1, count, file_);
+    return std::ferror(file_) ? -1 : static_cast<int>(bytes);
+  }
   size_t write(const void* buffer, size_t count) {
+    if (parser_test::ScopedWriteFailure::shouldFail()) return 0;
     if (HalFileTest::failNextWrite) {
       HalFileTest::failNextWrite = false;
       return 0;
@@ -40,12 +101,13 @@ class HalFile {
   }
   size_t write(uint8_t byte) { return write(&byte, 1); }
   bool flush() { return file_ && std::fflush(file_) == 0; }
-  bool seek(size_t pos) { return file_ && std::fseek(file_, static_cast<long>(pos), SEEK_SET) == 0; }
+  bool seek(size_t offset) { return file_ && std::fseek(file_, static_cast<long>(offset), SEEK_SET) == 0; }
   bool seekCur(size_t offset) { return file_ && std::fseek(file_, static_cast<long>(offset), SEEK_CUR) == 0; }
   bool close() {
     if (!file_) return false;
     const bool ok = std::fclose(file_) == 0;
     file_ = nullptr;
+    --parser_test::openFileCount;
     if (HalFileTest::failNextClose) {
       HalFileTest::failNextClose = false;
       return false;
