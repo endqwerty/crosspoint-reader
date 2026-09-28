@@ -27,6 +27,21 @@ class ContentOpfParser final : public Print {
     IN_GUIDE,
   };
 
+  // Creators with their file-as and role. A refine is applied to its creator or
+  // title directly; only one arriving before its target is staged.
+  static constexpr size_t MAX_CREATORS = 8;
+  static constexpr size_t MAX_PERSON_REFINES = 8;
+  struct StagedCreator {
+    std::string id;
+    std::string fileAs;
+    std::string role;
+  };
+  struct StagedPersonRefine {
+    std::string target;
+    std::string value;
+    bool isRole = false;
+  };
+
   const std::string& cachePath;
   const std::string& baseContentPath;
   size_t remainingSize;
@@ -48,6 +63,17 @@ class ContentOpfParser final : public Print {
   bool authorClamped = false;
   bool languageClamped = false;
 
+  StagedCreator creators[MAX_CREATORS];
+  size_t creatorCount = 0;
+  StagedPersonRefine personRefines[MAX_PERSON_REFINES];
+  size_t personRefineCount = 0;
+  std::string titleId;
+  std::string titleFileAs;
+  std::string calibreTitleSort;
+  // The <dc:identifier> being read, and the best book UUID seen so far.
+  bool identifierIsUuidScheme = false;
+  uint8_t uuidRank = 0;
+
   std::string identifierText;
   std::string identifierScheme;
   std::string metaText;
@@ -65,6 +91,14 @@ class ContentOpfParser final : public Print {
   size_t collectionCount = 0;
   std::string calibreSeries;
   std::optional<float> calibreSeriesIndex;
+
+  // Pick the title and author sort keys from everything staged during <metadata>.
+  void resolveSortKeys();
+  // Keep the identifier just read if it names the book's UUID more reliably.
+  void considerIdentifier();
+  // Apply a file-as or role refine to an already-seen title or creator; false
+  // when its target has not appeared yet.
+  bool applyPersonRefine(const std::string& target, const std::string& value, bool isRole);
 
   // Index for fast idref→href lookup (binary search over .items.bin)
   struct ItemIndexEntry {
@@ -106,6 +140,15 @@ class ContentOpfParser final : public Print {
   std::vector<std::string> cssFiles;  // CSS stylesheet paths
   // Text representation of the selected numeric position for the Library index.
   std::string seriesIndexText;
+
+  // Sort forms curated in Calibre ("Hobbit, The"; "Tolkien, J. R. R."), empty
+  // when the book names none. The author sort is the first creator's, and only
+  // when that creator is an author.
+  std::string titleSort;
+  std::string authorSort;
+  // The book's UUID in canonical lowercase form, or empty. Calibre stores its
+  // library UUID as the uuid-scheme identifier; its "calibre" scheme is not stable.
+  std::string uuid;
 
   explicit ContentOpfParser(const std::string& cachePath, const std::string& baseContentPath, const size_t xmlSize,
                             BookMetadataCache* cache, const bool metadataOnly = false)
