@@ -17,8 +17,9 @@ The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
 `endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
 personal fork and `upstream` for official upstream, and tracks `origin/develop`
 in both repos.
-The user authorized publishing this cleanup and removing obsolete fork/local
-branches. No PR was opened. Further publication requires the user's instruction.
+No PR was opened. Completed work is automatically committed, integrated into
+local `develop` and pushed to personal `origin/develop` under the standing
+authorization in `docs/FORK.md`. Other publication requires explicit approval.
 
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
 base, adapt or drop patches when upstream supersedes them, and use rebase plus
@@ -31,7 +32,8 @@ Local `reader.bundle` and `sdk.bundle` still exist under
 `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`, along
 with `RESTORE.md`. Both local bundles passed `git bundle verify` again on
 2026-09-27 and report complete history. They were not deleted by this session.
-Backup branch refs are removed after verification so only `develop` remains.
+Legacy backup branch refs were removed after verification. Active disposable
+worktrees may have temporary feature branches; no work should remain only there.
 
 The cleanup changes history, repository setup and instructions only. It does not
 change firmware source or the SDK pin. Source equivalence is checked against the
@@ -60,12 +62,14 @@ with checked unbuffered OOM fallback. No cache-format or foreground-reading chan
 Bytes, seeks, writes and warm-open counts are unchanged. These are host fixture
 counts, not measured device speedups. See `docs/cold-index-io-r51.md`.
 
-All 1,599 native Release and LLVM22 ASan/UBSan tests passed, retaining all 1,596
+For the original r51 validation, all 1,599 native Release and LLVM22 ASan/UBSan
+tests passed, retaining all 1,596
 prior test names. All 16 validation gates passed, including X4 Pro compilation,
 SDK runners, scoped static analysis, image inspection and dependency checks.
 Firmware compiler log is warning-free; cppcheck has four low style findings and
 no medium/high findings. Static RAM: 102,320 bytes; linked flash: 5,675,354 bytes.
-The package contains 6,441 tested source files and 100 checksummed artifacts.
+The original r51 package contains 6,441 tested source files and 100 checksummed
+artifacts; the fresh rebuild handoff has six checksummed artifacts.
 Build mirror, scripts and evidence:
 `/Users/danielyang/.local/share/crosspoint-build/epub-r51/`.
 
@@ -76,7 +80,8 @@ TOC lookup. Compare memory and correctness before changing that policy. Broader
 cold-open profiling should include real ZIP/container, CSS and first-page layout;
 the current fixture uses archive/storage doubles. No new feature work is active.
 
-The latest targeted upstream review found no newer reader develop commits. Eight
+The targeted upstream review recorded on 2026-09-27 found no newer reader
+develop commits. Recheck upstream/PR state when starting new work. Eight
 pending PRs were reviewed without import; #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns. Evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md` and the r51 package.
@@ -97,6 +102,12 @@ other branches, PR actions and release publication still require approval.
 Official upstream was fetched on 2026-09-27 and remains `93e98bb`; local develop
 contains that unchanged base with only linear fork patches above it. This handoff
 changes documentation only; no firmware rebuild is needed after integration.
+
+No feature implementation is active. Start the next isolated worktree from
+personal `develop` and follow `docs/FORK.md`'s startup procedure. The current
+worktree has no unique source or required build artifacts once integrated and
+pushed; its deletion does not remove the shared firmware handoff. The roadmap
+below is optional future scope, not unfinished work blocking deletion.
 
 ## Proposed next steps (not started)
 
