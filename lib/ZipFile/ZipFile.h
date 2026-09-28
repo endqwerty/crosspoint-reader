@@ -1,7 +1,7 @@
 #pragma once
 #include <HalStorage.h>
 
-#include <deque>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -17,6 +17,7 @@ class ZipFile {
 
   struct ZipDetails {
     uint32_t centralDirOffset;
+    uint32_t centralDirEnd;
     uint16_t totalEntries;
     bool isSet;
   };
@@ -41,12 +42,23 @@ class ZipFile {
  private:
   const std::string& filePath;
   HalFile file;
-  ZipDetails zipDetails = {0, 0, false};
+  ZipDetails zipDetails = {0, 0, 0, false};
   std::unordered_map<std::string, FileStatSlim> fileStatSlimCache;
 
   // Cursor for sequential central-dir scanning optimization
   uint32_t lastCentralDirPos = 0;
+  uint16_t lastCentralDirIndex = 0;
   bool lastCentralDirPosValid = false;
+
+  static constexpr size_t DIRECTORY_NAME_CAPACITY = 255;
+  struct DirectoryEntry {
+    FileStatSlim stat;
+    uint32_t crc32;
+    uint16_t nameLength;
+  };
+  bool seekDirectory(uint32_t position);
+  // Names are length-delimited; names beyond capacity are skipped without truncation.
+  bool readDirectoryEntry(DirectoryEntry& entry, char (&name)[DIRECTORY_NAME_CAPACITY]);
 
   bool loadFileStatSlim(const char* filename, FileStatSlim* fileStat);
   long getDataOffset(const FileStatSlim& fileStat);
@@ -64,8 +76,9 @@ class ZipFile {
   bool getInflatedFileSize(const char* filename, size_t* size);
   // Batch lookup: scan ZIP central dir once and fill sizes for matching targets.
   // targets must be sorted by (hash, len). sizes[target.index] receives uncompressedSize.
-  // Returns number of targets matched.
-  int fillUncompressedSizes(std::deque<SizeTarget>& targets, std::deque<uint32_t>& sizes);
+  // Returns the number of targets matched, or -1 on I/O/format failure.
+  // On failure, sizes may contain partial results and must not be used.
+  int fillUncompressedSizes(std::span<const SizeTarget> targets, std::span<uint32_t> sizes);
   // Due to the memory required to run each of these, it is recommended to not preopen the zip file for multiple
   // These functions will open and close the zip as needed
   uint8_t* readFileToMemory(const char* filename, size_t* size = nullptr, bool trailingNullByte = false);
@@ -96,49 +109,19 @@ class ZipFile {
       return false;
     }
 
-    if (!loadZipDetails()) {
-      if (!wasOpen) {
-        close();
+    const auto finish = [this, wasOpen](const bool ok) {
+      if (!wasOpen) close();
+      return ok;
+    };
+    if (!loadZipDetails() || !seekDirectory(zipDetails.centralDirOffset)) return finish(false);
+    char itemName[DIRECTORY_NAME_CAPACITY];
+    for (uint32_t i = 0; i < zipDetails.totalEntries; ++i) {
+      DirectoryEntry entry;
+      if (!readDirectoryEntry(entry, itemName)) return finish(false);
+      if (entry.nameLength <= sizeof(itemName)) {
+        callback(std::string_view{itemName, entry.nameLength}, entry.crc32, entry.stat.compressedSize);
       }
-      return false;
     }
-
-    file.seek(zipDetails.centralDirOffset);
-
-    uint32_t sig;
-    char itemName[256];
-
-    while (file.available()) {
-      file.read(&sig, 4);
-      if (sig != 0x02014b50) {
-        break;
-      }
-
-      file.seekCur(12);
-      uint32_t crc32, compressedSize;
-      file.read(&crc32, 4);
-      file.read(&compressedSize, 4);
-      file.seekCur(4);
-      uint16_t nameLen, m, k;
-      file.read(&nameLen, 2);
-      file.read(&m, 2);
-      file.read(&k, 2);
-      file.seekCur(12);
-
-      if (nameLen < sizeof(itemName)) {
-        file.read(itemName, nameLen);
-        itemName[nameLen] = '\0';
-        callback(std::string_view{itemName, nameLen}, crc32, compressedSize);
-      } else {
-        file.seekCur(nameLen);
-      }
-
-      file.seekCur(m + k);
-    }
-
-    if (!wasOpen) {
-      close();
-    }
-    return true;
+    return finish(true);
   }
 };
