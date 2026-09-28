@@ -7,18 +7,28 @@
 
 #include "BookmarkUtil.h"
 
-bool BookmarkFile::load(const std::string& bookPath, std::vector<BookmarkEntry>& bookmarks) {
+bool BookmarkFile::load(const std::string& bookPath, std::vector<BookmarkEntry>& bookmarks, bool* exists) {
   bookmarks.clear();
 
   // Read/write go through PersistableStoreBase so the JSON parser and
   // serializer stay instantiated once, in PersistableStore.cpp.
   const std::string path = BookmarkUtil::getBookmarkPath(bookPath);
   JsonDocument doc;
-  if (!PersistableStoreBase::readDocFromFile(path.c_str(), doc)) {
+  if (!PersistableStoreBase::readDocFromFile(path.c_str(), doc, exists)) {
     return false;
   }
 
   JsonArray arr = doc["bookmarks"].as<JsonArray>();
+  if (arr.isNull()) {
+    LOG_ERR("BKM", "Missing or invalid bookmarks array");
+    return false;
+  }
+  for (JsonVariantConst value : arr) {
+    if (!value.is<JsonObjectConst>()) {
+      LOG_ERR("BKM", "Invalid bookmark entry");
+      return false;
+    }
+  }
   bookmarks.reserve(arr.size());
   for (JsonObject obj : arr) {
     bookmarks.emplace_back();
@@ -43,18 +53,24 @@ bool BookmarkFile::load(const std::string& bookPath, std::vector<BookmarkEntry>&
   return true;
 }
 
-bool BookmarkFile::save(const std::string& bookPath, const std::vector<BookmarkEntry>& bookmarks) {
+bool BookmarkFile::save(const std::string& bookPath, const std::vector<BookmarkEntry>& bookmarks,
+                        const SaveOptions& options) {
   for (const auto& bookmark : bookmarks) {
+    if (options.exclude && options.exclude(bookmark, options.context)) continue;
     if (bookmark.name.size() > BookmarkEntry::MAX_NAME_LENGTH) {
       LOG_ERR("BKM", "Bookmark name exceeds %zu bytes", BookmarkEntry::MAX_NAME_LENGTH);
       return false;
     }
   }
+  if (options.prepend && options.prepend->name.size() > BookmarkEntry::MAX_NAME_LENGTH) {
+    LOG_ERR("BKM", "Bookmark name exceeds %zu bytes", BookmarkEntry::MAX_NAME_LENGTH);
+    return false;
+  }
 
   JsonDocument doc;
   JsonArray arr = doc["bookmarks"].to<JsonArray>();
   LOG_DBG("BKM", "Saving %zu bookmarks to file", bookmarks.size());
-  for (const auto& bookmark : bookmarks) {
+  const auto append = [&arr](const BookmarkEntry& bookmark) {
     JsonObject obj = arr.add<JsonObject>();
     obj["xpath"] = bookmark.xpath;
     obj["percentage"] = bookmark.percentage;
@@ -68,6 +84,10 @@ bool BookmarkFile::save(const std::string& bookPath, const std::vector<BookmarkE
     if (bookmark.hasVisibleTextOffset) {
       obj["vo"] = bookmark.visibleTextOffset;
     }
+  };
+  if (options.prepend) append(*options.prepend);
+  for (const auto& bookmark : bookmarks) {
+    if (!options.exclude || !options.exclude(bookmark, options.context)) append(bookmark);
   }
 
   // writeDocToFile ensures /.crosspoint; the bookmarks subdirectory is ours.
