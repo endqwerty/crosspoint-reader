@@ -20,8 +20,10 @@
 #
 # Reading progress, bookmarks and reading state are keyed by SD path. Keep the
 # Calibre save template stable; a book whose folder or filename changes is
-# treated as a new book. With --delete, keep "Move finished books to /Read" off,
-# otherwise moved books are copied back into SD_BOOKS_DIR on the next sync.
+# treated as a new book. Before copying, books that would move are listed by
+# matching the Calibre UUID embedded in each EPUB. With --delete, keep "Move
+# finished books to /Read" off, otherwise moved books are copied back into
+# SD_BOOKS_DIR on the next sync.
 
 set -euo pipefail
 
@@ -106,6 +108,50 @@ if [ "$count" -eq 0 ]; then
   exit 1
 fi
 
+# Prints the Calibre book UUID stored in an EPUB's OPF, or nothing.
+calibre_uuid() {
+  local opf
+  opf="$(unzip -Z1 "$1" 2>/dev/null | grep -i '\.opf$' | head -n 1)" || true
+  [ -n "$opf" ] || return 0
+  unzip -p "$1" "$opf" 2>/dev/null | tr '\n' ' ' |
+    grep -oE '<dc:identifier[^>]*(id="uuid_id"|scheme="uuid")[^>]*>[^<]+' | head -n 1 |
+    sed -e 's/.*>//' -e 's/^urn:uuid://' -e 's/[[:space:]]//g' || true
+}
+
+# Lists books whose path changes between the card and the export. Their
+# progress, bookmarks and reading state stay with the old path.
+report_moves() {
+  local tmp rel id moved
+  tmp="$(mktemp -d)"
+  (cd "$src_abs" && find . -mindepth 1 \( -name '.*' -prune \) -o -type f \( -name '*.epub' -o -name '*.EPUB' \) -print) |
+    sed 's|^\./||' | LC_ALL=C sort >"$tmp/export"
+  (cd "$dest_abs" && find . -mindepth 1 \( -name '.*' -prune \) -o -type f \( -name '*.epub' -o -name '*.EPUB' \) -print) |
+    sed 's|^\./||' | LC_ALL=C sort >"$tmp/card"
+  LC_ALL=C comm -23 "$tmp/card" "$tmp/export" | while IFS= read -r rel; do
+    id="$(calibre_uuid "$dest_abs/$rel")"
+    [ -z "$id" ] || printf '%s\t%s\n' "$id" "$rel"
+  done | LC_ALL=C sort -t "$(printf '\t')" -k1,1 >"$tmp/old"
+  LC_ALL=C comm -13 "$tmp/card" "$tmp/export" | while IFS= read -r rel; do
+    id="$(calibre_uuid "$src_abs/$rel")"
+    [ -z "$id" ] || printf '%s\t%s\n' "$id" "$rel"
+  done | LC_ALL=C sort -t "$(printf '\t')" -k1,1 >"$tmp/new"
+  LC_ALL=C join -t "$(printf '\t')" "$tmp/old" "$tmp/new" >"$tmp/moved"
+  moved=$(wc -l <"$tmp/moved" | tr -d ' ')
+  if [ "$moved" -gt 0 ]; then
+    echo "$moved book(s) changed path since the last sync; their reading progress, bookmarks" \
+      "and reading state stay with the old path:"
+    while IFS="$(printf '\t')" read -r id old new; do
+      echo "  $old -> $new"
+    done <"$tmp/moved"
+    [ "$delete" -eq 1 ] || echo "Without --delete, the old copies stay on the card as separate books."
+  else
+    echo "No books changed path since the last sync."
+  fi
+  rm -rf "$tmp"
+}
+
+[ ! -d "$dest_abs" ] || report_moves
+
 args=(-r --checksum --prune-empty-dirs --itemize-changes
   --exclude='.*'
   --include='*/' --include='*.epub' --include='*.EPUB'
@@ -114,7 +160,9 @@ args=(-r --checksum --prune-empty-dirs --itemize-changes
 [ "$delete" -eq 1 ] && args+=(--delete)
 
 [ "$dry_run" -eq 1 ] || mkdir -p "$dest_abs"
-rsync "${args[@]}" "$src_abs/" "$dest_abs/"
+# Unchanged books are itemized as ".f..T....": identical content, and the SD
+# mtime is left alone. Only list copies and deletions.
+rsync "${args[@]}" "$src_abs/" "$dest_abs/" | { grep -v '^\.f' || true; }
 
 if [ "$dry_run" -eq 1 ]; then
   echo "Dry run only; nothing was written."
