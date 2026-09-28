@@ -283,6 +283,163 @@ TEST_F(ChapterHtmlSlimParserTest, HiddenListTextCountsOffsetsButGeneratedMarkers
   EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(1), 14u);
 }
 
+class PagebreakMarkerTest : public ChapterHtmlSlimParserTest {
+ protected:
+  void SetUp() override {
+    ChapterHtmlSlimParserTest::SetUp();
+    ASSERT_TRUE(parser.beginParse());
+    ChapterHtmlSlimParser::startElement(&parser, "body", nullptr);
+    ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  }
+  void text(const std::string& value) {
+    ChapterHtmlSlimParser::characterData(&parser, value.data(), static_cast<int>(value.size()));
+  }
+  void marker(const XML_Char** attributes, const std::string& content) {
+    ChapterHtmlSlimParser::startElement(&parser, "span", attributes);
+    if (!content.empty()) text(content);
+    ChapterHtmlSlimParser::endElement(&parser, "span");
+  }
+  std::vector<std::string> words() const {
+    std::vector<std::string> result;
+    for (size_t i = 0; i < parser.currentTextBlock->size(); ++i) {
+      result.emplace_back(parser.currentTextBlock->wordAt(i));
+    }
+    return result;
+  }
+};
+
+TEST_F(PagebreakMarkerTest, CalibreWrappedTextRendersAtItsReadingOffset) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", "aria-label", "136", "id", "page136", nullptr};
+  text("the sentence stops ");
+  marker(attributes, "and its continuation");
+  text(" goes on ");
+  EXPECT_EQ(words(),
+            (std::vector<std::string>{"the", "sentence", "stops", "and", "its", "continuation", "goes", "on"}));
+  EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(3), 19u);
+  EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(5), 27u);
+  EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(6), 40u);
+  EXPECT_EQ(parser.visibleTextOffset, 48u);
+  EXPECT_FALSE(parser.pagebreakCapturing);
+}
+
+TEST_F(PagebreakMarkerTest, PageLabelsRenderNothing) {
+  const XML_Char* labelled[] = {"role", "doc-pagebreak", "title", "Page 7", nullptr};
+  const XML_Char* bare[] = {"epub:type", "pagebreak", nullptr};
+  text("before ");
+  marker(labelled, " Page 7 ");
+  marker(bare, "xiv");
+  marker(bare, "212");
+  marker(bare, "");
+  ChapterHtmlSlimParser::startElement(&parser, "span", bare);
+  ChapterHtmlSlimParser::startElement(&parser, "br", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "br");
+  ChapterHtmlSlimParser::endElement(&parser, "span");
+  text(" after ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"before", "after"}));
+  EXPECT_EQ(parser.visibleTextOffset, 28u);
+  EXPECT_EQ(parser.depth, 2);
+}
+
+TEST_F(PagebreakMarkerTest, ReplayKeepsWordBoundariesAroundTheMarker) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", nullptr};
+  text("one");
+  marker(attributes, " two ");
+  text("three ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"one", "two", "three"}));
+}
+
+TEST_F(PagebreakMarkerTest, OverflowAndChildElementsReplayImmediately) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "span", attributes);
+  text("a fragment ");
+  text("that is longer than any page label ");
+  EXPECT_FALSE(parser.pagebreakCapturing);
+  ChapterHtmlSlimParser::endElement(&parser, "span");
+  ChapterHtmlSlimParser::startElement(&parser, "span", attributes);
+  text("12 ");
+  ChapterHtmlSlimParser::startElement(&parser, "em", nullptr);
+  EXPECT_FALSE(parser.pagebreakCapturing);
+  text("emphasis");
+  ChapterHtmlSlimParser::endElement(&parser, "em");
+  ChapterHtmlSlimParser::endElement(&parser, "span");
+  text(" ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"a", "fragment", "that", "is", "longer", "than", "any", "page", "label",
+                                               "12", "emphasis"}));
+  EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(9), 46u);
+  EXPECT_EQ(parser.depth, 2);
+}
+
+TEST_F(PagebreakMarkerTest, TaggedParagraphsRenderNormally) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", "title", "9", nullptr};
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ChapterHtmlSlimParser::startElement(&parser, "p", attributes);
+  text("Part Two ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"Part", "Two"}));
+}
+
+TEST_F(PagebreakMarkerTest, LabelledMarkersKeepWordsThatAreNotTheirLabel) {
+  const XML_Char* labelled[] = {"epub:type", "pagebreak", "title", "12", nullptr};
+  const XML_Char* bare[] = {"epub:type", "pagebreak", nullptr};
+  marker(labelled, "I");
+  text(" said ");
+  marker(labelled, "[12]");
+  marker(labelled, "Page 12");
+  marker(bare, "mix");
+  marker(bare, "xlviii");
+  text(" end ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"I", "said", "mix", "end"}));
+}
+
+TEST_F(PagebreakMarkerTest, LineBreakAfterWrappedTextStillBreaksTheLine) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "span", attributes);
+  text("end of line");
+  ChapterHtmlSlimParser::startElement(&parser, "br", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "br");
+  text("Next ");
+  ChapterHtmlSlimParser::endElement(&parser, "span");
+  EXPECT_EQ(words(), (std::vector<std::string>{"Next"}));
+  EXPECT_EQ(parser.depth, 2);
+}
+
+TEST_F(PagebreakMarkerTest, BlockMarkerWithContentLeavesBlockStylesBalanced) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", nullptr};
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  const size_t outerStyles = parser.blockStyleStack.size();
+  ChapterHtmlSlimParser::startElement(&parser, "blockquote", nullptr);
+  const size_t quoteStyles = parser.blockStyleStack.size();
+  ChapterHtmlSlimParser::startElement(&parser, "div", attributes);
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  text("Text");
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  EXPECT_EQ(parser.blockStyleStack.size(), quoteStyles);
+  ChapterHtmlSlimParser::startElement(&parser, "div", attributes);
+  text("a wrapped fragment longer than a label");
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  EXPECT_EQ(parser.blockStyleStack.size(), quoteStyles);
+  EXPECT_FALSE(parser.nextWordContinues);
+  ChapterHtmlSlimParser::endElement(&parser, "blockquote");
+  EXPECT_EQ(parser.blockStyleStack.size(), outerStyles);
+  EXPECT_EQ(parser.pagebreakMarkerCount, 0);
+  EXPECT_EQ(parser.depth, 1);
+}
+
+TEST_F(PagebreakMarkerTest, NestedMarkersCloseInOrder) {
+  const XML_Char* attributes[] = {"epub:type", "pagebreak", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", attributes);
+  ChapterHtmlSlimParser::startElement(&parser, "em", nullptr);
+  text("outer ");
+  marker(attributes, "7");
+  marker(attributes, "inner words");
+  ChapterHtmlSlimParser::endElement(&parser, "em");
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  text(" ");
+  EXPECT_EQ(words(), (std::vector<std::string>{"outer", "inner", "words"}));
+  EXPECT_EQ(parser.pagebreakMarkerCount, 0);
+  EXPECT_EQ(parser.depth, 2);
+}
+
 }  // namespace
 
 TEST(ParagraphIndentation, OverridesNonnegativeCssAndPreservesHangingIndent) {

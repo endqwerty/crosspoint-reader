@@ -63,7 +63,9 @@ namespace {
 // v53: Persist per-word source ranges alongside the redaction layout changes.
 // v54: Source ranges retain codepoints absorbed by NFC composition.
 // v55: Persist the first logical word of each paragraph for clipping separators.
-constexpr uint8_t SECTION_FILE_VERSION = 55;
+// v56: Pagebreak markers keep wrapped book text and pagebreak-tagged paragraphs render. Fork
+//      and upstream numbered v47-v53 differently, so this version rebuilds every earlier cache.
+constexpr uint8_t SECTION_FILE_VERSION = 56;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
