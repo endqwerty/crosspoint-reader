@@ -101,8 +101,11 @@ feature branches may be used during active development.
   files, and keeping reading state across re-exports. The supported copy step is
   `scripts/sync-calibre-library.sh`; update it rather than documenting another
   procedure.
-- The maintained checkout lives on an SMB share where macOS creates `._*` files.
-  Ignore them through `.git/info/exclude`, not upstream's `.gitignore`.
+- The maintained checkout lives on local disk at `~/workspace/crosspoint-reader`;
+  T3 Code worktrees go under the local `~/.t3/worktrees`. Keep source and git
+  data off the SMB share. Write exported firmware images, release packages and
+  evidence to the share at `/Volumes/workspace/builds/crosspoint-reader/`, not
+  to the repository's `build/`.
 - Review existing upstream changes before choosing a new implementation.
 - Measure parser, storage, allocation and rendering work with meaningful fixtures.
   Report host operation counts separately from physical page-turn latency,
@@ -112,7 +115,7 @@ feature branches may be used during active development.
   rebuild solely for documentation, commits, or history changes when source bytes
   remain identical to a validated build.
 - Default firmware handoffs to the web flasher: Xteink X4 Pro → Custom .bin.
-  `build/FLASH-LATEST.md` identifies the currently validated image. Historical
+  `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` identifies the currently validated image. Historical
   filenames alone do not establish which image should be flashed.
 - Do not start open-ended roadmap work from a handoff. Finish the user's requested
   scope and record concrete remaining work in `WIP.md`.
