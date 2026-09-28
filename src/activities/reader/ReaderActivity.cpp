@@ -233,25 +233,26 @@ void ReaderActivity::loop() {
   const bool skip =
       !fromTilt && SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP && heldMs >= ReaderUtils::SKIP_HOLD_MS;
 
+  bool changed;
   if (prevTriggered) {
     if (skip) {
-      const bool succeeded = skipPages(-10);
-      notePageTurn(false, succeeded);
+      changed = skipPages(-10);
+      notePageTurn(false, changed);
     } else {
-      const bool succeeded = pageTurn(false);
-      notePageTurn(false, succeeded);
+      changed = pageTurn(false);
+      notePageTurn(false, changed);
     }
   } else {
     if (skip) {
       // A skip is navigation, not reading: it never counts toward session dwell.
-      const bool succeeded = skipPages(10);
-      notePageTurn(false, succeeded);
+      changed = skipPages(10);
+      notePageTurn(false, changed);
     } else {
-      const bool succeeded = pageTurn(true);
-      notePageTurn(true, succeeded);
+      changed = pageTurn(true);
+      notePageTurn(true, changed);
     }
   }
-  requestUpdate();
+  if (changed) requestUpdate();
 }
 
 void ReaderActivity::render(RenderLock&&) {
@@ -270,7 +271,7 @@ void ReaderActivity::render(RenderLock&&) {
     }
     renderer.displayBuffer();
     onEndOfBookRendered();
-    markPageRendered();
+    if (renderer.displayCommitted()) markPageRendered();
     readerSession.onRenderComplete(millis(), trustedtime::trustedNow(), getProgressBasisPoints());
     return;
   }
