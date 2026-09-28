@@ -694,6 +694,14 @@ void GfxRenderer::drawCenteredText(const int fontId, const int y, const char* te
   drawText(fontId, x, y, text, black, style, baseDir);
 }
 
+void GfxRenderer::trackTextGrayscale(const EpdFontFamily& font, const EpdFontFamily::Style style,
+                                     const bool black) const {
+  if (!textGrayscaleTracking || textNeedsGrayscale || renderMode != BW || isFontCacheScanning()) return;
+  // White text can set overlay-mask bits even with a 1-bit or scaled glyph.
+  const auto* data = font.getData(style);
+  textNeedsGrayscale = !black || !data || data->is2Bit;
+}
+
 void GfxRenderer::drawText(const int fontId, const int x, const int y, const char* text, const bool black,
                            const EpdFontFamily::Style style, const BidiUtils::BidiBaseDir baseDir,
                            const int8_t tracking) const {
@@ -743,6 +751,7 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
   const auto& font = fontIt->second;
 
   const char* textCursor = renderedText;
+  trackTextGrayscale(font, style, black);
   uint32_t cp;
   uint32_t prevCp = 0;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&textCursor)))) {
@@ -1742,29 +1751,65 @@ void GfxRenderer::invertScreen() const {
 
 HalDisplay::RefreshMode GfxRenderer::applyPromotedRefresh(const HalDisplay::RefreshMode refreshMode) const {
   if (!promotedRefreshPending_) return refreshMode;
-  promotedRefreshPending_ = false;
+  promotedRefreshSubmitted_ = true;
   return promotedRefresh_;
+}
+
+void GfxRenderer::beginDisplayWork() const {
+  displayWorkActive_ = true;
+  promotedRefreshSubmitted_ = false;
+  display.beginDisplayWork();
+}
+
+bool GfxRenderer::endDisplayWork() const {
+  displayWorkActive_ = false;
+  finishDisplayWorkIfReady();
+  return display.displayCommitted();
+}
+
+bool GfxRenderer::displayCommitted() const { return display.displayCommitted(); }
+
+void GfxRenderer::prepareDisplayWork() const {
+  if (!displayWorkActive_) {
+    promotedRefreshSubmitted_ = false;
+    display.beginDisplayWork();
+  }
+}
+
+void GfxRenderer::finishDisplayWorkIfReady() const {
+  if (!displayWorkActive_ && promotedRefreshSubmitted_ && display.displayCommitted()) {
+    promotedRefreshPending_ = false;
+    promotedRefreshSubmitted_ = false;
+  }
 }
 
 void GfxRenderer::displayBuffer(HalDisplay::RefreshMode refreshMode) const {
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
+  prepareDisplayWork();
   refreshMode = applyPromotedRefresh(refreshMode);
   display.displayBuffer(refreshMode, fadingFix);
+  finishDisplayWorkIfReady();
 }
 
 void GfxRenderer::displayBufferAsync(HalDisplay::RefreshMode refreshMode) const {
+  prepareDisplayWork();
   refreshMode = applyPromotedRefresh(refreshMode);
   // The async path has no turn-off-screen hook, which the sunlight fading fix
   // relies on; keep those users on the blocking path.
   if (fadingFix) {
     display.displayBuffer(refreshMode, fadingFix);
+    finishDisplayWorkIfReady();
     return;
   }
   display.displayBufferAsync(refreshMode);
+  if (!display.supportsAsyncRefresh()) finishDisplayWorkIfReady();
 }
 
-void GfxRenderer::waitRefreshComplete() const { display.waitRefreshComplete(); }
+void GfxRenderer::waitRefreshComplete() const {
+  display.waitRefreshComplete();
+  finishDisplayWorkIfReady();
+}
 
 bool GfxRenderer::supportsAsyncRefresh() const { return !fadingFix && display.supportsAsyncRefresh(); }
 
@@ -2255,6 +2300,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
   const auto& font = fontIt->second;
 
   int lastBaseY = y;
+  trackTextGrayscale(font, style, black);
   int lastBaseLeft = 0;
   int lastBaseWidth = 0;
   int lastBaseTop = 0;
@@ -2314,12 +2360,17 @@ size_t GfxRenderer::getBufferSize() const { return frameBufferSize; }
 
 void GfxRenderer::displayGrayscaleBase(HalDisplay::RefreshMode fallback) const {
   absoluteGrayPlanes = false;
-  display.displayGrayscaleBase(fallback, fadingFix);
+  prepareDisplayWork();
+  display.displayGrayscaleBase(applyPromotedRefresh(fallback), fadingFix);
+  finishDisplayWorkIfReady();
 }
 
 bool GfxRenderer::displayGrayscaleBase(HalDisplay::GrayscaleMode mode, HalDisplay::RefreshMode fallback) const {
   absoluteGrayPlanes = false;
+  prepareDisplayWork();
+  fallback = applyPromotedRefresh(fallback);
   if (!display.displayGrayscaleBase(mode, fallback, fadingFix)) return false;
+  finishDisplayWorkIfReady();
   absoluteGrayPlanes = mode != HalDisplay::GrayscaleMode::Overlay;
   return true;
 }
@@ -2351,6 +2402,7 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 void GfxRenderer::displayGrayBuffer() const {
   display.displayGrayBuffer(fadingFix);
   absoluteGrayPlanes = false;
+  finishDisplayWorkIfReady();
 }
 
 void GfxRenderer::setRenderMode(RenderMode mode) {
@@ -2444,6 +2496,7 @@ void GfxRenderer::restoreBwBuffer(const bool resyncPanelBaseline) {
 
   if (resyncPanelBaseline) {
     display.cleanupGrayscaleBuffers(frameBuffer);
+    finishDisplayWorkIfReady();
   }
 
   freeBwBufferChunks();
@@ -2457,6 +2510,7 @@ void GfxRenderer::restoreBwBuffer(const bool resyncPanelBaseline) {
 void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   if (frameBuffer) {
     display.cleanupGrayscaleBuffers(frameBuffer);
+    finishDisplayWorkIfReady();
   }
 }
 

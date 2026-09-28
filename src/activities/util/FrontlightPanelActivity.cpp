@@ -102,6 +102,11 @@ void FrontlightPanelActivity::persistLightSettings() {
 
 void FrontlightPanelActivity::onExit() {
   persistLightSettings();
+  // ActivityManager holds RenderLock here, after the panel's final possible paint.
+  if (refreshOnExit) {
+    renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+    refreshOnExit = false;
+  }
   Activity::onExit();
 }
 
@@ -151,10 +156,8 @@ void FrontlightPanelActivity::runTile(const int idx) {
       requestUpdate();
       break;
     case 1:  // Ghost-cleanup refresh of the whole frame
-      // Refreshing with the panel still up would clean a frame the user is
-      // about to dismiss anyway: drop the panel first and let the repaint of
-      // the screen underneath carry the clean waveform instead.
-      renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+      // Defer the promotion until exit so a queued panel paint cannot consume it.
+      refreshOnExit = true;
       close();
       break;
     case 2:  // Cycle the reading orientation
@@ -224,6 +227,8 @@ bool FrontlightPanelActivity::handleHomeGesture() {
 }
 
 void FrontlightPanelActivity::loop() {
+  // FreeInkApp routing and rendering share event and interaction state.
+  RenderLock lock;
   const auto touch = routeTouch(mappedInput, false, /*routeHeld=*/true);
   if (touch.routed) {
     if (app.invalidated()) requestUpdate();
