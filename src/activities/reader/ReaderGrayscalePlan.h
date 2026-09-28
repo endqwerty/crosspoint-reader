@@ -13,10 +13,10 @@ struct ReaderGrayscalePlan {
 
   static constexpr ReaderGrayscalePlan forPage(bool textAntiAliasing, bool hasImages,
                                                HalDisplay::GrayscaleCapabilities capabilities,
-                                               bool bodyTextNeedsGrayscale = true) {
+                                               bool bodyTextNeedsGrayscale = true, bool imageGrayscale = true) {
     // Image compositing retains its existing text pass and mask behavior.
     const bool text = textAntiAliasing && (hasImages || bodyTextNeedsGrayscale);
-    const bool enabled = capabilities.supported() && (text || hasImages);
+    const bool enabled = capabilities.supported() && (text || (hasImages && imageGrayscale));
     const bool tiled = enabled && capabilities.stripUploads;
     return {enabled && text, enabled, tiled,
             tiled && !hasImages && capabilities.base == HalDisplay::GrayscaleBase::Combined,
