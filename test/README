@@ -4,7 +4,7 @@ Build and run:
 
   cmake -S test -B build/test
   cmake --build build/test
-  ctest --test-dir build/test --output-on-failure -j
+  ctest --test-dir build/test --output-on-failure --timeout 60 -j 2
 
 Run a single suite directly:
 
@@ -13,3 +13,21 @@ Run a single suite directly:
 
 Google Test is fetched via CMake FetchContent on first configure; the pinned
 version lives in test/CMakeLists.txt.
+
+Run an independent build with AddressSanitizer and UndefinedBehaviorSanitizer:
+
+  cmake -S test -B build/test-sanitized -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_TEST_SANITIZERS=ON
+  cmake --build build/test-sanitized -j 2
+  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --test-dir build/test-sanitized --output-on-failure --timeout 60 -j 2
+
+GCC or Clang is required for this option. The refresh-sequence subprocesses also
+receive sanitizer instrumentation. CI runs both modes. A bounded parallel count
+keeps sanitizer memory pressure predictable and timeout limits catch deadlocks.
+Sanitizers detect instrumented host memory errors; they do not simulate ESP32
+heap size, alignment, RTOS scheduling or physical SD/display behavior.
+
+Fault-injection tests assert that failures preserve valid data or are reported.
+They must verify that the injected failure actually occurred. A newly discovered
+production defect is left as a normal failing test; never mark it WILL_FAIL,
+disable it, or weaken its expectation solely to make the suite green.
+See docs/unit-test-audit-r7.md for the current audit results and next-fix order.
