@@ -1,126 +1,139 @@
-# WIP handoff — clean develop, X4 Pro r51
+# WIP handoff — develop on upstream e6af0c9, X4 Pro r52
 
 ## Repository state
 
-The reader and SDK personal forks are consolidated onto `develop`. The reader's
-local changes form a linear series above official reader `develop`
-`93e98bb78702e29868a16a13b80c40e6b36ccdff`: retained X4 Pro improvements, r51 cold
-indexing, then fork instructions/setup. The legacy local merge was removed;
-upstream's own history is intact. All intended firmware source is preserved.
+The reader's local changes form a linear series above official reader `develop`
+`e6af0c95110a66a0b7a087df2d95e7598dc79594` (four upstream commits newer than r51's
+`93e98bb`): retained X4 Pro improvements, r51 cold indexing, fork
+instructions/setup, then r52's pagebreak fix and library scan script. Upstream's
+own history is intact; there are no local merge commits.
 
-SDK `develop` remains `703f269a1ea5bf738820db91e6a6ca6b22b68adc`, one local patch
-above `111fdcc7f0176c3ee38391a160ee296bf492dbd8`, the dependency revision pinned
-by the official reader. Newer SDK main commits are outside this history-only
-cleanup. `.gitmodules` resolves the SDK through the personal fork.
+SDK `develop` is `d7438bb53e5a56ba698c40cdfb55cd47602977f1`, the single local patch
+rebased above `225c097cfb6d5ecd4ca556041746123faeb4bc79`, the revision the new
+official reader pins. `.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
 `endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
 personal fork and `upstream` for official upstream, and tracks `origin/develop`
-in both repos.
-No PR was opened. Completed work is automatically committed, integrated into
-local `develop` and pushed to personal `origin/develop` under the standing
-authorization in `docs/FORK.md`. Other publication requires explicit approval.
+in both repos. No PR was opened. Completed work is automatically committed,
+integrated into local `develop` and pushed to personal `origin/develop` under
+the standing authorization in `docs/FORK.md`. Other publication requires
+explicit approval.
 
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
 base, adapt or drop patches when upstream supersedes them, and use rebase plus
 fast-forward/squash integration. No local merge commits.
 
+### Upstream conflicts resolved on 2026-09-28
+
+- Upstream #3755 redesigned the keyboard. The fork's older keyboard sizing
+  (full-width touch rows, `keyboardRowSpacing`, 2 px key gaps, X3 side insets,
+  a language key on the symbols layer and its URL rows) conflicted and is
+  dropped: `KeyboardEntryActivity.cpp` and the theme keyboard metrics now match
+  upstream exactly. The X4 Pro only uses the keyboard for Library search.
+- Upstream #3754 (press-based list navigation, previously "wait for merge") is
+  now in the base. The fork's Library UI and ButtonNavigator host tests were
+  updated to its press/hold/release contract; no fork source change was needed.
+- SDK: upstream's new list reveal action and keyboard changes were kept in the
+  fork's formatting; the fork's display/list/text-area patch is unchanged.
+
 ## Recovery and verification
 
-The user reports the recovery copies deleted; do not rely on the shared copies.
-Local `reader.bundle` and `sdk.bundle` still exist under
-`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`, along
-with `RESTORE.md`. Both local bundles passed `git bundle verify` again on
-2026-09-27 and report complete history. They were not deleted by this session.
-Legacy backup branch refs were removed after verification. Active disposable
-worktrees may have temporary feature branches; no work should remain only there.
-
-The cleanup changes history, repository setup and instructions only. It does not
-change firmware source or the SDK pin. Source equivalence is checked against the
-pre-cleanup tree and the exact r51 release manifest; no redundant rebuild is
-needed. The release archive preserves the original tested source, including its
-older instructions. Use this handoff for current branch state.
+Pre-rebase refs are kept locally: reader `backup/reader-develop-3048089c` and, in
+the permanent checkout's SDK module, `backup/sdk-develop-703f269`. The older
+bundles under `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`
+(with `RESTORE.md`) still cover the pre-cleanup history. The rebased series was
+revalidated from source; the r51 image and package remain on the share.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r51-rebuild-20260927-222421/firmware-x4pro-r51-211f3827.bin`.
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r52-20260928-053827/firmware-x4pro-r52-1399c0ce.bin`
+(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r52-20260928-053827\firmware-x4pro-r52-1399c0ce.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r51-93e98bb`.
-SHA-256: `2da4397367da79dbf3bc64681e0bc141e0bf8083cf2ad37e5de9aed97972ceef`.
+Version: `1.6.5-dev-x4pro-r52-e6af0c9`.
+SHA-256: `5c0caf78d82f7ebc92a01a6d7b62c2cf3f93494fdedc4cb1def7cfc64062331e`.
 
-Fresh local develop `211f3827` rebuild: firmware inputs match r51; build with an
-empty cache and ESP32-S3 image inspection passed. Copied artifacts were verified
-on SMB. Existing native/sanitizer tests were not rerun; no firmware source changed.
-Persistent delivery policy is in the permanent checkout's `docs/FORK.md` and the
-share's `BUILD-WORKFLOW.md`. Worktrees are isolated and disposable. The `builds`
-folder is canonical; the earlier `firmware` folder is a redundant copy.
+r52 changes from r51: the upstream rebase above, and pagebreak markers no longer
+drop book text. Elements tagged `role="doc-pagebreak"`/`epub:type="pagebreak"`
+used to be skipped with their subtree. Tagged paragraphs, headings, list items
+and blockquotes now render; other markers capture up to 32 bytes in the parser
+object (no heap) and drop only their own label or, without a label, a page
+number; anything else replays at its original reading offsets. Adapted from
+upstream PR #3349 (Sylve) without its deferred-`<br>` spacing rework. Section
+cache version 49 → 50, so every book re-lays out its chapters once on first
+open; progress, bookmarks and Library data are kept.
 
-r51 uses a transient 512-byte nothrow buffer for the large-book spine-index scan,
-with checked unbuffered OOM fallback. No cache-format or foreground-reading change.
-512-chapter cold HAL reads fell 4,139 → 2,117; 2,048 chapters fell 16,512 → 8,426.
-Bytes, seeks, writes and warm-open counts are unchanged. These are host fixture
-counts, not measured device speedups. See `docs/cold-index-io-r51.md`.
+Validation (2026-09-28): all 1,614 native Release tests and all 1,614 LLVM 22
+ASan/UBSan tests pass. They retain every r51 test name plus 4 new upstream tests
+and 11 new pagebreak/version tests. SDK UI (242,854 checks), Pro display,
+UC8279, UC8253, font, ligature, GPOS and input host runners pass. The X4 Pro
+release build is warning-free: static RAM 102,320 bytes (unchanged), linked flash
+5,679,002 bytes; image 5,684,016 bytes, ESP32-S3
+image inspection valid. Firmware source is commit `1399c0ce`; the later handoff
+commit changes only this file. An independent review of the parser change found a
+block-style underflow, glued words at a swallowed `<br>`, and words such as "I"
+dropped as page numbers; all three are fixed with tests. Build logs and scan
+evidence: `/Users/danielyang/.local/share/crosspoint-build/wip-plan/`.
 
-For the original r51 validation, all 1,599 native Release and LLVM22 ASan/UBSan
-tests passed, retaining all 1,596
-prior test names. All 16 validation gates passed, including X4 Pro compilation,
-SDK runners, scoped static analysis, image inspection and dependency checks.
-Firmware compiler log is warning-free; cppcheck has four low style findings and
-no medium/high findings. Static RAM: 102,320 bytes; linked flash: 5,675,354 bytes.
-The original r51 package contains 6,441 tested source files and 100 checksummed
-artifacts; the fresh rebuild handoff has six checksummed artifacts.
-Build mirror, scripts and evidence:
-`/Users/danielyang/.local/share/crosspoint-build/epub-r51/`.
+## Library scan (item 5, done 2026-09-28)
+
+`scripts/scan-epub-library.py` scanned the full Calibre export at
+`/Volumes/media/Book Export` (750 EPUBs, 749 written by calibre 9.14.0), read-only.
+Chapters are parsed with Expat configured like the reader.
+
+| Pattern (upstream PR) | Books |
+| --- | --- |
+| pagebreak marker/paragraph holding text (#3349) | 0 |
+| chapter Expat rejects, incl. unclosed `<br>` (#3375) | 0 |
+| TOC href matching only by file name (#2987) | 0 |
+| TOC href matching no spine item | 117 |
+| landmarks nav nested in toc nav (#2297) | 0 |
+| SVG/XHTML cover-image wrapper (#3539) | 0 |
+| ZIP comment beyond the 1 KB scan (#2614) | 0 |
+| image extension misnaming its format (#2386) | 0 |
+
+No book in the library uses pagebreak attributes (one book has only CSS classes
+named "pagebreak"), so r52's pagebreak fix changes nothing for the current
+library; it protects publisher EPUBs added later. The 117 unresolved TOC entries
+are all one stale NCX "Cover" entry to `OEBPS/c0.xhtml`, a file Calibre removed
+when it replaced the cover with its titlepage. That row cannot be selected
+on the device; the rest of each TOC works. None of #3375, #2987, #2297, #3539,
+#2614 or #2386 is needed for this library. Rerun the scan after large imports.
 
 ## Remaining work and limits
 
 The 128-chapter cold-open fixture still performs 33,556 HAL reads in its linear
 TOC lookup. Compare memory and correctness before changing that policy. Broader
 cold-open profiling should include real ZIP/container, CSS and first-page layout;
-the current fixture uses archive/storage doubles. No new feature work is active.
+the current fixture uses archive/storage doubles.
 
-The upstream reviews recorded on 2026-09-27 found no newer reader develop
-commits; the full open-PR triage is under "Proposed next steps". Recheck
-upstream/PR state when starting new work. Earlier, eight pending PRs were
-reviewed without import; #3705 and #3675 remain deferred for
-cold-layout/input-responsiveness concerns. Evidence is in
-`/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md` and the r51 package.
+Official upstream was fetched on 2026-09-28 at `e6af0c9`. Recheck upstream and
+open PRs when starting new work. #3705 and #3675 remain deferred for
+cold-layout/input-responsiveness concerns; earlier evidence is in
+`/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
-unmeasured. Check an uncached long EPUB, TOC jumps, reopen and sleep/wake with AA
-off. No cache deletion or recording required.
-
-## Completed build and administration handoff
-
-The fresh r51 rebuild is exported to the canonical SMB `builds` folder above.
-All six exported artifact checksums passed; build and image inspection passed.
-Future work uses isolated disposable worktrees. The user's standing instruction
-now authorizes automatic commits, local rebases and integration into `develop`;
-see `docs/FORK.md`. The user also authorizes automatic pushes of completed
-`develop` to the verified personal reader fork, `origin`; upstream pushes,
-other branches, PR actions and release publication still require approval.
-Official upstream was fetched on 2026-09-27 and remains `93e98bb`; local develop
-contains that unchanged base with only linear fork patches above it. This handoff
-changes documentation only; no firmware rebuild is needed after integration.
+unmeasured. On r52 also check Library search (upstream keyboard) and list
+navigation (upstream press navigation), and that a book's first open after
+flashing re-lays out chapters without errors. Check an uncached long EPUB, TOC
+jumps, reopen and sleep/wake with AA off.
 
 No feature implementation is active. Start the next isolated worktree from
-personal `develop` and follow `docs/FORK.md`'s startup procedure. The current
-worktree has no unique source or required build artifacts once integrated and
-pushed; its deletion does not remove the shared firmware handoff. The roadmap
+personal `develop` and follow `docs/FORK.md`'s startup procedure. The roadmap
 below is optional future scope, not unfinished work blocking deletion.
 
-## Proposed next steps (not started)
+## Proposed next steps
 
 Replanned 2026-09-27 after re-reading `ROADMAP.md` and triaging all 229 open
-upstream PRs (official `develop` unchanged at `93e98bb`). Priorities follow the
+upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done). Priorities follow the
 offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`. Each item needs
 the user's go-ahead. Upstream's roadmap (Phase 1: footprint and heap
 fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3, 5
 and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
 upstream merges it.
 
-1. Device validation of r51 with the real library (unchanged). Nothing has been
+1. Device validation of r52 with the real library (unchanged). Nothing has been
    measured on hardware. Measure first-entry Library reconcile time, free heap
    and largest free block (serial) with the full Calibre export on the card.
    Run `scripts/sync-calibre-library.sh -n` after a real re-export to learn
@@ -145,13 +158,11 @@ upstream merges it.
      files.
    The UUID relink can be dropped if item 1 shows renames are rare; the
    sort keys are worth doing either way.
-3. Stop silent text loss in Calibre conversions: PR #3349 (s0lness).
-   `ChapterHtmlSlimParser.cpp:1315-1323` skips the whole subtree of any
-   `doc-pagebreak`/`epub:type="pagebreak"` element. Calibre conversions wrap
-   real paragraph text inside those markers, so it disappears. The PR is
-   conflicting and unreviewed; adapt it to the fork's parser, bump the
-   section cache version and add a fixture. Highest correctness value for
-   this library.
+3. Done in r52: pagebreak markers keep wrapped text (adapted #3349). The
+   library scan found no pagebreak attributes, so this protects future books
+   only. Optional follow-up: #3349's deferred `<br>` handling, which joins
+   text a converter split with `<br>` + marker into one line. Drop the local
+   patch if upstream merges its own version.
 4. Page-turn input around refreshes: PR #3636 (Daviex), which the author
    verified on an X4 Pro. It keeps one pending turn across the async
    `requestUpdate()` gap and chapter loads using render generations. The fork
@@ -159,20 +170,10 @@ upstream merges it.
    turn-r4). Compare the two, and import only the cases the fork misses
    (a turn dropped while `section` is absent, or a `RenderLock::peek()` race),
    with host tests.
-5. Scan the real library for parser failures before choosing the fixes. Add a
-   host-side script that walks the SD export and counts the patterns these
-   open PRs fix, so only reproduced ones get imported:
-   - pagebreak markers carrying text (#3349)
-   - unclosed void elements like `<br>`, which fail the whole chapter
-     (#3375, sfoulad). Calibre "Save to disk" keeps publisher XHTML, so
-     this is possible.
-   - TOC hrefs that only match by filename (#2987)
-   - nested hidden landmarks nav (#2297)
-   - an SVG wrapper named as `cover-image` (#3539)
-   - ZIP comments larger than 1 KB (#2614; `lib/ZipFile/ZipFile.cpp:211`
-     scans only the last 1 KB)
-   - extension-less images (#2386)
-   Report counts per pattern; do not modify the library.
+5. Done in r52: `scripts/scan-epub-library.py` (results above). None of
+   #3375, #2987, #2297, #3539, #2614 or #2386 reproduces in the library; do
+   not import them for this library. Optional: make the stale NCX "Cover"
+   entry (117 books) fall back to the first spine item or hide it.
 6. Background build at idle CPU speed: PR #3060. The background tick at
    `EpubReaderActivity.cpp:366-368` runs without `HalPowerManager::Lock`,
    so it can run at `LOW_POWER_FREQ` once power saving engages. That can leave pages unbuilt when the
@@ -185,7 +186,9 @@ upstream merges it.
    is a build-system change under maintainer test; wait for upstream to
    merge it, then rebase onto it rather than carrying it.
 8. Reduce rebase burden (unchanged, now more urgent before items 2-4). The
-   fork is one 42,767-line commit (`d1c8e0fb`, 487 files) plus r51. Split it
+   fork is one 42,767-line commit ("feat: integrate X4 Pro reading
+   improvements", 487 files) plus r51 and r52. The 2026-09-28 rebase
+   conflicted only in the keyboard. Split it
    into topical patches, fold the 51 `-rNN` revision docs into a few feature
    docs, and drop code upstream supersedes.
 9. Cold-open TOC lookup (unchanged): the 128-chapter fixture still does 33,556
@@ -194,12 +197,13 @@ upstream merges it.
     - #3642: time left in chapter/book (8-sample pace tracker, ~48 bytes)
     - #3727: paragraph indentation override
     - #2350: whole-book page estimates
-    - #3754: press-based list navigation; approved, wait for merge
     - #3758: estimate marker placement
 
 Upstream PR triage, 2026-09-27 (open, not merged):
 
 - Already in the fork, or superseded by fork code:
+  - merged upstream and in the base since 2026-09-28: #3754, #3755, #3765, #3766
+  - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
     #2603
   - #3764: link-return progress (`docs/reading-navigation.md`)
