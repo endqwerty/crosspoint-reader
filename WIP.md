@@ -90,7 +90,9 @@ The fresh r51 rebuild is exported to the canonical SMB `builds` folder above.
 All six exported artifact checksums passed; build and image inspection passed.
 Future work uses isolated disposable worktrees. The user's standing instruction
 now authorizes automatic commits, local rebases and integration into `develop`;
-see `docs/FORK.md`. Remote publication still requires explicit approval.
+see `docs/FORK.md`. The user also authorizes automatic pushes of completed
+`develop` to the verified personal reader fork, `origin`; upstream pushes,
+other branches, PR actions and release publication still require approval.
 Official upstream was fetched on 2026-09-27 and remains `93e98bb`; local develop
 contains that unchanged base with only linear fork patches above it. This handoff
 changes documentation only; no firmware rebuild is needed after integration.
