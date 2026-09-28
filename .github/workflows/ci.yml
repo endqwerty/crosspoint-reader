@@ -175,6 +175,12 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizers: ["OFF", "ON"]
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -192,13 +198,13 @@ jobs:
           key: ${{ runner.os }}-googletest-${{ hashFiles('test/CMakeLists.txt') }}
 
       - name: Configure
-        run: cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_TEST_SANITIZERS=${{ matrix.sanitizers }}
 
       - name: Build
         run: cmake --build build/test
 
       - name: Run tests
-        run: ctest --test-dir build/test --output-on-failure -j
+        run: ctest --test-dir build/test --output-on-failure --timeout 60 -j 2
 
   # This job is used as the PR required actions check, allows for changes to other steps in the future without breaking
   # PR requirements.
