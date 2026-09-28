@@ -535,7 +535,9 @@ TEST_F(LibraryUiTest, SearchFindsTitleWordsBeyondStoredPrefix) {
   ui.applyFilter();
   ASSERT_EQ(ui.filteredCount, 1);
   EXPECT_EQ(ui.rowFor(0), 0);
-  EXPECT_EQ(ui.index.titleReadCalls, 1);
+  // Every fold miss reads the shown title with the author, in one blob pass.
+  EXPECT_EQ(ui.index.metadataReadCalls, 4);
+  EXPECT_EQ(ui.index.titleReadCalls, 0);
   EXPECT_EQ(ui.index.nameReadCalls, 0);
   EXPECT_FALSE(ui.filterFailed);
 }
@@ -551,7 +553,7 @@ TEST_F(LibraryUiTest, SearchFindsUtf8TitleAfterIncompleteFourByteBoundary) {
   ui.applyFilter();
   ASSERT_EQ(ui.filteredCount, 1);
   EXPECT_EQ(ui.rowFor(0), 0);
-  EXPECT_EQ(ui.index.titleReadCalls, 1);
+  EXPECT_EQ(ui.index.metadataReadCalls, 4);
 }
 
 TEST_F(LibraryUiTest, MissingMetadataSearchUsesCompleteFilenameStemWithoutExtension) {
@@ -2284,7 +2286,8 @@ TEST_F(LibraryUiTest, ValidEmptyAuthorAllowsSeriesSearchWithoutExtraReads) {
   ui.applyFilter();
   EXPECT_FALSE(ui.filterFailed);
   ASSERT_EQ(ui.filteredCount, 3);
-  EXPECT_EQ(ui.index.authorReadCalls, 4);
+  EXPECT_EQ(ui.index.metadataReadCalls, 4);
+  EXPECT_EQ(ui.index.authorReadCalls, 0);
   EXPECT_EQ(ui.index.seriesRefReadCalls, 4);
   EXPECT_EQ(ui.index.seriesEntryReadCalls, 2);
   EXPECT_EQ(ui.index.titleReadCalls, 0);
@@ -2312,7 +2315,7 @@ TEST_F(LibraryUiTest, LargeSeriesSearchReadsOncePerRunAndPreservesEveryResult) {
       if ((order[row] / 64) % 2 == 0) EXPECT_EQ(ui.filtered[match++], row);
     }
     EXPECT_EQ(ui.index.readCalls, 4096);
-    EXPECT_EQ(ui.index.authorReadCalls, 4096);
+    EXPECT_EQ(ui.index.metadataReadCalls, 4096);
     EXPECT_EQ(ui.index.seriesRefReadCalls, 4096);
     EXPECT_EQ(ui.index.seriesEntryReadCalls, 64);
     std::printf("SERIES_SEARCH descending=%d books=4096 results=%u series_reads=%d\n", descending, ui.filteredCount,
@@ -2425,9 +2428,39 @@ TEST_F(LibraryUiTest, SearchReusesFoldBufferAcrossTitleAuthorSeriesAndFilename) 
   const uint16_t expected[] = {0, 1, 2, 4, 5};
   for (size_t i = 0; i < 5; ++i) EXPECT_EQ(ui.filtered[i], expected[i]);
   EXPECT_EQ(ui.index.readCalls, 6);
-  EXPECT_EQ(ui.index.titleReadCalls, 2);
+  EXPECT_EQ(ui.index.metadataReadCalls, 5);
+  EXPECT_EQ(ui.index.titleReadCalls, 0);
   EXPECT_EQ(ui.index.nameReadCalls, 1);
-  EXPECT_EQ(ui.index.authorReadCalls, 3);
+  EXPECT_EQ(ui.index.authorReadCalls, 0);
   EXPECT_EQ(ui.index.seriesRefReadCalls, 2);
   EXPECT_EQ(ui.index.seriesEntryReadCalls, 1);
+}
+
+TEST_F(LibraryUiTest, AuthorHeadingPrefersTheBooksAuthorSort) {
+  LibraryListActivity ui;
+  std::string out;
+  ui.authorHeadingFor("Daron Acemoglu, James A. Robinson", "Acemoglu, Daron & Robinson, James A.", out);
+  EXPECT_EQ(out, "Acemoglu, Daron & Robinson, James A.");
+  ui.authorHeadingFor("Ursula K. Le Guin", "", out);
+  EXPECT_EQ(out, referenceAuthorHeading("Ursula K. Le Guin"));
+  // A capitalised sort still orders the shelf but is not shown.
+  ui.authorHeadingFor("Kuga Huna", "HUNA, KUGA", out);
+  EXPECT_EQ(out, referenceAuthorHeading("Kuga Huna"));
+  ui.authorHeadingFor("王 小明", "王, 小明", out);
+  EXPECT_EQ(out, "王, 小明");
+  ui.authorHeadingFor("", "Nobody, Known", out);
+  EXPECT_EQ(out, referenceAuthorHeading(""));
+}
+
+TEST_F(LibraryUiTest, SearchFindsTheShownTitleWhenTheSortTitleDiffers) {
+  LibraryListActivity ui;
+  populate(ui);
+  // A curated Calibre title sort replaces the stored fold, not the shown title.
+  ui.index.books[0].title = "Dune Messiah";
+  ui.index.books[0].sortTitle = "Dune 02";
+  ui.query = "messiah";
+  ui.applyFilter();
+  ASSERT_FALSE(ui.filterFailed);
+  ASSERT_EQ(ui.filteredCount, 1);
+  EXPECT_EQ(ui.rowFor(0), 0);
 }
