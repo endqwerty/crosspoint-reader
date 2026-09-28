@@ -1,6 +1,12 @@
+# Instrument only calls from BidiUtils, leaving the shaping implementation intact.
+add_library(MiniBidiProbeReference OBJECT ${REPO_ROOT}/lib/MiniBidi/minibidi.c)
+target_compile_definitions(MiniBidiProbeReference PRIVATE bidi_class=reference_bidi_class)
+target_link_libraries(MiniBidiProbeReference PRIVATE crosspoint_test_common)
+
 add_executable(MiniBidiArabicTest
   MiniBidiArabicTest.cpp
-  ${REPO_ROOT}/lib/MiniBidi/minibidi.c
+  DirectionProbeTest.cpp
+  $<TARGET_OBJECTS:MiniBidiProbeReference>
   ${REPO_ROOT}/lib/MiniBidi/BidiUtils.cpp
   ${REPO_ROOT}/lib/Utf8/Utf8.cpp
 )
