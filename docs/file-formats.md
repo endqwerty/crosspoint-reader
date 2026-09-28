@@ -99,27 +99,55 @@ their new widths.
 
 ### Version 50
 
-The header adds `paragraphIndentSpaces` after `extraParagraphSpacing`. The value
-participates in cache validation, so sections with different indentation settings
-are rebuilt. Version 49 was used by pre-release builds with a different header
-layout and is skipped to prevent reuse of those caches.
+The header adds `paragraphIndentSpaces` after `extraParagraphSpacing`, as in
+upstream version 50, and is now 44 bytes. The value participates in cache
+validation, so sections with different indentation settings are rebuilt. Current
+partial sentinel: 232.
 
-### Version 48
+### Version 49
 
-Version 48 keeps the version 47 serialized layout unchanged. It was bumped
-because Hangul text no longer has implicit line-break opportunities between
-syllables: Korean words wrap at spaces (like CSS `word-break: keep-all`), and
-with hyphenation enabled a word may also split at the end of a line wherever the
-CJK line-breaking rules allow, without an inserted hyphen. Justification stretches only word spaces. Cached line breaks and word
-positions from version 47 no longer match.
+Version 49 adopts upstream version 48 Korean layout: Hangul words wrap at spaces,
+justification stretches word gaps, and hyphenation can split a word at a legal
+line-end boundary without adding a hyphen. The serialized layout is unchanged.
+The local version was already 48 before this change, so both complete version 48
+and partial sentinel 234 must rebuild. Its partial sentinel is 233. Reading
+positions, bookmarks and Library metadata are preserved.
 
-### Version 47
+### Earlier local version 48
 
-The section header adds signed `characterSpacing` (pixels) and unsigned
+The 43-byte section header adds signed `characterSpacing` (pixels) and unsigned
 `wordSpacingPercent` after `focusReadingEnabled`; both participate in cache
-validation. Each TextBlock's BlockStyle stores only `characterSpacing` after
-`directionDefined`. Word spacing is resolved into cached word positions during
-layout. Sections from earlier versions are rebuilt.
+validation. Each TextBlock's 24-byte serialized BlockStyle stores
+`characterSpacing` after `directionDefined`. Word spacing is resolved into
+cached word positions during layout.
+
+Version 48 distinguishes this layout from both earlier version 47 formats:
+local reliability builds used the version 46 byte layout, while upstream
+version 47 introduced the spacing fields. Both complete version 47 caches and
+their partial sentinel 235 are rebuilt. Version 48's partial sentinel is 234.
+
+The layout-time `WordStore` arena is not serialized. Its words still enter the
+same `TextBlock` wire layout, so the arena and reclaim retries do not change
+version 48. Vector fonts use the existing `fontId` header field; upstream derives
+the ID from the font family and point size with a TTF-specific salt. Switching
+font family, size, or between cpfont and TTF therefore retains the existing
+font-ID cache validation (subject to the hash's usual collision limit).
+
+### Earlier local version 47
+
+Version 47 keeps the version 46 byte layout. It invalidates section caches that
+could have been accepted after a parser allocation failure or unchecked SD write.
+Both complete and partial layouts rebuild automatically; progress, bookmarks,
+and original EPUB files are separate and remain intact. Fixed-size link/footnote
+fields now write zero padding after their terminator. Readers reject incomplete
+fields, invalid boolean values, and oversized cached ruby/image-path strings.
+
+Section installation writes `.part`, checks each write/seek and the final close,
+renames the prior cache to `.bak`, then installs the new cache. A failed install
+restores the backup where possible. A leftover `.bak` at the next open is
+conservatively restored, even if a newer live cache exists; this may repeat layout
+work but preserves a previously committed copy. It is not a claim of atomic
+multi-file transactions or physical SD power-loss durability.
 
 ### Version 46
 
@@ -430,8 +458,13 @@ Written by `lib/LibraryIndex/LibraryBuilder.cpp`, read by `LibraryIndexFile`. On
 file describing every book on the card, so the shelf can sort and search
 thousands of titles without opening any of them.
 
-Format version 2. An index written by another version fails validation on open
-and is rebuilt; that is the entire migration mechanism.
+Format version 4. Versions 2 and 3 are read only during reconciliation to preserve
+`firstSeen` arrival order and `nextFirstSeen`; they are never exposed directly by
+the current Library UI. Their EPUB metadata is parsed again into the new format.
+The index migration does not change EPUB reading-position or section-cache files.
+Fold/sort revision 6 preserves leading words in title and series sorting and search,
+adopting upstream fold revision 4 while retaining the local author and arrival rules.
+Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
 
 ### Layout
 
@@ -440,15 +473,10 @@ and is rebuilt; that is the entire migration mechanism.
 | Header | 0 | 64 bytes, `ClixHeader` |
 | Folders | `folderStart` | length-prefixed paths, one per folder |
 | Records | `recordStart` | `bookCount` × 128-byte `ClixRecord` |
-| Permutations | `permStart` | `bookCount` u16 author order, then `bookCount` u16 arrival order |
+| Permutations | `permStart` | `bookCount` u16 author, arrival, then series order |
+| Series | `seriesStart` | `seriesCount` × 64-byte series entries |
+| Series references | `seriesRefStart` | `bookCount` × 4-byte references, parallel to title-order records |
 | Name blob | `nameStart` | per record: path hash, name, canonical author, title, source author (see below) |
-
-The arrival permutation runs oldest first, keyed by the record's FAT
-modification time (when the file landed on the card); `firstSeen` — the
-build-assigned discovery counter — breaks ties and carries books whose
-filesystem reports no time. Fold version 3 introduced the timestamp key; a
-fold bump rebuilds ranks while preserving `firstSeen`.
-Fold version 4 preserves leading articles in title sort and search keys.
 
 Sections are 512-byte aligned so each starts on an SD block boundary.
 
@@ -458,16 +486,39 @@ A fixed stride is what lets the reader seek straight to record *n* without an
 offset table, and read a screenful in one 4 KB block. `static_assert` enforces it.
 
 Each record carries `fold[96]`, the title normalised for search and sorting —
-accents stripped, case dropped, leading articles preserved — and `authorKey[12]`,
-the author's words folded and sorted so that "Victor Hugo" and "Hugo Victor" group as
-one person. `authorKey` is a GROUPING key, not an ordering one: the shelf orders by
-surname, derived separately from the display name.
+accents stripped, case dropped, leading articles preserved — and `authorKey[12]`.
+Since fold/sort revision 4, the author field is binary: four prefix bytes followed
+by an eight-byte big-endian FNV-1a fingerprint of the complete normalized author
+identity. A zero `authorKeyLen` means no normalized identity. The normalization
+cleans the name, ignores initials, and sorts every remaining word, so "Victor
+Hugo" and "Hugo Victor" group together without merging unrelated authors whose
+names share a short prefix.
+
+The builder verifies the normalized stored source spellings before sharing a
+canonical author name; a conflicting fingerprint fails the rebuild and retains
+the previous index. Directory grouping uses this identity rather than the
+potentially truncated display label. Initials-only and unknown names retain
+their separate display-label behavior. The surname sort still uses its own
+12-byte prefix, followed by canonical-author identity and title ordinal, keeping
+each author's books contiguous. Records stay 128 bytes and the author sort keys
+stay 14 bytes per book. Older fold revisions rebuild once, preserving arrival
+history and EPUB reading positions.
 
 The byte before the folded title records metadata extraction status: not
 attempted, extracted, or failed. The final four bytes contain the packed FAT
 modification date and time returned by SdFat. A zero timestamp is not trusted.
 These fields occupy the alignment and reserved bytes from version 1, so the
 record remains exactly 128 bytes.
+
+Fold/sort revision 5 follows upstream arrival ordering: file modification time
+is the primary key, and `firstSeen` breaks equal timestamps (including zero).
+The Added shelf uses this order; the separate Recent shelf remains reading
+history. An older fold revision rebuilds once while retaining `firstSeen` and
+reading positions. The transient timestamp array costs four bytes per book only
+during a rebuild; if allocation fails, ordering falls back to `firstSeen`, as in
+upstream. `recentRowsFor` resolves up to 16 complete-path identities in two
+chunked passes with a fallible temporary 4096-byte buffer; it stores no lookup
+cache on the index object.
 
 The header records whether EPUB metadata extraction was enabled for the build.
 This prevents a metadata-disabled rebuild from making filename fallbacks look
@@ -497,11 +548,11 @@ display reads still stop at the author or title fields and retain their offsets.
 
 Reconciliation treats the persisted 64-bit complete-path fingerprint as the
 book identity. Metadata is reused only when the fingerprint, size, nonzero FAT
-timestamp, fold version, metadata mode, and expected extraction status agree.
+timestamp, format version, fold version, metadata mode, and expected extraction status agree.
 EPUBs with a zero timestamp or a previous extraction failure are parsed again.
 
 If every current record reuses metadata, the old and new counts agree, and no
-unreadable entry was seen, the staging files are discarded and the live index is
+unreadable entry or scan limit was seen, the staging files are discarded and the live index is
 left byte-for-byte unchanged. A normal rebuild action is therefore a freshness
 check, not a forced metadata reread.
 
@@ -522,3 +573,49 @@ make a real book disappear.
 
 `selfSize` is the expected file size. Comparing it against the real one is a free
 truncation guard: a build cut short by a power failure cannot pass.
+
+
+### Series records (version 4)
+
+Each 64-byte series entry contains `bookCount` (u16 at offset 0), `nameLen` (u8
+at offset 2), `identity` (u32 at offset 3), and up to 57 UTF-8 name bytes at
+offset 7. `identity` is FNV-1a of the full normalized series
+name with leading words preserved, computed before display truncation. It is carried forward when metadata
+is reused. Version 3 had a 61-byte display name and no persisted identity.
+
+Each 4-byte reference contains `seriesId` and `seriesIndex`, both u16. `0xffff`
+means no series or no position, respectively. Positions use hundredths (`250`
+means 2.5); zero is valid. The highest finite position is 655.34. Series order
+places grouped books before standalone books, orders groups by a 16-byte folded
+prefix plus full-name digest, and orders a group's books numerically, with
+unnumbered books last. The header's `knownSeriesCount` marks the start of the
+standalone block. Prefix/digest ordering is deterministic rather than full
+lexicographic ordering for names sharing their first 16 folded bytes.
+
+`LIMITS_REACHED` (header flag bit 2) marks an incomplete scan: another eligible
+book was found beyond 4,096, a folder exceeded five levels below the scan root,
+or an entry was skipped as unreadable/unrepresentable. Exactly 4,096 books alone
+does not set the flag. `DEDUP_DEGRADED` remains separate from scan completeness.
+
+### Library book state (`.crosspoint/library-state/<key>.bin`)
+
+Favorites and reading status live outside the rebuildable index, keyed by the
+16-digit hexadecimal FNV-1a 64-bit fingerprint of the raw complete book path.
+The record is exactly 16 bytes, explicitly encoded independently of compiler
+padding:
+
+| Offset | Size | Value |
+|---|---|---|
+| 0 | 4 | ASCII `LBS1` |
+| 4 | 8 | Book path key, little endian |
+| 12 | 1 | Favorite in bit 0; reading status in bits 1–2 (0 unread, 1 reading, 2 finished) |
+| 13 | 1 | Flags XOR `0xa5` |
+| 14 | 2 | Reserved, zero |
+
+Readers validate magic, key, flags, check byte, reserved bytes and exact size.
+A missing record means unread and not favorite. Corrupt records fail instead of
+silently replacing saved state with defaults. A valid `.bak` can recover an
+unreadable main record. Writes validate a closed `.new` file, restore a verified
+backup if necessary, then install by rename with rollback. Unchanged state
+performs no write. State currently follows the raw path, so renaming/moving a
+book does not automatically migrate its favorite/reading-status sidecar.
