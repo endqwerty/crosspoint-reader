@@ -1,3 +1,4 @@
+#include <BidiUtils.h>
 #include <Epub/Page.h>
 #include <Epub/TokenBoundary.h>
 #include <Epub/blocks/ImageBlock.h>
@@ -7,10 +8,6 @@
 #include <Epub/hyphenation/Hyphenator.h>
 #include <GfxRenderer.h>
 
-const char* lookupHtmlEntity(const char*, size_t) { return nullptr; }
-
-#include <BidiUtils.h>
-
 bool isExplicitHyphen(uint32_t) { return false; }
 bool isSoftHyphen(uint32_t) { return false; }
 
@@ -19,11 +16,8 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string&, 
 ImageBlock::ImageBlock(const std::string& imagePath, const std::string& srcPath, int16_t width, int16_t height)
     : imagePath(imagePath), srcPath(srcPath), width(width), height(height) {}
 
-bool ImageDecoderFactory::isFormatSupported(const std::string&) { return false; }
+bool ImageDecoderFactory::isFormatSupported(const std::string& path) { return path.ends_with(".png"); }
 ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string&) { return nullptr; }
-bool ImageToFramebufferDecoder::validateAndStoreDimensions(int64_t, int64_t, ImageDimensions&, const char*) {
-  return false;
-}
 
 void ImageBlock::render(GfxRenderer&, int, int) {}
 void ImageBlock::renderPlaceholder(GfxRenderer&, int, int) const {}

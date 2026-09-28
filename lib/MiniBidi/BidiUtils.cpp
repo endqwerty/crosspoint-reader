@@ -44,23 +44,7 @@ bidi_char sharedBidiLine[BIDI_MAX_LINE];
 
 namespace BidiUtils {
 
-bool startsWithRtl(const char* utf8, int maxStrongChars) {
-  if (!utf8 || maxStrongChars <= 0) return false;
-
-  auto* p = reinterpret_cast<const unsigned char*>(utf8);
-  int checked = 0;
-  while (*p) {
-    const uint32_t cp = utf8NextCodepoint(&p);
-    if (!cp || cp == REPLACEMENT_GLYPH) break;
-
-    const uchar cls = bidi_class(cp);
-    if (cls == R || cls == AL) return true;
-    if (cls == L) return false;
-    checked++;
-    if (checked >= maxStrongChars) break;
-  }
-  return false;
-}
+bool startsWithRtl(const char* utf8, int maxStrongChars) { return detectParagraphLevel(utf8, 0, maxStrongChars) != 0; }
 
 int detectParagraphLevel(const char* utf8, const int fallbackLevel, const int maxStrongChars) {
   if (!utf8 || maxStrongChars <= 0) return fallbackLevel & 1;
@@ -68,6 +52,8 @@ int detectParagraphLevel(const char* utf8, const int fallbackLevel, const int ma
   auto* p = reinterpret_cast<const unsigned char*>(utf8);
   int checked = 0;
   while (*p) {
+    if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) return 0;
+
     const uint32_t cp = utf8NextCodepoint(&p);
     if (!cp || cp == REPLACEMENT_GLYPH) break;
 
