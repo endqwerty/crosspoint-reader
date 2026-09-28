@@ -16,9 +16,11 @@ directory.
 
 Spacing regressions exercise paragraphs, table cells and long-paragraph soft
 flushes through serialization and reload. Both spacing settings invalidate the
-cache when changed. Version 49 uses a 43-byte header and partial sentinel 233;
-tests reject both earlier version 47 header layouts and sentinel 235 before
-reading layout fields, and inject failure at all 14 header reads.
+cache when changed. Version 51 uses a 44-byte header and partial sentinel 231;
+tests reject both earlier version 47 header layouts, versions 48 and 49 and
+their partial sentinels before reading layout fields, and inject failure at all
+14 header reads. A Calibre-style chapter checks that pagebreak markers keep the
+book text they wrap and drop bare page labels.
 
 The separate section_persistence target injects deterministic short writes,
 close/seek/rename failures and rollback failures using a destination-exclusive
