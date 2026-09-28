@@ -1,0 +1,12 @@
+# Keep the previous configuration as a host-only comparison of the same source.
+add_firmware_expat(ContextRetentionExpat 1024)
+foreach(variant Firmware RetainedContext)
+  add_executable(ExpatStreaming${variant}Test ExpatStreamingTest.cpp)
+  if(variant STREQUAL Firmware)
+    set(parser_library FirmwareExpat)
+  else()
+    set(parser_library ContextRetentionExpat)
+  endif()
+  target_link_libraries(ExpatStreaming${variant}Test PRIVATE ${parser_library} crosspoint_test_common GTest::gtest_main)
+  gtest_discover_tests(ExpatStreaming${variant}Test TEST_PREFIX ${variant}.)
+endforeach()

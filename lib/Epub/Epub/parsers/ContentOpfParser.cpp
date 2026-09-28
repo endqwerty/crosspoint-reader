@@ -1,5 +1,6 @@
 #include "ContentOpfParser.h"
 
+#include <Arduino.h>
 #include <FsHelpers.h>
 #include <Logging.h>
 #include <Serialization.h>
@@ -15,6 +16,7 @@ constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char MEDIA_TYPE_CSS[] = "text/css";
 constexpr char MEDIA_TYPE_IMAGE_PREFIX[] = "image/";
 constexpr char itemCacheFile[] = "/.items.bin";
+constexpr uint32_t ITEM_INDEX_MIN_FREE_HEAP = 16 * 1024;
 
 bool startsWithImageMediaType(const std::string& mediaType) {
   constexpr size_t prefixLen = sizeof(MEDIA_TYPE_IMAGE_PREFIX) - 1;
@@ -34,14 +36,40 @@ bool startsWithImageMediaType(const std::string& mediaType) {
 
 bool isXmlWhitespace(const char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
 
-// Metadata text comes straight from the (untrusted) OPF; unbounded growth on
-// a multi-megabyte title would exhaust the heap. Downstream consumers truncate
-// far below this anyway, so overflow is clamped, not fatal.
-constexpr size_t MAX_METADATA_TEXT = 512;
+// Strips the leading '#' from a refines target so it compares against an id.
+// A refines without one points at another document, not at this element.
+std::string stripRefinesHash(const std::string& refines) {
+  return refines.size() > 1 && refines.front() == '#' ? refines.substr(1) : std::string();
+}
 
-void appendMetadataText(std::string& out, const XML_Char* text, const int len, bool& spacePending,
-                        bool* separatorPending = nullptr) {
-  if (out.size() >= MAX_METADATA_TEXT) return;  // already clamped and logged
+// Attribute values arrive raw, where element text has already been collapsed by
+// the character-data handler. Bring the two to the same shape.
+std::string collapseAttributeText(const std::string& in) {
+  std::string out;
+  out.reserve(in.size());
+  bool spacePending = false;
+  for (const char c : in) {
+    if (isXmlWhitespace(c)) {
+      spacePending = true;
+      continue;
+    }
+    if (spacePending && !out.empty()) out.push_back(' ');
+    spacePending = false;
+    out.push_back(c);
+  }
+  return out;
+}
+
+bool equalsIgnoreAsciiCase(const std::string& a, const char* b) {
+  size_t i = 0;
+  for (; i < a.size() && b[i] != '\0'; i++) {
+    if (static_cast<char>(std::tolower(static_cast<unsigned char>(a[i]))) != b[i]) return false;
+  }
+  return i == a.size() && b[i] == '\0';
+}
+
+bool appendMetadataText(std::string& out, const XML_Char* text, const int len, bool& spacePending,
+                        bool* separatorPending = nullptr, const size_t limit = 512) {
   for (int i = 0; i < len; i++) {
     const char c = text[i];
     if (isXmlWhitespace(c)) {
@@ -49,10 +77,11 @@ void appendMetadataText(std::string& out, const XML_Char* text, const int len, b
       continue;
     }
 
-    if (out.size() >= MAX_METADATA_TEXT) {
-      LOG_DBG("COF", "Metadata text exceeds %u bytes; truncating", static_cast<unsigned>(MAX_METADATA_TEXT));
-      return;
-    }
+    const auto byte = static_cast<unsigned char>(c);
+    const size_t glyphBytes = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+    const size_t prefixBytes = separatorPending && *separatorPending ? 2 : spacePending && !out.empty() ? 1 : 0;
+    if (out.size() + prefixBytes + glyphBytes > limit) return false;
+
     if (separatorPending != nullptr && *separatorPending) {
       out.append(", ");
       *separatorPending = false;
@@ -63,6 +92,17 @@ void appendMetadataText(std::string& out, const XML_Char* text, const int len, b
     spacePending = false;
     out.push_back(c);
   }
+  return true;
+}
+
+// Do not turn oversized identifiers or series into matching truncated prefixes.
+void assignMetadataAttribute(std::string& out, const char* value) {
+  constexpr size_t LIMIT = 255;
+  const size_t len = strnlen(value, LIMIT + 1);
+  if (len <= LIMIT)
+    out.assign(value, len);
+  else
+    out.clear();
 }
 }  // namespace
 
@@ -195,12 +235,12 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     // Sort the (unconditionally-built) item index so every idref lookup uses binary
     // search. Without this, small/medium manifests fell back to an O(spine × manifest)
     // linear rescan of .items.bin per itemref (up to ~200ms/item at large scale).
-    if (!self->itemIndex.empty()) {
-      std::sort(self->itemIndex.begin(), self->itemIndex.end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
+    if (self->itemIndex && !self->itemIndex->empty()) {
+      std::sort(self->itemIndex->begin(), self->itemIndex->end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
         return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
       });
       self->useItemIndex = true;
-      LOG_DBG("COF", "Using fast index for %zu manifest items", self->itemIndex.size());
+      LOG_DBG("COF", "Using fast index for %zu manifest items", self->itemIndex->size());
     }
     return;
   }
@@ -218,17 +258,58 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
   if (self->state == IN_METADATA && xmlLocalNameEquals(name, "meta")) {
     bool isCover = false;
     std::string coverItemId;
+    std::string metaName;
+    std::string property;
+    std::string content;
+    std::string id;
+    std::string refines;
 
     for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "name") == 0 && strcmp(atts[i + 1], "cover") == 0) {
-        isCover = true;
+      if (strcmp(atts[i], "name") == 0) {
+        assignMetadataAttribute(metaName, atts[i + 1]);
+        if (metaName == "cover") isCover = true;
       } else if (strcmp(atts[i], "content") == 0) {
-        coverItemId = atts[i + 1];
+        assignMetadataAttribute(content, atts[i + 1]);
+        coverItemId = content;
+      } else if (strcmp(atts[i], "property") == 0) {
+        assignMetadataAttribute(property, atts[i + 1]);
+      } else if (strcmp(atts[i], "id") == 0) {
+        assignMetadataAttribute(id, atts[i + 1]);
+      } else if (strcmp(atts[i], "refines") == 0) {
+        assignMetadataAttribute(refines, atts[i + 1]);
       }
     }
 
     if (isCover) {
       self->coverItemId = coverItemId;
+    }
+
+    // EPUB 2: Calibre carries the series in attributes on a self-closing tag,
+    // so there is no element text to wait for. First one wins.
+    if (metaName == "calibre:series") {
+      if (self->calibreSeries.empty()) self->calibreSeries = content;
+      return;
+    }
+    if (metaName == "calibre:series_index") {
+      if (self->calibreSeriesIndex.empty()) self->calibreSeriesIndex = content;
+      return;
+    }
+
+    // EPUB 3: the value is element text, so record what this element means and
+    // collect its characters until the closing tag.
+    const bool isCollection = property == "belongs-to-collection";
+    const bool isCollectionType = !refines.empty() && property == "collection-type";
+    const bool isGroupPosition = !refines.empty() && property == "group-position";
+    if (isCollection || isCollectionType || isGroupPosition) {
+      self->metaText.clear();
+      self->metaTextTooLong = false;
+      self->metaId = id;
+      self->metaRefines = stripRefinesHash(refines);
+      self->metaIsCollection = isCollection;
+      self->metaIsCollectionType = isCollectionType;
+      self->metaIsGroupPosition = isGroupPosition;
+      self->metadataSpacePending = false;
+      self->state = IN_META_VALUE;
     }
     return;
   }
@@ -257,7 +338,17 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       entry.idHash = fnvHash(itemId);
       entry.idLen = static_cast<uint16_t>(itemId.size());
       entry.fileOffset = static_cast<uint32_t>(self->tempItemStore.position());
-      self->itemIndex.push_back(entry);
+      if ((!self->itemIndex || self->itemIndex->size() % 32 == 0) && ESP.getFreeHeap() < ITEM_INDEX_MIN_FREE_HEAP) {
+        LOG_ERR("COF", "Insufficient heap for manifest index");
+        XML_StopParser(self->parser, XML_FALSE);
+        return;
+      }
+      if (!self->itemIndex) self->itemIndex = makeUniqueNoThrow<ItemIndex>();
+      if (!self->itemIndex || !self->itemIndex->push_back(entry)) {
+        LOG_ERR("COF", "OOM or capacity limit in manifest index");
+        XML_StopParser(self->parser, XML_FALSE);
+        return;
+      }
     }
 
     if (self->tempItemStore) {
@@ -323,14 +414,14 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
             uint32_t targetHash = fnvHash(idref);
             uint16_t targetLen = static_cast<uint16_t>(idref.size());
 
-            auto it = std::lower_bound(self->itemIndex.begin(), self->itemIndex.end(),
+            auto it = std::lower_bound(self->itemIndex->begin(), self->itemIndex->end(),
                                        ItemIndexEntry{targetHash, targetLen, 0},
                                        [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
                                          return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
                                        });
 
             // Check for match (may need to check a few due to hash collisions)
-            while (it != self->itemIndex.end() && it->idHash == targetHash) {
+            while (it != self->itemIndex->end() && it->idHash == targetHash) {
               self->tempItemStore.seek(it->fileOffset);
               std::string itemId;
               serialization::readString(self->tempItemStore, itemId);
@@ -400,17 +491,32 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
   }
 
   if (self->state == IN_BOOK_TITLE) {
-    appendMetadataText(self->title, s, len, self->metadataSpacePending);
+    if (!self->titleClamped) {
+      self->titleClamped = !appendMetadataText(self->title, s, len, self->metadataSpacePending);
+    }
     return;
   }
 
   if (self->state == IN_BOOK_AUTHOR) {
-    appendMetadataText(self->author, s, len, self->metadataSpacePending, &self->authorSeparatorPending);
+    if (!self->authorClamped) {
+      self->authorClamped =
+          !appendMetadataText(self->author, s, len, self->metadataSpacePending, &self->authorSeparatorPending);
+    }
     return;
   }
 
   if (self->state == IN_BOOK_LANGUAGE) {
-    appendMetadataText(self->language, s, len, self->metadataSpacePending);
+    if (!self->languageClamped) {
+      self->languageClamped = !appendMetadataText(self->language, s, len, self->metadataSpacePending);
+    }
+    return;
+  }
+
+  if (self->state == IN_META_VALUE) {
+    if (!self->metaTextTooLong) {
+      self->metaTextTooLong = !appendMetadataText(self->metaText, s, len, self->metadataSpacePending, nullptr, 255);
+    }
+    if (self->metaText.size() > 255) self->metaText.resize(255);
     return;
   }
 }
@@ -456,8 +562,34 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
     return;
   }
 
+  if (self->state == IN_META_VALUE && xmlLocalNameEquals(name, "meta")) {
+    self->state = IN_METADATA;
+    if (self->metaTextTooLong) return;
+    if (self->metaIsCollection) {
+      if (self->collectionCount < MAX_COLLECTIONS) {
+        self->collections[self->collectionCount].id = self->metaId;
+        self->collections[self->collectionCount].name = self->metaText;
+        self->collectionCount++;
+      }
+    } else if (self->refineCount < MAX_REFINES) {
+      StagedRefine& refine = self->refines[self->refineCount];
+      refine.target = self->metaRefines;
+      if (self->metaIsCollectionType) {
+        // Case-insensitive: "Series" declares the same intent, and reading a
+        // mis-cased value as a DISQUALIFYING type would be strictly worse than
+        // declaring no type at all.
+        refine.type = equalsIgnoreAsciiCase(self->metaText, "series") ? CollectionType::Series : CollectionType::Other;
+      } else {
+        refine.position = self->metaText;
+      }
+      self->refineCount++;
+    }
+    return;
+  }
+
   if (self->state == IN_METADATA && xmlLocalNameEquals(name, "metadata")) {
     self->state = IN_PACKAGE;
+    self->resolveSeries();
     self->metadataComplete = true;
     return;
   }
@@ -466,4 +598,54 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
     self->state = START;
     return;
   }
+}
+
+void ContentOpfParser::resolveCollection(const std::string& id, CollectionType& type, std::string& position) const {
+  type = CollectionType::Untyped;
+  position.clear();
+  if (id.empty()) return;
+
+  for (size_t i = 0; i < refineCount; i++) {
+    if (refines[i].target != id) continue;
+    if (refines[i].type != CollectionType::Untyped) type = refines[i].type;
+    if (!refines[i].position.empty()) position = refines[i].position;
+  }
+}
+
+void ContentOpfParser::resolveSeries() {
+  // Calibre wins when a book carries both. Its value is the one a reader
+  // curated by hand; belongs-to-collection is whatever the publisher shipped.
+  if (!calibreSeries.empty()) {
+    series = collapseAttributeText(calibreSeries);
+    if (!series.empty()) {
+      seriesIndexText = collapseAttributeText(calibreSeriesIndex);
+      return;
+    }
+  }
+
+  // A collection can be a boxed "set" as well as a series. Only an explicit
+  // non-series type disqualifies it — most documents declare no type at all,
+  // and refusing those would throw away the common case. Among the ones that
+  // qualify the first wins, except that a collection saying outright it is a
+  // series outranks an untyped one wherever the two sit in the document.
+  std::string chosenName;
+  std::string chosenPosition;
+  for (size_t c = 0; c < collectionCount; c++) {
+    CollectionType type = CollectionType::Untyped;
+    std::string position;
+    resolveCollection(collections[c].id, type, position);
+    if (type == CollectionType::Other) continue;
+    // A name that is blank is no candidate at all. Skipping it keeps the later
+    // collections in play, the same fallback a blank Calibre name gets.
+    if (collections[c].name.empty()) continue;
+    if (!chosenName.empty() && type != CollectionType::Series) continue;
+    chosenName = collections[c].name;
+    chosenPosition = position;
+    // Nothing later can outrank an explicit series, so stop at the first one.
+    if (type == CollectionType::Series) break;
+  }
+  if (chosenName.empty()) return;
+
+  series = std::move(chosenName);
+  seriesIndexText = std::move(chosenPosition);
 }
