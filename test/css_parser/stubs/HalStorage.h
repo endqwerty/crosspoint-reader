@@ -28,6 +28,20 @@ class HalFile {
     return end >= position ? static_cast<int>(end - position) : 0;
   }
 
+  size_t position() const {
+    const long offset = file_ ? std::ftell(file_) : -1;
+    return offset >= 0 ? static_cast<size_t>(offset) : 0;
+  }
+
+  size_t size() const {
+    if (!file_) return 0;
+    const long offset = std::ftell(file_);
+    if (offset < 0 || std::fseek(file_, 0, SEEK_END) != 0) return 0;
+    const long end = std::ftell(file_);
+    if (std::fseek(file_, offset, SEEK_SET) != 0 || end < 0) return 0;
+    return static_cast<size_t>(end);
+  }
+
   int read(void* buffer, size_t count) {
     if (!file_) return -1;
     return static_cast<int>(std::fread(buffer, 1, count, file_));
