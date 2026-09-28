@@ -152,6 +152,8 @@ struct Book {
   bool hasTitleMetadata = true;
   std::string fileName{};
   std::string sourceAuthor{};
+  std::string authorSort{};
+  std::string sortTitle{};  // folded into the record instead of the title when set
 };
 struct PathIdentity {
   std::string_view path;
@@ -224,7 +226,7 @@ struct Index {
       const size_t dot = title.find_last_of('.');
       if (dot != std::string::npos && dot != 0) title.resize(dot);
     }
-    const auto folded = fold(title);
+    const auto folded = fold(book.sortTitle.empty() ? title : book.sortTitle);
     out.foldLen = utf8SafeTruncateBuffer(folded.data(), static_cast<int>(std::min(folded.size(), sizeof(out.fold))));
     std::memcpy(out.fold, folded.data(), out.foldLen);
     out.authorKeyLen =
@@ -241,6 +243,10 @@ struct Index {
     return true;
   }
   bool readAuthor(const ClixRecord& r, std::string& text);
+  bool readAuthorSort(const ClixRecord& r, std::string& text) {
+    text = books[r.nameOff].authorSort;
+    return true;
+  }
   bool readBlobField(const ClixRecord& r, uint8_t field, std::string& text) {
     ++authorReadCalls;
     text.clear();
@@ -274,12 +280,18 @@ struct Index {
       failed = true;
       return false;
     }
+    if (static_cast<int>(r.nameOff) == malformedAuthorOrdinal) return false;
     const auto& book = books[r.nameOff];
     if (book.hasTitleMetadata) {
       const int bytes = static_cast<int>(std::min<size_t>(book.title.size(), UINT8_MAX));
       title.assign(book.title.data(), utf8SafeTruncateBuffer(book.title.data(), bytes));
     }
     author = book.author;
+    return true;
+  }
+  bool readTitleAuthorAndSort(const ClixRecord& r, std::string& title, std::string& author, std::string& sort) {
+    if (!readTitleAndAuthor(r, title, author)) return false;
+    sort = books[r.nameOff].authorSort;
     return true;
   }
   bool readPath(const ClixRecord& r, std::string& text) {
@@ -524,6 +536,7 @@ class LibraryListActivity : public Activity, public UiTabListActivity {
   void moveRingTo(int);
   void buildRows(UiScreen&);
   static void formatInitialHeading(uint32_t, std::string&);
+  void authorHeadingFor(const std::string&, const std::string&, std::string&) const;
   void formatAuthorHeading(const std::string&, std::string&) const;
   void onEnter();
   void onExit();
@@ -557,8 +570,8 @@ class LibraryListActivity : public Activity, public UiTabListActivity {
   void applyFilter();
   void refilterAfterBookChange(int);
   void filterBooks();
-  bool rowTextFor(int, std::string&, std::string&, uint32_t* = nullptr);
-  bool authorFor(int, std::string&);
+  bool rowTextFor(int, std::string&, std::string&, uint32_t* = nullptr, std::string* = nullptr);
+  bool authorFor(int, std::string&, std::string* = nullptr);
   bool handleCustomInput();
   bool handleButtons();
   void handleBackAction();
