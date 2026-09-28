@@ -1,4 +1,5 @@
 #pragma once
+#include <ChunkedVector.h>
 #include <Print.h>
 
 #include <algorithm>
@@ -42,6 +43,10 @@ class ContentOpfParser final : public Print {
   // separation as element state rather than inferring either from callbacks.
   bool metadataSpacePending = false;
   bool authorSeparatorPending = false;
+  // Once a glyph does not fit, later XML callbacks must not resume the truncated field.
+  bool titleClamped = false;
+  bool authorClamped = false;
+  bool languageClamped = false;
 
   std::string identifierText;
   std::string identifierScheme;
@@ -55,7 +60,9 @@ class ContentOpfParser final : public Print {
     std::optional<float> index;
     bool isSeries = false;
   };
-  std::vector<CollectionMetadata> collectionCandidates;
+  static constexpr size_t MAX_COLLECTION_CANDIDATES = 8;
+  CollectionMetadata collectionCandidates[MAX_COLLECTION_CANDIDATES];
+  size_t collectionCount = 0;
   std::string calibreSeries;
   std::optional<float> calibreSeriesIndex;
 
@@ -65,7 +72,8 @@ class ContentOpfParser final : public Print {
     uint16_t idLen;       // length for collision reduction
     uint32_t fileOffset;  // offset in .items.bin
   };
-  std::deque<ItemIndexEntry> itemIndex;
+  using ItemIndex = ChunkedVector<ItemIndexEntry, 32, 256, 256>;
+  std::unique_ptr<ItemIndex> itemIndex;
   bool useItemIndex = false;
 
   // FNV-1a hash function
@@ -96,6 +104,8 @@ class ContentOpfParser final : public Print {
   std::string guideCoverPageHref;  // Guide reference with type="cover" or "cover-page" (points to XHTML wrapper)
   std::string textReferenceHref;
   std::vector<std::string> cssFiles;  // CSS stylesheet paths
+  // Text representation of the selected numeric position for the Library index.
+  std::string seriesIndexText;
 
   explicit ContentOpfParser(const std::string& cachePath, const std::string& baseContentPath, const size_t xmlSize,
                             BookMetadataCache* cache, const bool metadataOnly = false)
