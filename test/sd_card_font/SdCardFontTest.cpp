@@ -9,77 +9,11 @@
 #include <new>
 #include <string>
 
-namespace {
-size_t failNextArraySize = 0;
-}  // namespace
-
-// Keep array allocation and deletion paired, including arrays allocated by the test framework.
-void* operator new[](size_t size) {
-  void* allocation = std::malloc(size == 0 ? 1 : size);
-  if (!allocation) {
-    std::fputs("Unexpected host OOM in SdCardFontTest\n", stderr);
-    std::exit(EXIT_FAILURE);
-  }
-  return allocation;
-}
-
-void* operator new[](size_t size, const std::nothrow_t&) noexcept {
-  if (failNextArraySize != 0 && size == failNextArraySize) {
-    failNextArraySize = 0;
-    return nullptr;
-  }
-  return std::malloc(size == 0 ? 1 : size);
-}
-
-void operator delete[](void* allocation) noexcept { std::free(allocation); }
-void operator delete[](void* allocation, size_t) noexcept { std::free(allocation); }
-void operator delete[](void* allocation, const std::nothrow_t&) noexcept { std::free(allocation); }
+#include "FontFixture.h"
+#include "HostAllocations.h"
 
 namespace {
-constexpr uint32_t FIRST = 0xAC00;
-constexpr uint32_t GLYPHS = 513;
-constexpr uint16_t BITMAP_BYTES = 128;
-
-void put16(size_t at, uint16_t value) {
-  sdFontTestFile[at] = value;
-  sdFontTestFile[at + 1] = value >> 8;
-}
-void put32(size_t at, uint32_t value) {
-  put16(at, value);
-  put16(at + 2, value >> 16);
-}
-
-// `glyphs` Hangul glyphs from FIRST, the last of them U+FFFD.
-void makeFont(uint32_t glyphs = GLYPHS) {
-  constexpr size_t GLYPH_OFFSET = 64 + 24;
-  const size_t BITMAP_OFFSET = GLYPH_OFFSET + glyphs * sizeof(EpdGlyph);
-  sdFontTestFile.assign(BITMAP_OFFSET + glyphs * BITMAP_BYTES, 0);
-  std::memcpy(sdFontTestFile.data(), "CPFONT\0\0", 8);
-  put16(8, CPFONT_VERSION);
-  sdFontTestFile[12] = 1;
-  put32(36, 2);
-  put32(40, glyphs);
-  sdFontTestFile[44] = 32;
-  put16(45, 32);
-  put32(56, 64);
-  put32(64, FIRST);
-  put32(68, FIRST + glyphs - 2);
-  put32(76, 0xFFFD);
-  put32(80, 0xFFFD);
-  put32(84, glyphs - 1);
-  for (uint32_t i = 0; i < glyphs; ++i) {
-    EpdGlyph glyph{};
-    glyph.width = 32;
-    glyph.height = 32;
-    glyph.advanceX = 32 << 4;
-    glyph.top = 32;
-    glyph.dataLength = BITMAP_BYTES;
-    // Store bitmaps in reverse glyph order to exercise sorted reads on rebuild.
-    glyph.dataOffset = (glyphs - 1 - i) * BITMAP_BYTES;
-    std::memcpy(sdFontTestFile.data() + GLYPH_OFFSET + i * sizeof(glyph), &glyph, sizeof(glyph));
-    std::memset(sdFontTestFile.data() + BITMAP_OFFSET + glyph.dataOffset, i % 251, BITMAP_BYTES);
-  }
-}
+using namespace sd_font_fixture;
 
 // Six Latin glyphs 'A'..'F' plus U+FFFD, with left classes for 'A' and 'C',
 // right classes for 'B' and 'D', and a class matrix whose top-left 2×2 corner
@@ -155,26 +89,6 @@ std::string latinPage(const char* ascii, uint32_t first, uint32_t count) {
     text.push_back(static_cast<char>(0x80 | (cp & 63)));
   }
   return text;
-}
-
-std::string page(uint32_t first, uint32_t count) {
-  std::string text;
-  text.reserve(count * 3);
-  for (uint32_t cp = first; cp < first + count; ++cp) {
-    text.push_back(static_cast<char>(0xE0 | (cp >> 12)));
-    text.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
-    text.push_back(static_cast<char>(0x80 | (cp & 63)));
-  }
-  return text;
-}
-
-uint32_t residentCount(SdCardFont& font) {
-  const auto* data = font.getEpdFont()->data;
-  uint32_t count = 0;
-  for (uint32_t i = 0; i < data->intervalCount; ++i) {
-    count += data->intervals[i].last - data->intervals[i].first + 1;
-  }
-  return count;
 }
 
 void expectPageBitmaps(SdCardFont& font, uint32_t first, uint32_t count) {
@@ -292,6 +206,196 @@ TEST(SdCardFontTest, BitmapAllocationRetriesAfterEvictingRebuildableAdvances) {
   for (uint32_t cp = FIRST; cp < FIRST + 200; ++cp) {
     EXPECT_EQ(32 << 4, font.getAdvance(cp, 0));
   }
+}
+
+namespace {
+void expectIo(size_t opens, size_t seeks, size_t reads, size_t bytes) {
+  EXPECT_EQ(opens, sdFontTestIo.opens);
+  EXPECT_EQ(seeks, sdFontTestIo.seeks);
+  EXPECT_EQ(reads, sdFontTestIo.reads);
+  EXPECT_EQ(bytes, sdFontTestIo.bytes);
+}
+
+struct FaultGuard {
+  ~FaultGuard() {
+    sdFontTestFailOpen = 0;
+    sdFontTestFailSeek = 0;
+    sdFontTestShortRead = 0;
+    ESP.freeHeap = 200 * 1024;
+  }
+};
+}  // namespace
+
+TEST(SdCardFontTest, CompletePageIoDoesNotGrowWithPreviouslyReadPages) {
+  makeFont();
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  for (uint32_t offset : {0U, 100U, 200U, 300U, 400U, 0U}) {
+    const auto text = page(FIRST + offset, 100);
+    font.clearCache();
+    sdFontTestIo = {};
+    ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+    // 100 requested glyphs + replacement: metadata and bitmap once each.
+    // The requested run and isolated replacement each need two seeks.
+    expectIo(1, 4, 202, 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+    EXPECT_EQ(101U, residentCount(font));
+    ASSERT_TRUE(pageIntact(font, FIRST + offset, 100));
+    font.clearCache();  // idle prewarm scope closes
+    font.clearCache();  // foreground draw scope opens
+    sdFontTestIo = {};
+    ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+    expectIo(0, 0, 0, 0);
+    ASSERT_TRUE(pageIntact(font, FIRST + offset, 100));
+  }
+}
+
+TEST(SdCardFontTest, FourStylesRetainIndependentGlyphDataAndNeedNoIoOnTurn) {
+  makeFont(4);
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  ASSERT_EQ(4, font.styleCount());
+  for (uint32_t offset : {0U, 100U, 200U}) {
+    const auto text = page(FIRST + offset, 100);
+    sdFontTestIo = {};
+    ASSERT_EQ(0, font.prewarm(text.c_str(), 0x0F, false, false, false));
+    expectIo(4, 16, 808, 4 * 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+    ASSERT_TRUE(pageIntact(font, FIRST + offset, 100, 4));
+    font.clearCache();
+    font.clearCache();
+    sdFontTestIo = {};
+    ASSERT_EQ(0, font.prewarm(text.c_str(), 0x0F, false, false, false));
+    expectIo(0, 0, 0, 0);
+    ASSERT_TRUE(pageIntact(font, FIRST + offset, 100, 4));
+  }
+}
+
+TEST(SdCardFontTest, ScatteredGlyphsHaveBoundedSeeksAndBecomeIoFree) {
+  makeFont();
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  const auto text = page(FIRST, 100, 4);
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+  expectIo(1, 202, 202, 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+  ASSERT_TRUE(pageIntact(font, FIRST, 100, 1, 4));
+  font.clearCache();
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+  expectIo(0, 0, 0, 0);
+}
+
+TEST(SdCardFontTest, MetadataOnlyCannotSatisfyABitmapPrewarm) {
+  makeFont();
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  const auto text = page(FIRST, 100);
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, true, false, false));
+  expectIo(1, 2, 101, 101 * sizeof(EpdGlyph));
+  font.clearCache();
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+  expectIo(1, 4, 202, 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+  ASSERT_TRUE(pageIntact(font, FIRST, 100));
+}
+
+TEST(SdCardFontTest, MemoryPressureReleasesPrefetchAndRebuildsCorrectly) {
+  makeFont();
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  const auto text = page(FIRST, 100);
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+  FaultGuard guard;
+  ESP.freeHeap = 39 * 1024;
+  font.clearCache();
+  EXPECT_EQ(0U, residentCount(font));
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+  expectIo(1, 4, 202, 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+  ASSERT_TRUE(pageIntact(font, FIRST, 100));
+}
+
+TEST(SdCardFontTest, FailedOpenSeekOrReadNeverPublishesPartialGlyphData) {
+  makeFont();
+  for (uint8_t fault = 0; fault < 4; ++fault) {
+    SCOPED_TRACE(fault);
+    SdCardFont font;
+    ASSERT_TRUE(font.load("fixture"));
+    const auto text = page(FIRST, 100);
+    FaultGuard guard;
+    sdFontTestIo = {};
+    if (fault == 0) sdFontTestFailOpen = 1;
+    if (fault == 1) sdFontTestFailSeek = 1;
+    if (fault == 2) sdFontTestShortRead = 1;    // metadata
+    if (fault == 3) sdFontTestShortRead = 102;  // bitmap
+    EXPECT_EQ(101, font.prewarm(text.c_str(), 1, false, false, false));
+    EXPECT_EQ(0U, residentCount(font));
+    sdFontTestFailOpen = sdFontTestFailSeek = sdFontTestShortRead = 0;
+    sdFontTestIo = {};
+    ASSERT_EQ(0, font.prewarm(text.c_str(), 1, false, false, false));
+    expectIo(1, 4, 202, 101 * (sizeof(EpdGlyph) + BITMAP_BYTES));
+    ASSERT_TRUE(pageIntact(font, FIRST, 100));
+  }
+}
+
+TEST(SdCardFontTest, WarmPageAllocatesOnlyTheBoundedCodepointScratch) {
+  makeFont(4);
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  const auto text = page(FIRST, 100);
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 0x0F, false, false, false));
+  font.clearCache();
+  sdFontTestAllocations = {};
+  sdFontTestIo = {};
+  ASSERT_EQ(0, font.prewarm(text.c_str(), 0x0F, false, false, false));
+  EXPECT_EQ(1U, sdFontTestAllocations.attempts);
+  EXPECT_EQ(SdCardFont::MAX_PAGE_GLYPHS * sizeof(uint32_t), sdFontTestAllocations.requestedBytes);
+  expectIo(0, 0, 0, 0);
+  ASSERT_TRUE(pageIntact(font, FIRST, 100, 4));
+}
+
+TEST(SdCardFontTest, ScratchAllocationFailurePreservesTheResidentPage) {
+  makeFont();
+  SdCardFont font;
+  ASSERT_TRUE(font.load("fixture"));
+  const auto oldPage = page(FIRST, 100);
+  const auto newPage = page(FIRST + 100, 100);
+  ASSERT_EQ(0, font.prewarm(oldPage.c_str(), 1, false, false, false));
+  failNextArraySize = SdCardFont::MAX_PAGE_GLYPHS * sizeof(uint32_t);
+  sdFontTestIo = {};
+  EXPECT_EQ(-1, font.prewarm(newPage.c_str(), 1, false, false, false));
+  EXPECT_EQ(0U, failNextArraySize);
+  expectIo(0, 0, 0, 0);
+  ASSERT_TRUE(pageIntact(font, FIRST, 100));
+  ASSERT_EQ(0, font.prewarm(newPage.c_str(), 1, false, false, false));
+  ASSERT_TRUE(pageIntact(font, FIRST + 100, 100));
+}
+
+TEST(SdCardFontTest, IdenticalStyleIntervalsShareOneCheckedAllocation) {
+  makeFont(4);
+  SdCardFont font;
+  sdFontTestAllocations = {};
+  ASSERT_TRUE(font.load("fixture"));
+  EXPECT_EQ(1U, sdFontTestAllocations.attempts);
+  EXPECT_EQ(12U, sdFontTestAllocations.requestedBytes);  // two compact 6-byte intervals
+  ASSERT_EQ(0, font.prewarm(page(FIRST, 5).c_str(), 0x0f, false, false, false));
+  EXPECT_TRUE(pageIntact(font, FIRST, 5, 4));
+  font.releaseResidentCaches();
+  ASSERT_EQ(0, font.prewarm(page(FIRST + 10, 5).c_str(), 0x0f, false, false, false));
+  EXPECT_TRUE(pageIntact(font, FIRST + 10, 5, 4));
+}
+
+TEST(SdCardFontTest, InvalidLaterStyleReleasesSharedIntervalsAndCanReload) {
+  makeFont(4);
+  const size_t thirdStyleToc = 32 + 2 * 32;
+  // An out-of-range table rejects the load after style1 has borrowed style0's table.
+  put32(thirdStyleToc + 24, static_cast<uint32_t>(sdFontTestFile.size() + 1));
+  SdCardFont font;
+  EXPECT_FALSE(font.load("fixture"));
+  makeFont(4);
+  ASSERT_TRUE(font.load("fixture"));
+  ASSERT_EQ(0, font.prewarm(page(FIRST, 5).c_str(), 0x0f, false, false, false));
+  EXPECT_TRUE(pageIntact(font, FIRST, 5, 4));
 }
 
 TEST(SdCardFontTest, PagesKernWithTheFontsClassMatrix) {
@@ -433,7 +537,7 @@ TEST(SdCardFontTest, AdvancesStayCorrectWhenPagesAddCodepointsOutOfOrder) {
 TEST(SdCardFontTest, AdvanceMergesPastTheCapKeepTheLowestCodepoints) {
   constexpr uint32_t CACHE_LIMIT = 768;  // SdCardFont::ADVANCE_CACHE_LIMIT
   constexpr uint32_t GLYPH_COUNT = 1001;
-  makeFont(GLYPH_COUNT);
+  makeFont(1, GLYPH_COUNT);
   for (uint32_t i = 0; i < GLYPH_COUNT; ++i) {
     put16(64 + 24 + i * sizeof(EpdGlyph) + offsetof(EpdGlyph, advanceX), (20 + i % 13) << 4);
   }
