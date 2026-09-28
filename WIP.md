@@ -29,7 +29,7 @@ fast-forward/squash integration. No local merge commits.
 Verified self-contained bundles preserve every pre-cleanup local and fetched
 remote branch and tag. Recovery instructions, before/after refs and verification
 are under `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`.
-Recovery copies are also stored under ignored `build/branch-cleanup-20260927/`.
+Recovery copies are also stored under `/Volumes/workspace/builds/crosspoint-reader/branch-cleanup-20260927/`.
 Backup branch refs are removed after verification so only `develop` remains.
 
 The cleanup changes history, repository setup and instructions only. It does not
@@ -40,8 +40,8 @@ older instructions. Use this handoff for current branch state.
 
 ## Current flash image
 
-Use `build/x4pro-epub-r51/firmware-x4pro-epub-r51-final.bin`.
-The authoritative pointer is `build/FLASH-LATEST.md`.
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-epub-r51/firmware-x4pro-epub-r51-final.bin`.
+The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
 Version: `1.6.5-dev-x4pro-r51-93e98bb`.
 SHA-256: `a53470a2e253fcf5804f0f3c91ebc3b6dac9e017abb481dae0a8cb92f3cd0040`.
@@ -71,7 +71,7 @@ the current fixture uses archive/storage doubles. No new feature work is active.
 The latest targeted upstream review found no newer reader develop commits. Eight
 pending PRs were reviewed without import; #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns. Evidence is in
-`build/upstream-review-r50/REVIEW.md` and the r51 package.
+`/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md` and the r51 package.
 
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
 unmeasured. Check an uncached long EPUB, TOC jumps, reopen and sleep/wake with AA
@@ -121,31 +121,11 @@ Review of 2026-09-27, in priority order for the Calibre-library workflow in
    /-665 in `lib/LibraryIndex` and `src/activities/library`). Drop local code
    that upstream supersedes.
 
-Workspace note: `/Volumes/workspace` is an SMB share whose server does not
-advertise named-stream support (`smbutil statshares -m /Volumes/workspace`), so
-macOS stores file metadata as `._*` AppleDouble files. `._*` is ignored through
-`.git/info/exclude` and each submodule git dir's `info/exclude`. That rule cannot
-override the `!Ubuntu/**`-style re-includes in
-`lib/EpdFont/builtinFonts/source/.gitignore`, so `._*` files there reappear after
-checkouts. Delete them with
-`find lib/EpdFont/builtinFonts/source -name '._*' -delete`. The lasting fix is on
-the server: Samba `vfs objects = catia fruit streams_xattr`. The macOS SMB client
-also rejects `F_FULLFSYNC` (`ENOTSUP`) while plain `fsync` works. T3 Code's
-checkpoint capture runs `git add` with `-c core.fsyncMethod=fsync
--c core.fsync=objects,reference`, which git implements as `F_FULLFSYNC` on
-macOS, so it fails with exit 128 ("fsync error on .../objects/xx/tmp_obj_*")
-whenever a turn has new file content. The command-line `-c` overrides repository
-config, so the git directory now lives on local disk at
-`~/.local/share/git-dirs/crosspoint-reader.git`. The checkout's `.git`, both
-worktrees and the SDK/lucide submodules point there with absolute paths; the
-submodules' `core.worktree` values are absolute paths on the share. `git worktree
-list` shows that directory as the main worktree, which is cosmetic. The pre-move
-copy is `/Volumes/workspace/projects/crosspoint-reader.git.smb-backup-20260927`
-and can be deleted once everything checks out. `core.untrackedCache` is enabled. New T3 worktrees take
-~1.5 min for `git worktree add` and ~2 min for a recursive submodule update over
-SMB; T3 cut the latter short and left a half-written SDK. Submodule git dirs
-created on local disk also get `core.filemode=true`, which marks every SMB file
-as a mode change. Use T3 project settings: worktree submodules `none` plus a
-blocking run-on-worktree-create script
-`git submodule update --init && git submodule foreach -q 'git config core.fileMode false'`.
-`lucide` holds only icon-generator source SVGs and is not needed to build.
+Workspace note: the checkout and its git data live on local disk at
+`~/workspace/crosspoint-reader`, and `~/.t3/worktrees` is a local folder. The
+earlier SMB checkout under `/Volumes/workspace/projects/crosspoint-reader` is
+retired: the macOS SMB client rejects `F_FULLFSYNC`, which T3 Code's checkpoint
+`git add` forces, and worktree creation and submodule checkout took minutes there.
+Exported builds moved to `/Volumes/workspace/builds/crosspoint-reader/`.
+`core.untrackedCache` is enabled. `lucide` holds only icon-generator source SVGs
+and is not needed to build.
