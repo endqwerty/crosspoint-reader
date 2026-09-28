@@ -72,8 +72,27 @@ feature branches may be used during active development.
 
 ## Local work and publication
 
-- Commit only when the user requests it. A commit request does not authorize a
-  push, PR, release publication, or history rewrite.
+- The user's standing instruction authorizes automatic local administration:
+  commit completed, validated work, rebase as needed, and integrate it into
+  local `develop` without asking again. This is explicit ongoing authorization
+  for commits and local integration, including where generic agent guidance
+  otherwise asks for a per-task commit request. Do not leave completed work
+  only on a disposable worktree branch.
+- Before integration, fetch official upstream `develop` and bring local
+  `develop` up to date by rebasing the fork-only patch series above it. Keep
+  upstream commits and their trees unchanged; all customizations must remain
+  later commits. Never amend/squash upstream commits, interleave upstream with
+  local patches, or create merge commits to update the fork. Follow the backup,
+  conflict-resolution and validation rules above when rebasing.
+- Integrate the completed worktree branch using fast-forward or squash after
+  rebasing it onto the updated local `develop`. Preserve concurrent/unrelated
+  work. Run relevant checks, export requested firmware/evidence, and update
+  `WIP.md` before the final commit. Verify local `develop` contains the finished
+  work, includes the fetched upstream tip, and has no fork-only merge commits.
+- Finish with clean integrated source state and durable outputs so the user can
+  simply delete the worktree. Leave the active worktree for the user to delete;
+  report any genuine blocker instead of claiming unfinished work is complete.
+  Automatic local administration does not authorize remote publication.
 - Push to a personal fork or open/close a PR only with explicit user approval.
   Verify remotes before pushing; use `origin` unless the user specifies otherwise.
   Never infer authorization to publish from a previous task's permission.
@@ -106,6 +125,20 @@ feature branches may be used during active development.
   data off the SMB share. Write exported firmware images, release packages and
   evidence to the share at `/Volumes/workspace/builds/crosspoint-reader/`, not
   to the repository's `build/`.
+- All development work runs in isolated, disposable worktrees. Do not rely on
+  a worktree surviving a handoff. Before deleting it, deliver the completed
+  firmware and its build evidence to a new dated folder under the shared
+  output directory above. PlatformIO normally writes to the worktree's local
+  `.pio/build/x4pro-gh_release/`; it does not automatically export to SMB.
+- For each firmware handoff, build `x4pro-gh_release`, inspect the resulting
+  image, and copy `firmware.bin` with a descriptive filename, `SHA256SUMS`,
+  source commit/SDK revision, version, build log and flash instructions.
+  Re-read the copied image and verify its SHA-256, then update the shared
+  `FLASH-LATEST.md` with a relative link and Windows path. Preserve previous
+  builds. Windows opens `\\<server>\workspace\builds\crosspoint-reader`.
+  Never store the only output under `workspace/projects/crosspoint-reader`;
+  that shared source checkout is disposable. A successful compilation does
+  not establish physical-device validation.
 - Review existing upstream changes before choosing a new implementation.
 - Measure parser, storage, allocation and rendering work with meaningful fixtures.
   Report host operation counts separately from physical page-turn latency,
