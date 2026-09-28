@@ -237,7 +237,7 @@ void ReaderActivity::loop() {
   // A skip is navigation, not reading: it never counts toward session dwell.
   notePageTurn(!skip && !prevTriggered, changed);
   if (changed && (touch.prev || touch.next)) haptic_feedback::touchAction(skip);
-  requestUpdate();
+  if (changed) requestUpdate();
 }
 
 void ReaderActivity::render(RenderLock&&) {
@@ -256,7 +256,7 @@ void ReaderActivity::render(RenderLock&&) {
     }
     renderer.displayBuffer();
     onEndOfBookRendered();
-    markPageRendered();
+    if (renderer.displayCommitted()) markPageRendered();
     readerSession.onRenderComplete(millis(), trustedtime::trustedNow(), getProgressBasisPoints());
     return;
   }
