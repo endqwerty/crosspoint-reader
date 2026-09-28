@@ -1,6 +1,7 @@
 #pragma once
 #include <HalStorage.h>
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -8,6 +9,8 @@
 
 class ImageBlock final : public Block {
  public:
+  static constexpr size_t MAX_CACHED_PATH_BYTES = 4096;
+
   ImageBlock(const std::string& imagePath, const std::string& srcPath, int16_t width, int16_t height);
   ~ImageBlock() override = default;
 
