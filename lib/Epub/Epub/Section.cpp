@@ -55,7 +55,9 @@ namespace {
 // v48: Spacing fields distinguish this layout from both earlier version 47 formats.
 // v49: Hangul wraps at word spaces and only stretches word gaps, matching upstream v48.
 // v50: Paragraph indentation width in the header for cache validation, matching upstream v50.
-constexpr uint8_t SECTION_FILE_VERSION = 50;
+// v51: Pagebreak markers keep wrapped book text; pagebreak-tagged paragraphs render.
+//      Earlier local v50 files lack the indentation field.
+constexpr uint8_t SECTION_FILE_VERSION = 51;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
