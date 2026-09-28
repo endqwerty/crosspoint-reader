@@ -1,6 +1,7 @@
 #include "BootActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <I18n.h>
 
 #include "fontIds.h"
@@ -8,6 +9,10 @@
 
 void BootActivity::onEnter() {
   Activity::onEnter();
+
+  RenderLock lock;
+  // Static boot artwork stays dark independently of the selected UI theme.
+  display.setInverted(false);
 
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -17,5 +22,6 @@ void BootActivity::onEnter() {
   renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, tr(STR_CROSSPOINT), true, EpdFontFamily::BOLD);
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, tr(STR_BOOTING));
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, CROSSPOINT_VERSION);
+  renderer.invertScreen();
   renderer.displayBuffer();
 }
