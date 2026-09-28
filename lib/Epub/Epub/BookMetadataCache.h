@@ -1,13 +1,12 @@
 #pragma once
 
 #include <BufferedFile.h>
+#include <ChunkedVector.h>
 #include <HalStorage.h>
 
 #include <algorithm>
-#include <deque>
 #include <memory>
 #include <string>
-#include <vector>
 
 class BookMetadataCache {
  public:
@@ -52,6 +51,7 @@ class BookMetadataCache {
   uint16_t tocCount;
   bool loaded;
   bool buildMode;
+  bool passFailed = false;
 
   HalFile bookFile;
   // Temp file handles during build
@@ -66,7 +66,7 @@ class BookMetadataCache {
   // Cumulative spine sizes, cached in RAM at load() so progress/percent lookups are
   // O(1) instead of 2 seeks + a heap-allocating SpineEntry read per access (4 bytes
   // per spine item; <1KB for typical books).
-  std::vector<uint32_t> cumulativeSizes;
+  std::unique_ptr<uint32_t[]> cumulativeSizes;
 
   // Index for fast href→spineIndex lookup (used only for large EPUBs)
   struct SpineHrefIndexEntry {
@@ -74,7 +74,8 @@ class BookMetadataCache {
     uint16_t hrefLen;   // length for collision reduction
     int16_t spineIndex;
   };
-  std::deque<SpineHrefIndexEntry> spineHrefIndex;
+  using SpineHrefIndex = ChunkedVector<SpineHrefIndexEntry, 32, 256, 256>;
+  std::unique_ptr<SpineHrefIndex> spineHrefIndex;
   bool useSpineHrefIndex = false;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
@@ -89,10 +90,10 @@ class BookMetadataCache {
     return hash;
   }
 
-  uint32_t writeSpineEntry(HalFile& file, const SpineEntry& entry) const;
-  uint32_t writeTocEntry(HalFile& file, const TocEntry& entry) const;
-  SpineEntry readSpineEntry(HalFile& file) const;
-  TocEntry readTocEntry(HalFile& file) const;
+  bool writeSpineEntry(HalFile& file, const SpineEntry& entry) const;
+  bool writeTocEntry(HalFile& file, const TocEntry& entry) const;
+  void invalidateReadCache();
+  bool seekCacheEntry(uint32_t lutIndex, uint32_t& end);
 
  public:
   BookMetadata coreMetadata;
@@ -117,6 +118,8 @@ class BookMetadataCache {
 
   // Reading phase (read mode)
   bool load();
+  // Entry faults return empty without discarding validated counts/sizes: readers
+  // use those to distinguish navigation failures from the end of the book.
   SpineEntry getSpineEntry(int index);
   TocEntry getTocEntry(int index);
   // Cumulative byte size up to and including the given spine item (0 if out of range
