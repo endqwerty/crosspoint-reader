@@ -220,6 +220,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                            "libraryUseMetadata", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_LIBRARY_RECENT_OPENED_ONLY, &CrossPointSettings::libraryRecentOpenedOnly,
                            "libraryRecentOpenedOnly", StrId::STR_CAT_SYSTEM));
+  emit(SettingInfo::Toggle(StrId::STR_LIBRARY_GROUP_SERIES, &CrossPointSettings::libraryGroupBySeries,
+                           "libraryGroupBySeries", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_REMOVE_READ_FROM_RECENTS, &CrossPointSettings::removeReadBooksFromRecents,
                            "removeReadBooksFromRecents", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,

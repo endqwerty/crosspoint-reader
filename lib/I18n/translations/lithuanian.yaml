@@ -672,3 +672,5 @@ STR_BT_CONNECTED_TO: "Prisijungta prie %s"
 STR_BT_LOW_MEMORY: "Bluetooth: trūksta atminties"
 STR_BT_HOLD: "laikant"
 STR_BT_MAPPING_CLEARED: "Priskyrimas išvalytas"
+
+STR_NO_RECENT_BOOKS: "Paskutinių nėra"

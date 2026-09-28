@@ -662,3 +662,5 @@ STR_BT_CONNECTED_TO: "Conectado a %s"
 STR_BT_LOW_MEMORY: "Bluetooth: memória insuficiente"
 STR_BT_HOLD: "segurar"
 STR_BT_MAPPING_CLEARED: "Mapeamento limpo"
+
+STR_NO_RECENT_BOOKS: "Sem livros recentes"
