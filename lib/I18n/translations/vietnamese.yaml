@@ -664,3 +664,5 @@ STR_BT_HOLD: "giữ"
 STR_BT_MAPPING_CLEARED: "Đã xóa ánh xạ nút"
 STR_DELETE_ITEM_CONFIRM: "Xóa?"
 STR_SET_SLEEP_COVER_CONFIRM: "Đặt làm ảnh màn hình ngủ?"
+
+STR_NO_RECENT_BOOKS: "Không có sách gần đây"
