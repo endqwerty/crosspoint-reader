@@ -1,5 +1,8 @@
 #pragma once
 
+#include <FolderSearch.h>
+#include <HalStorage.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -27,6 +30,16 @@ class FileBrowserActivity final : public UiListActivity {
   std::string basepath = "/";
   std::vector<std::string> files;
   std::unique_ptr<char[]> fileNameBuffer;
+  std::string searchQuery;
+  std::string foldedQuery;
+  FolderSearch<HalFile> folderSearch;
+  bool searching = false;
+  bool searchIncomplete = false;
+  bool swallowConfirmRelease = false;
+  bool swallowBackRelease = false;
+  void advanceSearch();
+  void openSearch();
+  void clearSearch();
   OptionPopup optionPopup;
 
   // Pull-based rows: the SDK list resolves each drawn row on demand through
@@ -49,7 +62,8 @@ class FileBrowserActivity final : public UiListActivity {
   int prewarmedStart = -1;
   void prewarmRowGlyphs(int start);
 
-  int listCount() const override { return static_cast<int>(files.size()); }
+  int fileRowOffset() const { return mode == Mode::Books ? 1 : 0; }
+  int listCount() const override { return static_cast<int>(files.size()) + fileRowOffset(); }
   void buildScreen(UiScreen& screen) override;
   void activateIndex(int index) override;
   void onRowLongPress(int index) override;
