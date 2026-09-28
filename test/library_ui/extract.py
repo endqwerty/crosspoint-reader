@@ -8,7 +8,7 @@ out = pathlib.Path(sys.argv[2])
 methods = '''onEnter onExit swallowHeldReleases selectedEntry showingRecents openSelectedBook activateIndex
 onRowLongPress promptRemoveRecentBook openSearch stepTab onTabAction selectTab toggleSortDirection tabCount activeTab
 headerTitle totalBookRowCount bookRowCount browsesGroups listCount rowFor groupable titleInitialFor buildGroupStarts groupForBook collapseGroups expandGroup
-restoreExpandedList applyFilter refilterAfterBookChange filterBooks rowTextFor authorFor handleBackAction backActionTrampoline handleCustomInput handleButtons navigateButtons buildRows formatInitialHeading formatAuthorHeading'''.split()
+restoreExpandedList applyFilter refilterAfterBookChange filterBooks rowTextFor authorFor handleBackAction backActionTrampoline handleCustomInput handleButtons navigateButtons buildRows formatInitialHeading authorHeadingFor formatAuthorHeading'''.split()
 optional = '''seriesFor resolveBook promptDeleteBook openBookDetails openBookOptions openOptions openGrouping openShelfFilter refreshLibrary captureRefreshSelection restoreRefreshSelection releaseIndexForChild restoreIndexAfterChild'''.split()
 
 def extract(marker, source=source):

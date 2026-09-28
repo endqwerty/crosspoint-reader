@@ -59,6 +59,10 @@ struct StagedEntry {
   // is chosen later, across every book by the same person.
   uint8_t authorLen;
   char author[STAGE_AUTHOR_BYTES];
+  // The book's own author sort ("Tolkien, J. R. R."), empty when it names none.
+  // Adjacent to the author so the spelling reads fetch both.
+  uint8_t authorSortLen;
+  char authorSort[STAGE_AUTHOR_BYTES];
   // The title the book gives itself, kept SEPARATE from `name`. Writing it into
   // the name slot was a defect: readPath rebuilds a book's file path from that
   // slot, so an enriched book resolved to "/Books/Germinal" and could not be
@@ -70,6 +74,8 @@ struct StagedEntry {
   // it an id. Its own struct so the series pass can seek to it and read it whole
   // rather than pulling in the whole staged entry per book.
   StagedSeries series;
+  uint8_t uuidLen;  // 0 or CLIX_UUID_BYTES
+  uint8_t uuid[CLIX_UUID_BYTES];
 };
 constexpr size_t STAGE_STRIDE = sizeof(StagedEntry);
 
@@ -275,6 +281,15 @@ std::string stemOf(const std::string& name) {
   return (dot == std::string::npos || dot == 0) ? name : name.substr(0, dot);
 }
 
+// A leftover previous entry that recorded a book UUID, for matching a renamed
+// book whose size changed with the rename.
+struct PriorUuid {
+  uint8_t uuid[CLIX_UUID_BYTES];
+  uint16_t prior;  // index into the size-sorted prior list
+};
+
+bool priorUuidLess(const PriorUuid& a, const PriorUuid& b) { return memcmp(a.uuid, b.uuid, CLIX_UUID_BYTES) < 0; }
+
 struct PriorEntry {
   uint64_t pathHash;
   uint32_t fileSize;
@@ -355,6 +370,28 @@ struct WalkState {
   uint32_t serviceUnits = 0;
 };
 
+// Raw bytes of a canonical lowercase UUID ("0f3c...-..."); 0 when it is not one.
+uint8_t parseUuidBytes(const std::string& text, uint8_t (&out)[CLIX_UUID_BYTES]) {
+  if (text.size() != 36) return 0;
+  size_t byte = 0;
+  for (size_t i = 0; i < text.size();) {
+    if (text[i] == '-') {
+      ++i;
+      continue;
+    }
+    if (i + 1 >= text.size() || byte == CLIX_UUID_BYTES) return 0;
+    const auto nibble = [](const char c) {
+      return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+    };
+    const int hi = nibble(text[i]);
+    const int lo = nibble(text[i + 1]);
+    if (hi < 0 || lo < 0) return 0;
+    out[byte++] = static_cast<uint8_t>(hi << 4 | lo);
+    i += 2;
+  }
+  return byte == CLIX_UUID_BYTES ? static_cast<uint8_t>(CLIX_UUID_BYTES) : 0;
+}
+
 // Bound to shownTitle when a book told us nothing. A `std::string()` temporary
 // in that ternary would copy the title on every book that DID tell us something,
 // because the two branches have different value categories.
@@ -382,7 +419,10 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   memset(&entry, 0, sizeof(entry));
   std::string title;
   std::string author;
+  std::string authorSort;
+  std::string titleSort;
   std::string series;
+  std::string uuid;
   uint16_t seriesIndex = SERIES_INDEX_NONE;
   uint32_t seriesIdentity = 0;
   bool titleFromBook = false;
@@ -408,7 +448,7 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   }
 
   if (reuseMetadata) {
-    if (!st.previous->readTitleAndSourceAuthor(priorRecord, title, author)) {
+    if (!st.previous->readReuseFields(priorRecord, title, author, authorSort, uuid)) {
       st.failed = true;
       return false;
     }
@@ -439,16 +479,22 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   if (!reuseMetadata && extractionExpected) {
     st.stats->parsed++;
     Epub epub(fullPath, CACHE_DIR);
-    std::string bookTitle;
-    std::string seriesIndexText;
-    if (epub.loadMetadata(bookTitle, author, series, seriesIndexText)) {
+    Epub::LibraryMetadata metadata;
+    if (epub.loadMetadata(metadata)) {
       entry.record.metadataStatus = CLIX_METADATA_EXTRACTED;
-      if (!bookTitle.empty()) {
-        title = std::move(bookTitle);
+      if (!metadata.title.empty()) {
+        title = std::move(metadata.title);
+        titleSort = std::move(metadata.titleSort);
         titleFromBook = true;
       }
+      author = std::move(metadata.author);
+      authorSort = std::move(metadata.authorSort);
+      series = std::move(metadata.series);
       authorFromBook = !author.empty();
-      seriesIndex = parseSeriesIndex(seriesIndexText);
+      seriesIndex = parseSeriesIndex(metadata.seriesIndexText);
+      uint8_t uuidBytes[CLIX_UUID_BYTES];
+      if (parseUuidBytes(metadata.uuid, uuidBytes) > 0)
+        uuid.assign(reinterpret_cast<char*>(uuidBytes), sizeof(uuidBytes));
     } else {
       entry.record.metadataStatus = CLIX_METADATA_FAILED;
     }
@@ -465,12 +511,16 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
     author.clear();
     authorFromBook = false;
   }
+  if (author.empty()) authorSort.clear();
 
   if (titleFromBook || authorFromBook) st.enriched++;
 
   // An absent author is a fact, not a gap to fill: the row joins the Unknown
   // group rather than borrowing a name from its surroundings.
-  const std::string folded = reuseMetadata ? std::string() : fold(title);
+  // Title order follows the book's own sort title when it names one, so
+  // "The Hobbit" files under H exactly as the reader's Calibre library does.
+  std::string folded = reuseMetadata || titleSort.empty() ? std::string() : fold(titleSort);
+  if (!reuseMetadata && folded.empty()) folded = fold(title);
   const std::string key = reuseMetadata ? std::string() : authorIdentity(author);
 
   entry.record.fileSize = fileSize;
@@ -511,6 +561,13 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   entry.authorLen = static_cast<uint8_t>(utf8SafeTruncateBuffer(
       displayAuthor.data(), static_cast<int>(std::min(displayAuthor.size(), STAGE_AUTHOR_BYTES))));
   memcpy(entry.author, displayAuthor.data(), entry.authorLen);
+  entry.authorSortLen = static_cast<uint8_t>(
+      utf8SafeTruncateBuffer(authorSort.data(), static_cast<int>(std::min(authorSort.size(), STAGE_AUTHOR_BYTES))));
+  memcpy(entry.authorSort, authorSort.data(), entry.authorSortLen);
+  if (uuid.size() == CLIX_UUID_BYTES) {
+    entry.uuidLen = static_cast<uint8_t>(CLIX_UUID_BYTES);
+    memcpy(entry.uuid, uuid.data(), CLIX_UUID_BYTES);
+  }
 
   const int seriesBytes = static_cast<int>(std::min(series.size(), CLIX_SERIES_NAME_BYTES));
   if (!reuseMetadata && !series.empty()) {
@@ -678,7 +735,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
 // truth.
 uint32_t blobBytesFor(const StagedEntry& entry, const StagedEntry& canonical) {
   return sizeof(entry.pathHash) + entry.record.nameLen + 1u + canonical.authorLen + 1u + entry.titleLen + 1u +
-         entry.authorLen;
+         entry.authorLen + 1u + canonical.authorSortLen + 1u + entry.authorSortLen + 1u + entry.uuidLen;
 }
 
 // Group the library into series and settle the order the shelf reads them in.
@@ -1093,24 +1150,33 @@ bool emitIndex(const char* folderStagePath, WalkState& st, const uint16_t* order
   // by surname, as a library would. Keying off the canonical name rather than the
   // raw one is what keeps a group whole: all of a group's books resolve to the
   // same string, so they cannot split across two places.
+  // The author and author-sort slots, read together (258 bytes, so not on the stack).
+  constexpr size_t AUTHOR_FIELDS_OFFSET = offsetof(StagedEntry, authorLen);
+  constexpr size_t AUTHOR_FIELDS_BYTES = offsetof(StagedEntry, authorSort) + STAGE_AUTHOR_BYTES - AUTHOR_FIELDS_OFFSET;
+  auto authorFields =
+      !ioFailed && authorSort && canonicalFrom && n > 1 ? makeUniqueNoThrow<uint8_t[]>(AUTHOR_FIELDS_BYTES) : nullptr;
+  if (!ioFailed && authorSort && canonicalFrom && n > 1 && !authorFields) {
+    LOG_ERR("LIBIDX", "author sort scratch alloc failed; previous index retained");
+    ioFailed = true;
+  }
   if (!ioFailed && authorSort && canonicalFrom && n > 1) {
+    constexpr size_t SORT_LEN_AT = offsetof(StagedEntry, authorSortLen) - AUTHOR_FIELDS_OFFSET;
     for (uint16_t i = 0; i < n; i++) {
       if (canonicalFrom[i] != i) continue;
       serviceBuilder(serviceUnits);
       // Canonical positions are title ordinals; order maps them to staging records.
       const uint16_t src = order[i];
-      uint8_t authorLen = 0;
-      char author[STAGE_AUTHOR_BYTES] = {};
-      if (!readStageAt(static_cast<uint64_t>(src) * STAGE_STRIDE + offsetof(StagedEntry, authorLen), &authorLen,
-                       sizeof(authorLen)))
+      if (!readStageAt(static_cast<uint64_t>(src) * STAGE_STRIDE + AUTHOR_FIELDS_OFFSET, authorFields.get(),
+                       AUTHOR_FIELDS_BYTES))
         break;
-      if (authorLen > 0) {
-        if (!readStageAt(static_cast<uint64_t>(src) * STAGE_STRIDE + offsetof(StagedEntry, author), author,
-                         std::min<size_t>(authorLen, sizeof(author))))
-          break;
-      }
-
-      const std::string key = authorLen == 0 ? std::string() : surnameKey(std::string_view(author, authorLen));
+      const auto* fields = reinterpret_cast<const char*>(authorFields.get());
+      const std::string_view author(fields + 1, std::min<size_t>(authorFields[0], STAGE_AUTHOR_BYTES));
+      const std::string_view sortName(fields + SORT_LEN_AT + 1,
+                                      std::min<size_t>(authorFields[SORT_LEN_AT], STAGE_AUTHOR_BYTES));
+      // The book's own author sort outranks the surname guess; a sort that folds
+      // to nothing is no better than none.
+      std::string key = author.empty() || sortName.empty() ? std::string() : fold(sortName);
+      if (key.empty() && !author.empty()) key = surnameKey(author);
       if (key.empty()) {
         // 0xFF outranks every folded byte, so unknown authors stay at the end.
         memset(authorSort[i].key, 0xFF, sizeof(authorSort[i].key));
@@ -1234,9 +1300,11 @@ bool emitIndex(const char* folderStagePath, WalkState& st, const uint16_t* order
   };
   const auto fetchAuthor = [&readStageAt](const uint16_t stagingIndex, StagedEntry& dest) {
     constexpr size_t OFFSET = offsetof(StagedEntry, authorLen);
+    constexpr size_t END = offsetof(StagedEntry, authorSort) + sizeof(StagedEntry::authorSort);
     static_assert(offsetof(StagedEntry, author) == OFFSET + sizeof(dest.authorLen));
+    static_assert(offsetof(StagedEntry, authorSortLen) == offsetof(StagedEntry, author) + sizeof(dest.author));
     return readStageAt(static_cast<uint64_t>(stagingIndex) * STAGE_STRIDE + OFFSET,
-                       reinterpret_cast<uint8_t*>(&dest) + OFFSET, sizeof(dest.authorLen) + sizeof(dest.author));
+                       reinterpret_cast<uint8_t*>(&dest) + OFFSET, END - OFFSET);
   };
 
   uint32_t nameCursor = 0;
@@ -1337,6 +1405,12 @@ bool emitIndex(const char* folderStagePath, WalkState& st, const uint16_t* order
     if (entry.titleLen > 0) put(entry.title, entry.titleLen);
     put(&entry.authorLen, 1);
     if (entry.authorLen > 0) put(entry.author, entry.authorLen);
+    put(&spelling.authorSortLen, 1);
+    if (spelling.authorSortLen > 0) put(spelling.authorSort, spelling.authorSortLen);
+    put(&entry.authorSortLen, 1);
+    if (entry.authorSortLen > 0) put(entry.authorSort, entry.authorSortLen);
+    put(&entry.uuidLen, 1);
+    if (entry.uuidLen > 0) put(entry.uuid, entry.uuidLen);
     blobWritten += blobBytesFor(entry, spelling);
   }
   header.nameLen = blobWritten;
@@ -1575,8 +1649,46 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
     Storage.remove(folderStagePath.c_str());
     return false;
   }
+  // Calibre rewrites a book when its title or author changes, so a renamed book
+  // rarely keeps its size. The previous entries left unmatched by path are few;
+  // those that recorded a UUID are matched by it before size. Without the
+  // (fallible) array, matching falls back to size alone.
+  std::unique_ptr<PriorUuid[]> priorUuids;
+  uint16_t priorUuidCount = 0;
   if (st.books > 0) {
     if (priorList) std::sort(priorList.get(), priorList.get() + priorCount, priorSizeLess);
+    uint16_t unmatched = 0;
+    for (uint16_t q = 0; priorList && q < priorCount; q++) {
+      if (!priorMatched(priorList[q])) unmatched++;
+    }
+    if (unmatched > 0 && previous.header().formatVersion == CLIX_FORMAT_VERSION) {
+      priorUuids = makeUniqueNoThrow<PriorUuid[]>(unmatched);
+      if (!priorUuids) LOG_ERR("LIBIDX", "rename UUID array alloc failed; matching renames by size only");
+    }
+    std::string priorUuid;
+    for (uint16_t q = 0; priorUuids && q < priorCount; q++) {
+      serviceBuilder(serviceUnits);
+      if (priorMatched(priorList[q])) continue;
+      ClixRecord prior{};
+      if (!previous.readRecord(priorOrdinal(priorList[q]), prior)) {
+        LOG_ERR("LIBIDX", "prior index read failed during rename matching");
+        Storage.remove(STAGE_PATH);
+        Storage.remove(folderStagePath.c_str());
+        return false;
+      }
+      if (!previous.readUuid(prior, priorUuid)) {
+        if (previous.ioFailed()) {
+          LOG_ERR("LIBIDX", "prior index UUID read failed during rename matching");
+          Storage.remove(STAGE_PATH);
+          Storage.remove(folderStagePath.c_str());
+          return false;
+        }
+        continue;
+      }
+      memcpy(priorUuids[priorUuidCount].uuid, priorUuid.data(), CLIX_UUID_BYTES);
+      priorUuids[priorUuidCount++].prior = q;
+    }
+    if (priorUuidCount > 1) std::sort(priorUuids.get(), priorUuids.get() + priorUuidCount, priorUuidLess);
     // A stage that cannot be read back fails the BUILD, it does not degrade.
     // The fallback would be firstSeen == 0 for every affected book — wrong in
     // "Recently added" today, and read back as prior truth by the next rebuild,
@@ -1588,32 +1700,45 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
       Storage.remove(folderStagePath.c_str());
       return false;
     }
-    for (uint16_t i = 0; i < st.books; i++) {
-      serviceBuilder(serviceUnits);
-      ClixRecord r{};
-      if (!read.seekSet(static_cast<uint64_t>(i) * STAGE_STRIDE) ||
-          read.read(reinterpret_cast<uint8_t*>(&r), sizeof(r)) != static_cast<int>(sizeof(r))) {
-        LOG_ERR("LIBIDX", "firstSeen reconciliation: short read at record %u", static_cast<unsigned>(i));
-        read.close();
-        Storage.remove(STAGE_PATH);
-        Storage.remove(folderStagePath.c_str());
-        return false;
+    const auto failReconcile = [&](const char* what, const uint16_t i) {
+      LOG_ERR("LIBIDX", "firstSeen reconciliation: %s at record %u", what, static_cast<unsigned>(i));
+      read.close();
+      Storage.remove(STAGE_PATH);
+      Storage.remove(folderStagePath.c_str());
+      return false;
+    };
+    struct StagedUuid {
+      uint8_t len;
+      uint8_t bytes[CLIX_UUID_BYTES];
+    };
+    static_assert(offsetof(StagedEntry, uuid) == offsetof(StagedEntry, uuidLen) + 1);
+    const auto readStagedUuid = [&read](const uint16_t i, StagedUuid& out) {
+      return read.seekSet(static_cast<uint64_t>(i) * STAGE_STRIDE + offsetof(StagedEntry, uuidLen)) &&
+             read.read(reinterpret_cast<uint8_t*>(&out), sizeof(out)) == static_cast<int>(sizeof(out));
+    };
+    // The recorded UUID of a leftover previous entry, if it has one.
+    const auto priorUuidOf = [&](const uint16_t prior) -> const uint8_t* {
+      for (uint16_t u = 0; u < priorUuidCount; u++) {
+        if (priorUuids[u].prior == prior) return priorUuids[u].uuid;
       }
-      if (r.firstSeen != FIRST_SEEN_UNRESOLVED) {
-        resolvedFirstSeen[i] = r.firstSeen;
-        continue;
-      }
+      return nullptr;
+    };
+
+    // A leftover previous entry of the same size is taken as the renamed book,
+    // unless both name UUIDs and they disagree; otherwise the book is new.
+    const auto resolveBySize = [&](const uint16_t i, const ClixRecord& r, const StagedUuid& staged) {
       PriorEntry* renamed = nullptr;
       if (priorList) {
         PriorEntry* candidate =
             std::lower_bound(priorList.get(), priorList.get() + priorCount, r.fileSize,
                              [](const PriorEntry& entry, const uint32_t size) { return entry.fileSize < size; });
-        while (candidate != priorList.get() + priorCount && candidate->fileSize == r.fileSize) {
-          if (!priorMatched(*candidate)) {
-            renamed = candidate;
-            break;
-          }
-          ++candidate;
+        for (; candidate != priorList.get() + priorCount && candidate->fileSize == r.fileSize; ++candidate) {
+          if (priorMatched(*candidate)) continue;
+          const uint8_t* priorUuid =
+              staged.len == CLIX_UUID_BYTES ? priorUuidOf(static_cast<uint16_t>(candidate - priorList.get())) : nullptr;
+          if (priorUuid && memcmp(priorUuid, staged.bytes, CLIX_UUID_BYTES) != 0) continue;
+          renamed = candidate;
+          break;
         }
       }
       if (renamed) {
@@ -1624,6 +1749,51 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
         resolvedFirstSeen[i] = st.nextFirstSeen++;
         stats.added++;
       }
+    };
+
+    // Pass 1 settles path matches and UUID renames. With UUIDs to match, size
+    // matching waits for pass 2, so an unrelated book of the same size cannot
+    // take a renamed book's arrival first.
+    for (uint16_t i = 0; i < st.books; i++) {
+      serviceBuilder(serviceUnits);
+      ClixRecord r{};
+      if (!read.seekSet(static_cast<uint64_t>(i) * STAGE_STRIDE) ||
+          read.read(reinterpret_cast<uint8_t*>(&r), sizeof(r)) != static_cast<int>(sizeof(r))) {
+        return failReconcile("short read", i);
+      }
+      resolvedFirstSeen[i] = r.firstSeen;
+      if (r.firstSeen != FIRST_SEEN_UNRESOLVED) continue;
+      StagedUuid staged{};
+      if (priorUuidCount == 0) {
+        resolveBySize(i, r, staged);
+        continue;
+      }
+      if (!readStagedUuid(i, staged)) return failReconcile("short UUID read", i);
+      if (staged.len != CLIX_UUID_BYTES) continue;
+      PriorUuid key{};
+      memcpy(key.uuid, staged.bytes, CLIX_UUID_BYTES);
+      for (PriorUuid* it = std::lower_bound(priorUuids.get(), priorUuids.get() + priorUuidCount, key, priorUuidLess);
+           it != priorUuids.get() + priorUuidCount && memcmp(it->uuid, key.uuid, CLIX_UUID_BYTES) == 0; ++it) {
+        if (priorMatched(priorList[it->prior])) continue;
+        markPriorMatched(priorList[it->prior]);
+        resolvedFirstSeen[i] = priorList[it->prior].firstSeen;
+        stats.renamed++;
+        break;
+      }
+    }
+
+    // Pass 2, only when UUIDs were matched: the rest by size, or new.
+    for (uint16_t i = 0; priorUuidCount > 0 && i < st.books; i++) {
+      serviceBuilder(serviceUnits);
+      if (resolvedFirstSeen[i] != FIRST_SEEN_UNRESOLVED) continue;
+      ClixRecord r{};
+      StagedUuid staged{};
+      if (!read.seekSet(static_cast<uint64_t>(i) * STAGE_STRIDE) ||
+          read.read(reinterpret_cast<uint8_t*>(&r), sizeof(r)) != static_cast<int>(sizeof(r))) {
+        return failReconcile("short read", i);
+      }
+      if (!readStagedUuid(i, staged)) return failReconcile("short UUID read", i);
+      resolveBySize(i, r, staged);
     }
     if (!read.close()) {
       LOG_ERR("LIBIDX", "firstSeen reconciliation: stage close failed");
@@ -1648,6 +1818,7 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
   st.stagedEntry = nullptr;
   st.dedupKeys = nullptr;
   priorList.reset();
+  priorUuids.reset();
   nameBuf.reset();
   stagedEntry.reset();
   dedupKeys.reset();
