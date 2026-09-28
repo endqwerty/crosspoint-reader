@@ -1,0 +1,18 @@
+set(EPUB_SOURCE ${REPO_ROOT}/lib/Epub/Epub.cpp)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${EPUB_SOURCE})
+file(READ ${EPUB_SOURCE} source)
+string(FIND "${source}" "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)" start)
+string(FIND "${source}" "bool Epub::loadMetadata(" end)
+if(start LESS 0 OR end LESS start)
+  message(FATAL_ERROR "EPUB load method boundaries moved")
+endif()
+math(EXPR length "${end} - ${start}")
+string(SUBSTRING "${source}" ${start} ${length} load_method)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp
+  "#include \"EpubLoadFixture.h\"\n${load_method}\n")
+add_executable(EpubLoadTest EpubLoadTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp
+  ${REPO_ROOT}/test/chapter_html_slim_parser/ScopedAllocationFailure.cpp)
+target_include_directories(EpubLoadTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+  ${REPO_ROOT}/lib/Memory ${REPO_ROOT}/test/chapter_html_slim_parser)
+target_link_libraries(EpubLoadTest PRIVATE crosspoint_test_common GTest::gtest_main)
+gtest_discover_tests(EpubLoadTest)
