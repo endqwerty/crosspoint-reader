@@ -54,9 +54,12 @@ Both personal forks use a single `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
-The maintained checkout uses `origin` for each official upstream and `fork` for
-its personal fork, with local `develop` tracking `fork/develop`. Fresh clones may
-name remotes differently; always verify their URLs. `.gitmodules` points to the
+The maintained checkout uses GitHub's fork layout in both repos: `origin` is the
+personal fork and `upstream` the official project, with local `develop` tracking
+`origin/develop`. `origin/HEAD` points to `origin/develop`, so tools that start
+from the default branch, such as T3 Code worktrees, begin at the fork. Where
+`AGENTS.md` says to push to `fork`, use `origin`. Fresh clones may name remotes
+differently; always verify their URLs. `.gitmodules` points to the
 SDK fork so the pinned local SDK commit is available to a recursive checkout:
 
 ```sh
@@ -72,7 +75,7 @@ feature branches may be used during active development.
 - Commit only when the user requests it. A commit request does not authorize a
   push, PR, release publication, or history rewrite.
 - Push to a personal fork or open/close a PR only with explicit user approval.
-  Verify remotes before pushing; use `fork` unless the user specifies otherwise.
+  Verify remotes before pushing; use `origin` unless the user specifies otherwise.
   Never infer authorization to publish from a previous task's permission.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
