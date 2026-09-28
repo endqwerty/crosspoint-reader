@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <LibrarySession.h>
 
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
@@ -34,6 +35,7 @@ void UsbDriveActivity::onEnter() {
 }
 
 void UsbDriveActivity::onExit() {
+  library::librarySession.invalidate();
   if (!restartRequested) Storage.endUsbDrive();
   Activity::onExit();
 }

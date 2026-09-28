@@ -14,8 +14,8 @@
 //     file out twice — measured on a real card: 6 of 75 entries were duplicate
 //     dirents resolving to one inode — and without this the shelf shows phantom
 //     books that cannot be opened.
-//   * Unreadable entries are skipped, never fatal. The same card had 7 entries
-//     whose names enumerate but whose contents cannot be opened.
+//   * Unreadable book entries are skipped. Unreadable directories fail the
+//     scan so a transient card error cannot install an incomplete index.
 //   * Install is write-then-rename, so an interrupted build leaves the previous
 //     index untouched rather than a half-written one.
 
@@ -42,6 +42,7 @@ struct BuildStats {
   uint16_t folders = 0;
   uint16_t duplicatesDropped = 0;
   uint16_t unreadableSkipped = 0;
+  bool limitsReached = false;
   uint32_t walkMs = 0;
   // Reconciliation against the previous index. Their sum over a rebuild with no
   // card changes should be: unchanged == books, everything else zero.
@@ -52,6 +53,8 @@ struct BuildStats {
   uint16_t enriched = 0;   // took its title or author from the book rather than the filename
   uint16_t parsed = 0;     // EPUB metadata reads performed by this build
   uint16_t metadataReused = 0;
+  uint16_t series = 0;    // distinct series across the card
+  uint16_t inSeries = 0;  // books belonging to one; the rest are standalones
   bool indexReplaced = false;
   bool ranksDegraded = false;
   bool dedupDegraded = false;
@@ -62,8 +65,8 @@ struct BuildStats {
 // internally so callers cannot accidentally split one rebuild state across two
 // file opens.
 // `readMetadata` makes the walk prefer the title and author held inside each
-// book over its filename. It reads an existing cache when available; otherwise
-// it stops the normal EPUB parser at the end of <metadata>, before the manifest,
+// book over its filename. Unchanged metadata is reused from the prior index;
+// changed EPUBs are parsed to the end of <metadata>, before the manifest,
 // without building the reader's spine, TOC, CSS, or section caches.
 bool buildLibraryIndex(const char* rootPath, BuildStats& stats, bool readMetadata = false);
 
