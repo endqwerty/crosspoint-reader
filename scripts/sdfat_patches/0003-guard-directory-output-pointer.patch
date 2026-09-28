@@ -1,0 +1,18 @@
+Subject: [PATCH] FatFile: do not advance the unused directory output pointer
+
+readDirCache passes a null output pointer and receives the cache address
+through a separate argument. Leave that unused pointer unchanged.
+
+--- a/src/FatLib/FatFile.cpp
++++ b/src/FatLib/FatFile.cpp
+@@ -868,7 +868,9 @@
+         goto fail;
+       }
+     }
+-    dst += n;
++    if (dst) {
++      dst += n;
++    }
+     m_curPosition += n;
+     toRead -= n;
+   }

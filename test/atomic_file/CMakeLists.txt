@@ -1,0 +1,5 @@
+add_executable(AtomicFileTest AtomicFileTest.cpp ${REPO_ROOT}/lib/Serialization/AtomicFile.cpp)
+target_include_directories(AtomicFileTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+  ${REPO_ROOT}/test/library_builder/stubs ${REPO_ROOT}/lib/Serialization)
+target_link_libraries(AtomicFileTest PRIVATE crosspoint_test_common GTest::gtest_main)
+gtest_discover_tests(AtomicFileTest)
