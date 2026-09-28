@@ -14,8 +14,9 @@ by the official reader. Newer SDK main commits are outside this history-only
 cleanup. `.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
-`endqwerty/freeink-sdk`. The maintained checkout uses `origin` for official
-upstream, `fork` for the personal fork, and tracks `fork/develop` in both repos.
+`endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
+personal fork and `upstream` for official upstream, and tracks `origin/develop`
+in both repos.
 The user authorized publishing this cleanup and removing obsolete fork/local
 branches. No PR was opened. Further publication requires the user's instruction.
 
@@ -92,18 +93,32 @@ Review of 2026-09-27, in priority order for the Calibre-library workflow in
    A Calibre rename (author or title edit) therefore orphans them. Options:
    (a) a stable Calibre save template and incremental copying, which is
    workflow only; (b) during reconcile, relink state when a vanished path and a
-   new path share an OPF `dc:identifier` (Calibre UUID). Check upstream for
-   equivalent work before choosing (b).
+   new path share the Calibre UUID in the OPF.
+   Upstream check (2026-09-27): open PRs #3354 (`moveBookData`) and #3166
+   (`moveBook`, `lib/BookCachePath`) migrate cache, bookmarks and recents only
+   for moves made on the device (web files page, WebDAV, move-to-/Read).
+   Neither handles files renamed on a computer; #3354's author declined that as
+   out of scope. (b) has no upstream equivalent. It would need a UUID in the
+   index, but `ClixRecord` is exactly full at 128 bytes
+   (`lib/LibraryIndex/LibraryFormat.h:160`), so it means a format bump and a
+   relink across five path-keyed stores. If chosen, reuse the #3354/#3166
+   migration helper shape rather than a parallel one.
+   Done: `scripts/sync-calibre-library.sh` now lists books whose path changes,
+   matched by Calibre UUID, before copying (also with `-n`). Decide between (a)
+   and (b) after seeing how often real re-exports report renames.
 4. Re-export cost. Reconcile reuses metadata only when size and mtime match
    (`LibraryBuilder.cpp:403`). `scripts/sync-calibre-library.sh` compares by
    content and does not copy source mtimes, so books whose bytes are unchanged
    keep their SD mtime. Remaining: check whether Calibre re-exports are
    byte-identical for unchanged books (run the script with `-n` after a
-   re-export; a full list of changes means they are not), and measure
+   re-export; `>f` lines are content changes, and a full list means they are
+   not), and measure
    first-entry reconcile time on the device.
 5. Reduce rebase burden. The fork is one ~43k-line patch with 51 `-rNN`
    revision docs. Split it into topical patches and fold the revision logs into
-   a few feature docs. Track upstream PR #3366 (Library) and drop local code
+   a few feature docs. Upstream PR #3366 (Library) is already merged into the
+   base (`652ae0d8`); the fork's Library changes extend it (16 files, +2,342
+   /-665 in `lib/LibraryIndex` and `src/activities/library`). Drop local code
    that upstream supersedes.
 
 Workspace note: `/Volumes/workspace` is an SMB share whose server does not
@@ -114,7 +129,23 @@ override the `!Ubuntu/**`-style re-includes in
 `lib/EpdFont/builtinFonts/source/.gitignore`, so `._*` files there reappear after
 checkouts. Delete them with
 `find lib/EpdFont/builtinFonts/source -name '._*' -delete`. The lasting fix is on
-the server: Samba `vfs objects = catia fruit streams_xattr`. Separately, the
-`freeink-sdk` submodule in the `t3code-467772ef` worktree has an index showing
-every tracked file as deleted. Repair it with `git -C freeink-sdk reset` (index
-only), then `git submodule update --init` before building in that worktree.
+the server: Samba `vfs objects = catia fruit streams_xattr`. The macOS SMB client
+also rejects `F_FULLFSYNC` (`ENOTSUP`) while plain `fsync` works. T3 Code's
+checkpoint capture runs `git add` with `-c core.fsyncMethod=fsync
+-c core.fsync=objects,reference`, which git implements as `F_FULLFSYNC` on
+macOS, so it fails with exit 128 ("fsync error on .../objects/xx/tmp_obj_*")
+whenever a turn has new file content. The command-line `-c` overrides repository
+config, so the git directory now lives on local disk at
+`~/.local/share/git-dirs/crosspoint-reader.git`. The checkout's `.git`, both
+worktrees and the SDK/lucide submodules point there with absolute paths; the
+submodules' `core.worktree` values are absolute paths on the share. `git worktree
+list` shows that directory as the main worktree, which is cosmetic. The pre-move
+copy is `/Volumes/workspace/projects/crosspoint-reader.git.smb-backup-20260927`
+and can be deleted once everything checks out. `core.untrackedCache` is enabled. New T3 worktrees take
+~1.5 min for `git worktree add` and ~2 min for a recursive submodule update over
+SMB; T3 cut the latter short and left a half-written SDK. Submodule git dirs
+created on local disk also get `core.filemode=true`, which marks every SMB file
+as a mode change. Use T3 project settings: worktree submodules `none` plus a
+blocking run-on-worktree-create script
+`git submodule update --init && git submodule foreach -q 'git config core.fileMode false'`.
+`lucide` holds only icon-generator source SVGs and is not needed to build.
