@@ -528,3 +528,125 @@ TEST(ContentOpfParserCover, ReadingParserStillOpensManifestCache) {
   EXPECT_EQ(Storage.writeOpens, 1);
   EXPECT_EQ(Storage.readOpens, 1);
 }
+
+namespace {
+struct ParsedSortKeys {
+  std::string titleSort, authorSort, uuid;
+};
+
+ParsedSortKeys parseSortKeys(const std::string& metadata) {
+  const std::string xml = "<package><metadata>" + metadata + "</metadata></package>";
+  const std::string cachePath = "";
+  const std::string baseContentPath = "";
+  ContentOpfParser parser(cachePath, baseContentPath, xml.size(), nullptr);
+  parse(parser, xml);
+  return {parser.titleSort, parser.authorSort, parser.uuid};
+}
+}  // namespace
+
+TEST(ContentOpfParserSortKeys, ReadsCalibreEpub2SortKeysAndLibraryUuid) {
+  // As written by calibre 9.14 "Save to disk". The "calibre"-scheme UUID is not
+  // stable across exports; the uuid-scheme identifier is the library's book UUID.
+  const auto keys = parseSortKeys(R"(
+    <dc:title>The Narrow Corridor</dc:title>
+    <dc:creator opf:file-as="Acemoglu, Daron &amp; Robinson, James A." opf:role="aut">Daron Acemoglu</dc:creator>
+    <dc:creator opf:role="aut">James A. Robinson</dc:creator>
+    <dc:identifier opf:scheme="calibre" id="calibre_id">f58c0ee7-0f39-4de0-be9f-4e9660b46335</dc:identifier>
+    <dc:identifier opf:scheme="uuid" id="uuid_id">1731E1CA-38A6-47DA-9C5B-6F324AB6A3BF</dc:identifier>
+    <meta name="calibre:title_sort" content="Narrow Corridor, The"/>)");
+  EXPECT_EQ(keys.titleSort, "Narrow Corridor, The");
+  EXPECT_EQ(keys.authorSort, "Acemoglu, Daron & Robinson, James A.");
+  EXPECT_EQ(keys.uuid, "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf");
+}
+
+TEST(ContentOpfParserSortKeys, ReadsEpub3RefinesButOnlyAFirstCreatorAuthorSorts) {
+  // The complete metadata of a real calibre-exported EPUB 3: the author is the
+  // fourth creator, and ten refines describe the others before reaching hers.
+  // The Library's author string starts with the illustrator, so her sort would
+  // head a group it does not describe.
+  const auto keys = parseSortKeys(R"(
+    <dc:title id="id">Proud to Be the Villainess: Volume 1</dc:title>
+    <dc:creator id="creator02">Kuga Huna</dc:creator>
+    <dc:creator id="creator03">Bérénice Vourdon</dc:creator>
+    <dc:creator id="creator04">Emlyn Dornemann</dc:creator>
+    <dc:creator id="id-2">Mary=Doe</dc:creator>
+    <dc:rights>©2023 Mary=Doe, Kuga Huna/SQUARE ENIX CO., LTD.</dc:rights>
+    <dc:identifier>calibre:5</dc:identifier>
+    <dc:identifier>uuid:3F04EE43-A503-46BE-9C5E-4A43941BD7A3</dc:identifier>
+    <dc:identifier id="pub-id">9781718396357</dc:identifier>
+    <dc:language>en</dc:language>
+    <dc:contributor id="id-1">calibre (9.14.0) [https://calibre-ebook.com]</dc:contributor>
+    <opf:meta refines="#id" property="title-type">main</opf:meta>
+    <opf:meta refines="#id" property="file-as">Proud to Be the Villainess: Volume 1</opf:meta>
+    <meta refines="#creator02" property="display-seq">2</meta>
+    <meta refines="#creator02" property="file-as">HUNA, KUGA</meta>
+    <meta refines="#creator02" scheme="marc:relators" property="role">ill</meta>
+    <meta refines="#creator03" property="display-seq">3</meta>
+    <meta refines="#creator03" property="file-as">VOURDON, BÉRÉNICE</meta>
+    <meta refines="#creator03" scheme="marc:relators" property="role">trl</meta>
+    <meta refines="#creator04" property="display-seq">4</meta>
+    <meta refines="#creator04" property="file-as">DORNEMANN, EMLYN</meta>
+    <meta refines="#creator04" scheme="marc:relators" property="role">edt</meta>
+    <meta refines="#pub-id" scheme="onix:codelist5" property="identifier-type">15</meta>
+    <meta property="dcterms:modified">2026-04-09T12:21:15Z</meta>
+    <meta name="cover" content="Cover_jpg"/>
+    <opf:meta refines="#id-1" property="role" scheme="marc:relators">bkp</opf:meta>
+    <opf:meta refines="#id-2" property="role" scheme="marc:relators">aut</opf:meta>
+    <opf:meta refines="#id-2" property="file-as">MARY=DOE</opf:meta>)");
+  EXPECT_EQ(keys.titleSort, "Proud to Be the Villainess: Volume 1");
+  EXPECT_TRUE(keys.authorSort.empty());
+  EXPECT_EQ(keys.uuid, "3f04ee43-a503-46be-9c5e-4a43941bd7a3");
+}
+
+TEST(ContentOpfParserSortKeys, ResolvesRefinesThatPrecedeTheirCreators) {
+  const auto keys = parseSortKeys(R"(
+    <meta refines="#illustrator" property="role">ill</meta>
+    <meta refines="#author" property="role">aut</meta>
+    <meta refines="#author" property="file-as">Le Guin, Ursula K.</meta>
+    <meta refines="#title" property="file-as">Wizard of Earthsea, A</meta>
+    <dc:title id="title">A Wizard of Earthsea</dc:title>
+    <dc:creator id="author">Ursula K. Le Guin</dc:creator>
+    <dc:creator id="illustrator">Ruth Robbins</dc:creator>)");
+  EXPECT_EQ(keys.titleSort, "Wizard of Earthsea, A");
+  EXPECT_EQ(keys.authorSort, "Le Guin, Ursula K.");
+}
+
+TEST(ContentOpfParserSortKeys, TitleFileAsOutranksCalibreTitleSort) {
+  const auto keys = parseSortKeys(R"(
+    <meta name="calibre:title_sort" content="Hobbit, The"/>
+    <dc:title opf:file-as="Hobbit"> The Hobbit </dc:title>
+    <dc:creator>J. R. R. Tolkien</dc:creator>
+    <dc:identifier>urn:uuid:0f3c2b1a-0000-4000-8000-00000000000a</dc:identifier>)");
+  EXPECT_EQ(keys.titleSort, "Hobbit");
+  EXPECT_TRUE(keys.authorSort.empty());
+  EXPECT_EQ(keys.uuid, "0f3c2b1a-0000-4000-8000-00000000000a");
+}
+
+TEST(ContentOpfParserSortKeys, OnlyTheFirstCreatorNamesTheAuthorSort) {
+  const auto keys = parseSortKeys(R"(
+    <dc:creator opf:role="aut">First Author</dc:creator>
+    <dc:creator opf:role="aut" opf:file-as="Author, Second">Second Author</dc:creator>)");
+  EXPECT_TRUE(keys.authorSort.empty());
+  const auto illustrated = parseSortKeys(R"(
+    <dc:creator opf:role="ill" opf:file-as="Baynes, Pauline">Pauline Baynes</dc:creator>
+    <dc:creator opf:role="aut" opf:file-as="Tolkien, J. R. R.">J. R. R. Tolkien</dc:creator>)");
+  EXPECT_TRUE(illustrated.authorSort.empty());
+}
+
+TEST(ContentOpfParserSortKeys, IgnoresIdentifiersThatAreNotTheBookUuid) {
+  const auto keys = parseSortKeys(R"(
+    <dc:identifier opf:scheme="calibre">f58c0ee7-0f39-4de0-be9f-4e9660b46335</dc:identifier>
+    <dc:identifier opf:scheme="ISBN">9781718396357</dc:identifier>
+    <dc:identifier opf:scheme="uuid">not-a-uuid</dc:identifier>
+    <dc:identifier opf:scheme="uuid">1731e1ca-38a6-47da-9c5b-6f324ab6a3bf-extra</dc:identifier>)");
+  EXPECT_TRUE(keys.uuid.empty());
+  EXPECT_TRUE(keys.titleSort.empty());
+}
+
+TEST(ContentOpfParserSortKeys, UuidSchemeOutranksAPrefixedIdentifierInEitherOrder) {
+  const auto keys = parseSortKeys(R"(
+    <dc:identifier>urn:uuid:aaaaaaaa-0000-4000-8000-000000000000</dc:identifier>
+    <dc:identifier id="uuid_id">bbbbbbbb-0000-4000-8000-000000000000</dc:identifier>
+    <dc:identifier>urn:uuid:cccccccc-0000-4000-8000-000000000000</dc:identifier>)");
+  EXPECT_EQ(keys.uuid, "bbbbbbbb-0000-4000-8000-000000000000");
+}

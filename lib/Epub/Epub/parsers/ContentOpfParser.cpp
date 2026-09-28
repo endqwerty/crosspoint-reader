@@ -95,6 +95,30 @@ bool appendMetadataText(std::string& out, const XML_Char* text, const int len, b
   return true;
 }
 
+// Canonical lowercase form of an RFC 4122 UUID written bare or behind a
+// "urn:uuid:" / "uuid:" prefix; empty when the text is not one.
+std::string canonicalUuid(const std::string& text, bool& prefixed) {
+  size_t start = 0;
+  prefixed = false;
+  for (const char* prefix : {"urn:uuid:", "uuid:"}) {
+    const size_t len = strlen(prefix);
+    if (text.size() > len && equalsIgnoreAsciiCase(text.substr(0, len), prefix)) {
+      start = len;
+      prefixed = true;
+      break;
+    }
+  }
+  if (text.size() - start != 36) return {};
+  std::string out(36, '\0');
+  for (size_t i = 0; i < 36; i++) {
+    const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(text[start + i])));
+    const bool dash = i == 8 || i == 13 || i == 18 || i == 23;
+    if (dash ? c != '-' : !std::isxdigit(static_cast<unsigned char>(c))) return {};
+    out[i] = c;
+  }
+  return out;
+}
+
 // Do not turn oversized identifiers or series into matching truncated prefixes.
 void assignMetadataAttribute(std::string& out, const char* value) {
   constexpr size_t LIMIT = 255;
@@ -201,6 +225,13 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     if (self->title.empty()) {
       self->state = IN_BOOK_TITLE;
       self->metadataSpacePending = false;
+      for (int i = 0; atts[i]; i += 2) {
+        if (strcmp(atts[i], "id") == 0) {
+          assignMetadataAttribute(self->titleId, atts[i + 1]);
+        } else if (xmlLocalNameEquals(atts[i], "file-as")) {
+          assignMetadataAttribute(self->titleFileAs, atts[i + 1]);
+        }
+      }
     }
     return;
   }
@@ -209,6 +240,32 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     self->state = IN_BOOK_AUTHOR;
     self->metadataSpacePending = false;
     self->authorSeparatorPending = !self->author.empty();
+    if (self->creatorCount < MAX_CREATORS) {
+      StagedCreator& creator = self->creators[self->creatorCount++];
+      for (int i = 0; atts[i]; i += 2) {
+        if (strcmp(atts[i], "id") == 0) {
+          assignMetadataAttribute(creator.id, atts[i + 1]);
+        } else if (xmlLocalNameEquals(atts[i], "file-as")) {
+          assignMetadataAttribute(creator.fileAs, atts[i + 1]);
+        } else if (xmlLocalNameEquals(atts[i], "role")) {
+          assignMetadataAttribute(creator.role, atts[i + 1]);
+        }
+      }
+    }
+    return;
+  }
+
+  if (self->state == IN_METADATA && xmlLocalNameEquals(name, "identifier")) {
+    self->state = IN_IDENTIFIER;
+    self->identifierText.clear();
+    self->identifierIsUuidScheme = false;
+    self->metadataSpacePending = false;
+    for (int i = 0; atts[i]; i += 2) {
+      if ((strcmp(atts[i], "id") == 0 && strcmp(atts[i + 1], "uuid_id") == 0) ||
+          (xmlLocalNameEquals(atts[i], "scheme") && equalsIgnoreAsciiCase(atts[i + 1], "uuid"))) {
+        self->identifierIsUuidScheme = true;
+      }
+    }
     return;
   }
 
@@ -294,13 +351,19 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       if (self->calibreSeriesIndex.empty()) self->calibreSeriesIndex = content;
       return;
     }
+    if (metaName == "calibre:title_sort") {
+      if (self->calibreTitleSort.empty()) self->calibreTitleSort = content;
+      return;
+    }
 
     // EPUB 3: the value is element text, so record what this element means and
     // collect its characters until the closing tag.
     const bool isCollection = property == "belongs-to-collection";
     const bool isCollectionType = !refines.empty() && property == "collection-type";
     const bool isGroupPosition = !refines.empty() && property == "group-position";
-    if (isCollection || isCollectionType || isGroupPosition) {
+    const bool isFileAs = !refines.empty() && property == "file-as";
+    const bool isRole = !refines.empty() && property == "role";
+    if (isCollection || isCollectionType || isGroupPosition || isFileAs || isRole) {
       self->metaText.clear();
       self->metaTextTooLong = false;
       self->metaId = id;
@@ -308,6 +371,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       self->metaIsCollection = isCollection;
       self->metaIsCollectionType = isCollectionType;
       self->metaIsGroupPosition = isGroupPosition;
+      self->metaIsFileAs = isFileAs;
+      self->metaIsRole = isRole;
       self->metadataSpacePending = false;
       self->state = IN_META_VALUE;
     }
@@ -512,6 +577,14 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
     return;
   }
 
+  if (self->state == IN_IDENTIFIER) {
+    // A UUID is 45 bytes at most with its prefix; anything longer is not one.
+    if (self->identifierText.size() <= 64) {
+      appendMetadataText(self->identifierText, s, len, self->metadataSpacePending, nullptr, 65);
+    }
+    return;
+  }
+
   if (self->state == IN_META_VALUE) {
     if (!self->metaTextTooLong) {
       self->metaTextTooLong = !appendMetadataText(self->metaText, s, len, self->metadataSpacePending, nullptr, 255);
@@ -562,9 +635,25 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
     return;
   }
 
+  if (self->state == IN_IDENTIFIER && xmlLocalNameEquals(name, "identifier")) {
+    self->state = IN_METADATA;
+    self->considerIdentifier();
+    return;
+  }
+
   if (self->state == IN_META_VALUE && xmlLocalNameEquals(name, "meta")) {
     self->state = IN_METADATA;
     if (self->metaTextTooLong) return;
+    if (self->metaIsFileAs || self->metaIsRole) {
+      if (self->applyPersonRefine(self->metaRefines, self->metaText, self->metaIsRole)) return;
+      if (self->personRefineCount < MAX_PERSON_REFINES) {
+        StagedPersonRefine& refine = self->personRefines[self->personRefineCount++];
+        refine.target = self->metaRefines;
+        refine.value = self->metaText;
+        refine.isRole = self->metaIsRole;
+      }
+      return;
+    }
     if (self->metaIsCollection) {
       if (self->collectionCount < MAX_COLLECTIONS) {
         self->collections[self->collectionCount].id = self->metaId;
@@ -590,6 +679,7 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
   if (self->state == IN_METADATA && xmlLocalNameEquals(name, "metadata")) {
     self->state = IN_PACKAGE;
     self->resolveSeries();
+    self->resolveSortKeys();
     self->metadataComplete = true;
     return;
   }
@@ -609,6 +699,66 @@ void ContentOpfParser::resolveCollection(const std::string& id, CollectionType& 
     if (refines[i].target != id) continue;
     if (refines[i].type != CollectionType::Untyped) type = refines[i].type;
     if (!refines[i].position.empty()) position = refines[i].position;
+  }
+}
+
+bool ContentOpfParser::applyPersonRefine(const std::string& target, const std::string& value, const bool isRole) {
+  if (target.empty()) return true;  // refines another document: nothing here to describe
+  if (!isRole && target == titleId) {
+    if (titleFileAs.empty()) titleFileAs = value;
+    return true;
+  }
+  for (size_t c = 0; c < creatorCount; c++) {
+    StagedCreator& creator = creators[c];
+    if (creator.id != target) continue;
+    std::string& field = isRole ? creator.role : creator.fileAs;
+    if (field.empty()) field = value;
+    return true;
+  }
+  return false;
+}
+
+void ContentOpfParser::considerIdentifier() {
+  bool prefixed = false;
+  std::string candidate = canonicalUuid(identifierText, prefixed);
+  if (candidate.empty()) return;
+  // An explicit uuid scheme outranks a bare "urn:uuid:" value. Other schemes that
+  // happen to hold a UUID (Calibre's own "calibre" scheme among them) are skipped.
+  const uint8_t rank = identifierIsUuidScheme ? 2 : prefixed ? 1 : 0;
+  if (rank == 0 || rank <= uuidRank) return;
+  uuidRank = rank;
+  uuid = std::move(candidate);
+}
+
+void ContentOpfParser::resolveSortKeys() {
+  const auto refined = [this](const std::string& id, const bool role) -> const std::string* {
+    if (id.empty()) return nullptr;
+    for (size_t i = 0; i < personRefineCount; i++) {
+      if (personRefines[i].isRole == role && personRefines[i].target == id) return &personRefines[i].value;
+    }
+    return nullptr;
+  };
+
+  titleSort = collapseAttributeText(titleFileAs);
+  if (titleSort.empty()) {
+    const std::string* fileAs = refined(titleId, false);
+    if (fileAs) titleSort = *fileAs;
+  }
+  if (titleSort.empty()) titleSort = collapseAttributeText(calibreTitleSort);
+
+  // The book's author string starts with its first creator, whatever that
+  // creator's role, and the Library groups by that string. A sort for a later
+  // author would head the group with a name its author string does not lead
+  // with, so only a first creator who is an author supplies one.
+  if (creatorCount == 0) return;
+  const StagedCreator& creator = creators[0];
+  const std::string* refinedRole = refined(creator.id, true);
+  const std::string& role = creator.role.empty() && refinedRole ? *refinedRole : creator.role;
+  if (!role.empty() && !equalsIgnoreAsciiCase(role, "aut")) return;
+  authorSort = collapseAttributeText(creator.fileAs);
+  if (authorSort.empty()) {
+    const std::string* fileAs = refined(creator.id, false);
+    if (fileAs) authorSort = *fileAs;
   }
 }
 

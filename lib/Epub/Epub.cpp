@@ -60,8 +60,7 @@ bool Epub::findContentOpfFile(std::string* contentOpfFile, ZipFile* sharedZip) c
 }
 
 bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const bool writeSpineEntries,
-                           const bool metadataOnly, ZipFile* sharedZip, std::string* seriesOut,
-                           std::string* seriesIndexTextOut) {
+                           const bool metadataOnly, ZipFile* sharedZip, LibraryMetadata* libraryOut) {
   std::string contentOpfFilePath;
   if (!findContentOpfFile(&contentOpfFilePath, sharedZip)) {
     LOG_ERR("EBP", "Could not find content.opf in zip");
@@ -106,8 +105,13 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const 
   bookMetadata.title = utf8ComposeNfc(opfParser.title);
   bookMetadata.author = utf8ComposeNfc(opfParser.author);
   bookMetadata.language = opfParser.language;
-  if (seriesOut != nullptr) *seriesOut = utf8ComposeNfc(opfParser.series);
-  if (seriesIndexTextOut != nullptr) *seriesIndexTextOut = opfParser.seriesIndexText;
+  if (libraryOut != nullptr) {
+    libraryOut->series = utf8ComposeNfc(opfParser.series);
+    libraryOut->seriesIndexText = opfParser.seriesIndexText;
+    libraryOut->titleSort = utf8ComposeNfc(opfParser.titleSort);
+    libraryOut->authorSort = utf8ComposeNfc(opfParser.authorSort);
+    libraryOut->uuid = opfParser.uuid;
+  }
 
   if (metadataOnly) {
     LOG_DBG("EBP", "Successfully parsed package metadata");
@@ -713,11 +717,8 @@ bool Epub::loadMetadata(std::string& title, std::string& author) {
   return true;
 }
 
-bool Epub::loadMetadata(std::string& title, std::string& author, std::string& series, std::string& seriesIndexText) {
-  title.clear();
-  author.clear();
-  series.clear();
-  seriesIndexText.clear();
+bool Epub::loadMetadata(LibraryMetadata& out) {
+  out = LibraryMetadata{};
 
   ZipFile zip(filepath);
   if (!zip.open()) {
@@ -726,13 +727,12 @@ bool Epub::loadMetadata(std::string& title, std::string& author, std::string& se
   }
 
   BookMetadataCache::BookMetadata metadata;
-  const bool loaded =
-      parseContentOpf(metadata, /*writeSpineEntries=*/false, /*metadataOnly=*/true, &zip, &series, &seriesIndexText);
+  const bool loaded = parseContentOpf(metadata, /*writeSpineEntries=*/false, /*metadataOnly=*/true, &zip, &out);
   zip.close();
   if (!loaded) return false;
 
-  title = std::move(metadata.title);
-  author = std::move(metadata.author);
+  out.title = std::move(metadata.title);
+  out.author = std::move(metadata.author);
   return true;
 }
 
