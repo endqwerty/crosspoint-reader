@@ -90,7 +90,8 @@ namespace {
 //      data), and TextBlocks store each complex-script word's drawn form so page turns
 //      never shape.
 // v77: Book-embedded @font-face fonts (publisherFonts joins the header).
-constexpr uint8_t SECTION_FILE_VERSION = 77;
+// Fork v78: upstream v77 plus pagebreak-marker handling; invalidate fork v77.
+constexpr uint8_t SECTION_FILE_VERSION = 78;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
