@@ -90,14 +90,24 @@ if (parsedSize != fileSize) {
 
 ## `section.bin`
 
+### Version 51
+
+Version 51 keeps the version 50 byte layout. Pagebreak markers
+(`role="doc-pagebreak"` / `epub:type="pagebreak"`) no longer drop the book text
+that converters such as Calibre wrap inside them, and paragraphs, headings, list
+items and blockquotes carrying the attribute render normally. It also retires
+the version 50 caches of earlier local builds, which carried this pagebreak
+handling in a 43-byte header without `paragraphIndentSpaces`. Caches built by
+version 50, and its partial sentinel 232, are rebuilt. Current partial sentinel:
+231. Reading positions, bookmarks and Library metadata are preserved.
+
 ### Version 50
 
 The header adds `paragraphIndentSpaces` after `extraParagraphSpacing`, as in
 upstream version 50, and is now 44 bytes. The value participates in cache
-validation, so sections with different indentation settings are rebuilt. Current
-partial sentinel: 232.
+validation, so sections with different indentation settings are rebuilt.
 
-### Version 49
+### Earlier local version 49
 
 Version 49 adopts upstream version 48 Korean layout: Hangul words wrap at spaces,
 justification stretches word gaps, and hyphenation can split a word at a legal
@@ -235,7 +245,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 50
+#define EXPECTED_VERSION 51
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 256
