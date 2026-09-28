@@ -161,9 +161,13 @@ class ChapterHtmlSlimParser {
   XML_Parser xmlParser_ = nullptr;
   HalFile parseFile_;
   uint32_t parseStartTime_ = 0;
+  enum class ParsePhase : uint8_t { New, Parsing, Done, Finished, Failed, Aborted };
+  ParsePhase parsePhase = ParsePhase::New;
 
   void updateEffectiveInlineStyle();
-  void startNewTextBlock(const BlockStyle& blockStyle);
+  bool startNewTextBlock(const BlockStyle& blockStyle);
+  bool startNewPage();
+  bool completeCurrentPage();
   void flushPendingAnchor();
   void flushPartWordBuffer();
   void fallbackTableRowToStacked();
@@ -171,7 +175,7 @@ class ChapterHtmlSlimParser {
   void finishTableRow();
   void addTableRowSeparator();
   void setCurrentPageVisibleOffset(uint32_t offset);
-  void makePages();
+  bool makePages();
   static EpdFontFamily::Style fontStyleForTextDecoration(CssTextDecoration decoration);
   static void applyDirectionToEntry(StyleStackEntry& entry, const CssStyle& css);
   static void applyTextDecorationToEntry(StyleStackEntry& entry, const CssStyle& css);
@@ -232,12 +236,14 @@ class ChapterHtmlSlimParser {
   // Pages are emitted via completePageFn as they complete during parseStep(), so
   // the caller can stop once enough pages are built and resume on a later tick.
   enum class ParseStatus { More, Done, Error };
-  bool beginParse();
+  bool beginParse();  // Each parser instance owns one parse; retries use a fresh instance.
   ParseStatus parseStep();
-  bool finishParse();  // flush the trailing page and tear down; returns true
+  bool finishParse();  // flush after Done; false on any failure, idempotent after success
   void abortParse();   // tear down without flushing (error / abandon)
+  bool hasError() const noexcept { return parsePhase == ParsePhase::Failed; }
+  void markFailed() noexcept;  // Safe from a page callback; does not free the active XML parser.
 
-  void addLineToPage(std::unique_ptr<TextBlock> line, uint32_t visibleOffset);
+  bool addLineToPage(std::unique_ptr<TextBlock> line, uint32_t visibleOffset);
   const std::vector<std::pair<std::string, uint16_t>>& getAnchors() const { return anchorData; }
 
   // Byte progress of the in-flight parse, used to estimate a still-building section's total page

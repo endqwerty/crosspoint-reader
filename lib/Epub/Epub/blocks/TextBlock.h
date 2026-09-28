@@ -2,6 +2,7 @@
 #include <EpdFontFamily.h>
 #include <HalStorage.h>
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -40,6 +41,9 @@
 // focus reading is disabled).
 class TextBlock final : public Block {
  public:
+  // Bound total annotations on a cached line like its 16-bit text arena.
+  static constexpr size_t MAX_RUBY_BYTES = UINT16_MAX;
+
   struct LinkSpan {
     char href[FOOTNOTE_HREF_LEN];
     int16_t x;
@@ -89,6 +93,8 @@ class TextBlock final : public Block {
   const BlockStyle& getBlockStyle() const { return blockStyle; }
   bool isEmpty() override { return numWords == 0; }
   bool valid() const { return isValid; }
+  // Includes owned storage and object/control-block allowances; SIZE_MAX when invalid.
+  size_t cacheBudgetBytes() const;
   uint16_t wordCount() const { return numWords; }
   // NUL-terminated by construction; safe to pass to C APIs directly.
   const char* wordText(const uint16_t i) const { return textArr + textOffArr[i]; }
