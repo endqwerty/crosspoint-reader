@@ -60,7 +60,8 @@ bool Epub::findContentOpfFile(std::string* contentOpfFile, ZipFile* sharedZip) c
 }
 
 bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const bool writeSpineEntries,
-                           const bool metadataOnly, ZipFile* sharedZip) {
+                           const bool metadataOnly, ZipFile* sharedZip, std::string* seriesOut,
+                           std::string* seriesIndexTextOut) {
   std::string contentOpfFilePath;
   if (!findContentOpfFile(&contentOpfFilePath, sharedZip)) {
     LOG_ERR("EBP", "Could not find content.opf in zip");
@@ -79,8 +80,15 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const 
     return false;
   }
 
-  ContentOpfParser opfParser(getCachePath(), getBasePath(), contentOpfSize,
-                             writeSpineEntries ? bookMetadataCache.get() : nullptr, metadataOnly);
+  // The parser owns bounded metadata/refinement tables and exceeds the task stack budget.
+  auto parser =
+      makeUniqueNoThrow<ContentOpfParser>(getCachePath(), getBasePath(), contentOpfSize,
+                                          writeSpineEntries ? bookMetadataCache.get() : nullptr, metadataOnly);
+  if (!parser) {
+    LOG_ERR("EBP", "OOM: package metadata parser");
+    return false;
+  }
+  auto& opfParser = *parser;
   if (!opfParser.setup()) {
     LOG_ERR("EBP", "Could not setup content.opf parser");
     return false;
@@ -98,6 +106,8 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const 
   bookMetadata.title = utf8ComposeNfc(opfParser.title);
   bookMetadata.author = utf8ComposeNfc(opfParser.author);
   bookMetadata.language = opfParser.language;
+  if (seriesOut != nullptr) *seriesOut = utf8ComposeNfc(opfParser.series);
+  if (seriesIndexTextOut != nullptr) *seriesIndexTextOut = opfParser.seriesIndexText;
 
   if (metadataOnly) {
     LOG_DBG("EBP", "Successfully parsed package metadata");
@@ -459,12 +469,25 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   if (!openProtection()) return false;
 
-  // Initialize spine/TOC cache
+  bool loaded = false;
+  ScopedCleanup cleanup{[this, &loaded] {
+    if (!loaded) {
+      cssParser.reset();
+      bookMetadataCache.reset();
+    }
+  }};
+  // Release previous owners before allocating replacements on a repeated load.
+  cssParser.reset();
+  bookMetadataCache.reset();
   bookMetadataCache = makeUniqueNoThrow<BookMetadataCache>(cachePath);
-  // Always create CssParser - needed for inline style parsing even without CSS files
+  if (!bookMetadataCache) {
+    LOG_ERR("EBP", "OOM: book metadata cache");
+    return false;
+  }
+  // Inline style parsing needs a CSS parser even when external styles are skipped.
   cssParser = makeUniqueNoThrow<CssParser>(cachePath);
-  if (!bookMetadataCache || !cssParser) {
-    LOG_ERR("EBP", "OOM: metadata cache or CSS parser");
+  if (!cssParser) {
+    LOG_ERR("EBP", "OOM: CSS parser");
     return false;
   }
 
@@ -481,9 +504,11 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
           LOG_ERR("EBP", "OOM: TXT/MD metadata cache");
           return false;
         }
-        return Txt::buildTxtCache(filepath, cachePath, bookMetadataCache);
+        loaded = Txt::buildTxtCache(filepath, cachePath, bookMetadataCache);
+        return loaded;
       }
       LOG_DBG("EBP", "Loaded TXT/MD from cache: %s", filepath.c_str());
+      loaded = true;
       return true;
     }
     if (!skipLoadingCss) {
@@ -503,10 +528,14 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
           cssParser->deleteCache();
         }
 
-        BookMetadataCache::BookMetadata cachedMetadata = bookMetadataCache->coreMetadata;
+        bool opfParsed;
+        {
+          BookMetadataCache::BookMetadata sourceMetadata;
+          opfParsed = parseContentOpf(sourceMetadata, /*writeSpineEntries=*/false);
+        }
         CssParser::ParseResult cssParseResult = CssParser::ParseResult::Error;
-        if (!parseContentOpf(cachedMetadata, /*writeSpineEntries=*/false)) {
-          LOG_ERR("EBP", "Could not parse content.opf from cached bookMetadata for CSS files");
+        if (!opfParsed) {
+          LOG_ERR("EBP", "Could not parse content.opf for cached book CSS files");
         } else {
           discoverCssFilesFromZip();
           bookMetadataCache.reset();
@@ -533,6 +562,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
     // an already-cached chapter, where createSectionFile never runs to clear it).
     cssParser->clear();
     LOG_DBG("EBP", "Loaded ePub: %s", filepath.c_str());
+    loaded = true;
     return true;
   }
 
@@ -542,88 +572,101 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   }
 
   if (Txt::isTxtOrMd(filepath)) {
-    return Txt::buildTxtCache(filepath, cachePath, bookMetadataCache);
+    loaded = Txt::buildTxtCache(filepath, cachePath, bookMetadataCache);
+    return loaded;
   }
 
   // Cache doesn't exist or is invalid, build it
   LOG_DBG("EBP", "Cache not found, building spine/TOC cache");
   setupCacheDir();
 
-  const uint32_t indexingStart = millis();
+  // Parsed metadata is no longer needed once book.bin is published.
+  {
+    const uint32_t indexingStart = millis();
 
-  // Begin building cache - stream entries to disk immediately
-  if (!bookMetadataCache->beginWrite()) {
-    LOG_ERR("EBP", "Could not begin writing cache");
-    return false;
-  }
+    // Begin building cache - stream entries to disk immediately
+    if (!bookMetadataCache->beginWrite()) {
+      LOG_ERR("EBP", "Could not begin writing cache");
+      return false;
+    }
 
-  // OPF Pass
-  const uint32_t opfStart = millis();
-  BookMetadataCache::BookMetadata bookMetadata;
-  if (!bookMetadataCache->beginContentOpfPass()) {
-    LOG_ERR("EBP", "Could not begin writing content.opf pass");
-    return false;
-  }
-  if (!parseContentOpf(bookMetadata)) {
-    LOG_ERR("EBP", "Could not parse content.opf");
-    return false;
-  }
-  discoverCssFilesFromZip();
-  if (!bookMetadataCache->endContentOpfPass()) {
-    LOG_ERR("EBP", "Could not end writing content.opf pass");
-    return false;
-  }
-  LOG_DBG("EBP", "OPF pass completed in %lu ms", millis() - opfStart);
+    // OPF Pass
+    const uint32_t opfStart = millis();
+    BookMetadataCache::BookMetadata bookMetadata;
+    if (!bookMetadataCache->beginContentOpfPass()) {
+      LOG_ERR("EBP", "Could not begin writing content.opf pass");
+      return false;
+    }
+    if (!parseContentOpf(bookMetadata)) {
+      LOG_ERR("EBP", "Could not parse content.opf");
+      return false;
+    }
+    discoverCssFilesFromZip();
+    if (!bookMetadataCache->endContentOpfPass()) {
+      LOG_ERR("EBP", "Could not end writing content.opf pass");
+      return false;
+    }
+    LOG_DBG("EBP", "OPF pass completed in %lu ms", millis() - opfStart);
 
-  // TOC Pass - try EPUB 3 nav first, fall back to NCX
-  const uint32_t tocStart = millis();
-  if (!bookMetadataCache->beginTocPass()) {
-    LOG_ERR("EBP", "Could not begin writing toc pass");
-    return false;
-  }
+    // TOC Pass - try EPUB 3 nav first, fall back to NCX
+    const uint32_t tocStart = millis();
+    if (!bookMetadataCache->beginTocPass()) {
+      LOG_ERR("EBP", "Could not begin writing toc pass");
+      return false;
+    }
 
-  bool tocParsed = false;
+    const auto restartTocPass = [this]() {
+      if (!bookMetadataCache->endTocPass() || !bookMetadataCache->beginTocPass()) {
+        LOG_ERR("EBP", "Could not restart TOC pass after parser failure");
+        return false;
+      }
+      return true;
+    };
+    bool tocParsed = false;
 
-  // Try EPUB 3 nav document first (preferred)
-  if (!tocNavItem.empty()) {
-    LOG_DBG("EBP", "Attempting to parse EPUB 3 nav document");
-    tocParsed = parseTocNavFile();
-  }
+    // Try EPUB 3 nav document first (preferred)
+    if (!tocNavItem.empty()) {
+      LOG_DBG("EBP", "Attempting to parse EPUB 3 nav document");
+      tocParsed = parseTocNavFile();
+      if (!tocParsed && !restartTocPass()) return false;
+    }
 
-  // Fall back to NCX if nav parsing failed or wasn't available
-  if (!tocParsed && !tocNcxItem.empty()) {
-    LOG_DBG("EBP", "Falling back to NCX TOC");
-    tocParsed = parseTocNcxFile();
-  }
+    // Fall back to NCX if nav parsing failed or wasn't available
+    if (!tocParsed && !tocNcxItem.empty()) {
+      LOG_DBG("EBP", "Falling back to NCX TOC");
+      tocParsed = parseTocNcxFile();
+      if (!tocParsed && !restartTocPass()) return false;
+    }
 
-  if (!tocParsed) {
-    LOG_ERR("EBP", "Warning: Could not parse any TOC format");
-    // Continue anyway - book will work without TOC
-  }
+    if (!tocParsed) {
+      LOG_ERR("EBP", "Warning: Could not parse any TOC format");
+      // Continue anyway - book will work without TOC
+    }
 
-  if (!bookMetadataCache->endTocPass()) {
-    LOG_ERR("EBP", "Could not end writing toc pass");
-    return false;
-  }
-  LOG_DBG("EBP", "TOC pass completed in %lu ms", millis() - tocStart);
+    if (!bookMetadataCache->endTocPass()) {
+      LOG_ERR("EBP", "Could not end writing toc pass");
+      return false;
+    }
+    LOG_DBG("EBP", "TOC pass completed in %lu ms", millis() - tocStart);
 
-  // Close the cache files
-  if (!bookMetadataCache->endWrite()) {
-    LOG_ERR("EBP", "Could not end writing cache");
-    return false;
-  }
+    // Close the cache files
+    if (!bookMetadataCache->endWrite()) {
+      LOG_ERR("EBP", "Could not end writing cache");
+      return false;
+    }
 
-  // Build final book.bin
-  const uint32_t buildStart = millis();
-  if (!bookMetadataCache->buildBookBin(filepath, bookMetadata)) {
-    LOG_ERR("EBP", "Could not update mappings and sizes");
-    return false;
-  }
-  LOG_DBG("EBP", "buildBookBin completed in %lu ms", millis() - buildStart);
-  LOG_DBG("EBP", "Total indexing completed in %lu ms", millis() - indexingStart);
+    // Build final book.bin
+    const uint32_t buildStart = millis();
+    if (!bookMetadataCache->buildBookBin(filepath, bookMetadata)) {
+      LOG_ERR("EBP", "Could not update mappings and sizes");
+      return false;
+    }
+    LOG_DBG("EBP", "buildBookBin completed in %lu ms", millis() - buildStart);
+    LOG_DBG("EBP", "Total indexing completed in %lu ms", millis() - indexingStart);
 
-  if (!bookMetadataCache->cleanupTmpFiles()) {
-    LOG_DBG("EBP", "Could not cleanup tmp files - ignoring");
+    if (!bookMetadataCache->cleanupTmpFiles()) {
+      LOG_DBG("EBP", "Could not cleanup tmp files - ignoring");
+    }
   }
 
   if (!skipLoadingCss) {
@@ -634,7 +677,8 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
     }
   }
 
-  // Reload the cache from disk so it's in the correct state
+  // Reload the cache from disk so it's in the correct state.
+  bookMetadataCache.reset();
   bookMetadataCache = makeUniqueNoThrow<BookMetadataCache>(cachePath);
   if (!bookMetadataCache || !bookMetadataCache->load()) {
     LOG_ERR("EBP", "Failed to reload cache after writing");
@@ -642,6 +686,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   }
 
   LOG_DBG("EBP", "Loaded ePub: %s", filepath.c_str());
+  loaded = true;
   return true;
 }
 
@@ -654,17 +699,7 @@ bool Epub::loadMetadata(std::string& title, std::string& author) {
     return true;
   }
 
-  auto metadataCache = makeUniqueNoThrow<BookMetadataCache>(cachePath);
-  if (metadataCache && metadataCache->load()) {
-    title = metadataCache->coreMetadata.title;
-    author = metadataCache->coreMetadata.author;
-    return true;
-  }
-  if (!metadataCache) {
-    LOG_ERR("EBP", "Could not allocate metadata cache reader");
-  }
-  metadataCache.reset();
-
+  // Reader caches are keyed by path and may predate an external SD replacement.
   ZipFile zip(filepath);
   if (!zip.open()) {
     LOG_DBG("EBP", "Could not open ePub for package metadata: %s", filepath.c_str());
@@ -717,6 +752,29 @@ bool Epub::loadSyncMetadata(SyncMetadata& metadata) {
   metadata.asin = std::move(parser.asin);
   metadata.series = std::move(parser.series);
   metadata.seriesIndex = parser.seriesIndex;
+  return true;
+}
+
+bool Epub::loadMetadata(std::string& title, std::string& author, std::string& series, std::string& seriesIndexText) {
+  title.clear();
+  author.clear();
+  series.clear();
+  seriesIndexText.clear();
+
+  ZipFile zip(filepath);
+  if (!zip.open()) {
+    LOG_DBG("EBP", "Could not open ePub for package metadata: %s", filepath.c_str());
+    return false;
+  }
+
+  BookMetadataCache::BookMetadata metadata;
+  const bool loaded =
+      parseContentOpf(metadata, /*writeSpineEntries=*/false, /*metadataOnly=*/true, &zip, &series, &seriesIndexText);
+  zip.close();
+  if (!loaded) return false;
+
+  title = std::move(metadata.title);
+  author = std::move(metadata.author);
   return true;
 }
 

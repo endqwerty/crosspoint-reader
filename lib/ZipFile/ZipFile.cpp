@@ -3,6 +3,7 @@
 #include <HalStorage.h>
 #include <InflateStream.h>
 #include <Logging.h>
+#include <Memory.h>
 
 #include <algorithm>
 #include <cstring>
@@ -78,137 +79,107 @@ size_t zipFillCallback(void* vctx, const uint8_t** data) {
 }
 }  // namespace
 
+bool ZipFile::seekDirectory(const uint32_t position) {
+  if (position < zipDetails.centralDirOffset || position > zipDetails.centralDirEnd || !file.seek(position)) {
+    LOG_ERR("ZIP", "Failed to seek central directory");
+    return false;
+  }
+  return true;
+}
+
+bool ZipFile::readDirectoryEntry(DirectoryEntry& entry, char (&name)[DIRECTORY_NAME_CAPACITY],
+                                 const size_t wantedNameLength) {
+  const size_t start = file.position();
+  uint8_t header[CENTRAL_HEADER_BYTES];
+  if (start < zipDetails.centralDirOffset || start > zipDetails.centralDirEnd ||
+      zipDetails.centralDirEnd - start < sizeof(header) || file.read(header, sizeof(header)) != sizeof(header) ||
+      readLe32(header) != CENTRAL_HEADER_SIGNATURE) {
+    LOG_ERR("ZIP", "Invalid or unreadable central-directory entry");
+    return false;
+  }
+  entry.stat.method = readLe16(header + 10);
+  entry.crc32 = readLe32(header + 16);
+  entry.stat.compressedSize = readLe32(header + 20);
+  entry.stat.uncompressedSize = readLe32(header + 24);
+  entry.nameLength = readLe16(header + 28);
+  entry.stat.localHeaderOffset = readLe32(header + 42);
+  const uint64_t next =
+      static_cast<uint64_t>(start) + sizeof(header) + entry.nameLength + readLe16(header + 30) + readLe16(header + 32);
+  if (next > zipDetails.centralDirEnd) {
+    LOG_ERR("ZIP", "Central-directory entry exceeds declared bounds");
+    return false;
+  }
+  const bool wanted = wantedNameLength == ANY_NAME_LENGTH || entry.nameLength == wantedNameLength;
+  if (wanted && entry.nameLength <= sizeof(name) && file.read(name, entry.nameLength) != entry.nameLength) {
+    LOG_ERR("ZIP", "Failed to read central-directory filename");
+    return false;
+  }
+  return file.position() == next || seekDirectory(static_cast<uint32_t>(next));
+}
+
 bool ZipFile::loadAllFileStatSlims() {
   const ScopedOpenClose zip{*this};
-  if (!zip) return false;
-
-  if (!loadZipDetails()) return false;
-
-  file.seek(zipDetails.centralDirOffset);
-
-  uint32_t sig;
-  char itemName[256];
+  if (!zip || !loadZipDetails() || !seekDirectory(zipDetails.centralDirOffset)) return false;
+  char itemName[DIRECTORY_NAME_CAPACITY];
   fileStatSlimCache.clear();
   fileStatSlimCache.reserve(zipDetails.totalEntries);
-
-  while (file.available()) {
-    file.read(&sig, 4);
-    if (sig != 0x02014b50) break;  // End of list
-
-    FileStatSlim fileStat = {};
-
-    file.seekCur(6);
-    file.read(&fileStat.method, 2);
-    file.seekCur(8);
-    file.read(&fileStat.compressedSize, 4);
-    file.read(&fileStat.uncompressedSize, 4);
-    uint16_t nameLen, m, k;
-    file.read(&nameLen, 2);
-    file.read(&m, 2);
-    file.read(&k, 2);
-    file.seekCur(8);
-    file.read(&fileStat.localHeaderOffset, 4);
-
-    if (nameLen < sizeof(itemName)) {
-      file.read(itemName, nameLen);
-      itemName[nameLen] = '\0';
-      fileStatSlimCache.emplace(itemName, fileStat);
-    } else {
-      // Skip over oversized entry names to avoid writing past fixed buffer.
-      file.seekCur(nameLen);
+  for (uint32_t i = 0; i < zipDetails.totalEntries; ++i) {
+    DirectoryEntry entry;
+    if (!readDirectoryEntry(entry, itemName)) {
+      fileStatSlimCache.clear();
+      return false;
     }
-
-    // Skip the rest of this entry (extra field + comment)
-    file.seekCur(m + k);
+    if (entry.nameLength <= sizeof(itemName)) {
+      fileStatSlimCache.emplace(std::string(itemName, entry.nameLength), entry.stat);
+    }
   }
-
-  // Set cursor to start of central directory for sequential access
   lastCentralDirPos = zipDetails.centralDirOffset;
+  lastCentralDirIndex = 0;
   lastCentralDirPosValid = true;
-
   return true;
 }
 
 bool ZipFile::loadFileStatSlim(const char* filename, FileStatSlim* fileStat) {
   if (!fileStatSlimCache.empty()) {
     const auto it = fileStatSlimCache.find(filename);
-    if (it != fileStatSlimCache.end()) {
-      *fileStat = it->second;
-      return true;
-    }
-    return false;
+    if (it == fileStatSlimCache.end()) return false;
+    *fileStat = it->second;
+    return true;
   }
-
   if (lastLookupValid && lastLookupName == filename) {
     *fileStat = lastLookup;
     return true;
   }
-
   const ScopedOpenClose zip{*this};
-  if (!zip) return false;
-
-  if (!loadZipDetails()) return false;
-
-  // Phase 1: Try scanning from cursor position first
-  const uint32_t startPos = lastCentralDirPosValid ? lastCentralDirPos : zipDetails.centralDirOffset;
-  uint32_t entryStart = startPos;
-  bool wrapped = false;
-  file.seek(entryStart);
-
-  const size_t targetLen = strlen(filename);
-  uint8_t header[CENTRAL_HEADER_BYTES];
-  char itemName[256];
-
-  while (true) {
-    // stop if we've wrapped and reached our start position
-    if (wrapped && entryStart >= startPos) break;
-
-    if (file.read(header, sizeof(header)) != static_cast<int>(sizeof(header)) ||
-        readLe32(header) != CENTRAL_HEADER_SIGNATURE) {
-      // End of central directory
-      if (!wrapped && startPos != zipDetails.centralDirOffset) {
-        // Wrap around to beginning
-        entryStart = zipDetails.centralDirOffset;
-        file.seek(entryStart);
-        wrapped = true;
-        continue;
-      }
-      break;
+  if (!zip || !loadZipDetails()) return false;
+  uint32_t ordinal = lastCentralDirPosValid ? lastCentralDirIndex : 0;
+  const uint32_t start =
+      lastCentralDirPosValid && ordinal < zipDetails.totalEntries ? lastCentralDirPos : zipDetails.centralDirOffset;
+  if (ordinal >= zipDetails.totalEntries) ordinal = 0;
+  if (!seekDirectory(start)) return false;
+  const std::string_view requested(filename);
+  char itemName[DIRECTORY_NAME_CAPACITY];
+  for (uint32_t visited = 0; visited < zipDetails.totalEntries; ++visited) {
+    if (ordinal == zipDetails.totalEntries) {
+      if (!seekDirectory(zipDetails.centralDirOffset)) return false;
+      ordinal = 0;
     }
-
-    const uint16_t nameLen = readLe16(header + 28);
-    const uint16_t extraLen = readLe16(header + 30);
-    const uint16_t commentLen = readLe16(header + 32);
-    // skip name, extra field + comment
-    const uint32_t nextEntry = entryStart + sizeof(header) + nameLen + extraLen + commentLen;
-
-    // Skip names that are too long or cannot match by length
-    if (nameLen == targetLen && nameLen < sizeof(itemName)) {
-      const int nameRead = file.read(itemName, nameLen);
-      if (nameRead != static_cast<int>(nameLen)) {
-        LOG_ERR("ZIP", "Failed to read entry name for %s: expected %u bytes, got %d", filename,
-                static_cast<unsigned int>(nameLen), nameRead);
-        break;
-      }
-      if (memcmp(itemName, filename, nameLen) == 0) {
-        // Found it! Update cursor to next entry
-        fileStat->method = readLe16(header + 10);
-        fileStat->compressedSize = readLe32(header + 20);
-        fileStat->uncompressedSize = readLe32(header + 24);
-        fileStat->localHeaderOffset = readLe32(header + 42);
-        lastCentralDirPos = nextEntry;
-        lastCentralDirPosValid = true;
-        lastLookupName.assign(filename, nameLen);
-        lastLookup = *fileStat;
-        lastLookupValid = true;
-        return true;
-      }
+    DirectoryEntry entry;
+    // Names of another length are skipped without reading them.
+    if (!readDirectoryEntry(entry, itemName, requested.size())) return false;
+    ++ordinal;
+    if (entry.nameLength == requested.size() && entry.nameLength <= sizeof(itemName) &&
+        std::string_view(itemName, entry.nameLength) == requested) {
+      *fileStat = entry.stat;
+      lastCentralDirPos = file.position();
+      lastCentralDirIndex = static_cast<uint16_t>(ordinal);
+      lastCentralDirPosValid = true;
+      lastLookupName.assign(requested);
+      lastLookup = entry.stat;
+      lastLookupValid = true;
+      return true;
     }
-
-    entryStart = nextEntry;
-    file.seek(entryStart);
   }
-
   return false;
 }
 
@@ -221,7 +192,10 @@ long ZipFile::getDataOffset(const FileStatSlim& fileStat) {
   uint8_t pLocalHeader[localHeaderSize];
   const uint64_t fileOffset = fileStat.localHeaderOffset;
 
-  file.seek(fileOffset);
+  if (!file.seek(fileOffset)) {
+    LOG_ERR("ZIP", "Failed to seek local header");
+    return -1;
+  }
   const size_t read = file.read(pLocalHeader, localHeaderSize);
 
   if (read != localHeaderSize) {
@@ -229,8 +203,7 @@ long ZipFile::getDataOffset(const FileStatSlim& fileStat) {
     return -1;
   }
 
-  if (pLocalHeader[0] + (pLocalHeader[1] << 8) + (pLocalHeader[2] << 16) + (pLocalHeader[3] << 24) !=
-      0x04034b50 /* ZIP local file header signature */) {
+  if (readLe32(pLocalHeader) != 0x04034b50) {
     LOG_ERR("ZIP", "Not a valid zip file header");
     return -1;
   }
@@ -257,20 +230,24 @@ bool ZipFile::loadZipDetails() {
   // We scan the last 1KB (or the whole file if smaller) for the EOCD signature
   // 0x06054b50 is stored as 0x50, 0x4b, 0x05, 0x06 in little-endian
   const int scanRange = fileSize > 1024 ? 1024 : fileSize;
-  const auto buffer = static_cast<uint8_t*>(malloc(scanRange));
+  const auto buffer = makeUniqueNoThrow<uint8_t[]>(scanRange);
   if (!buffer) {
     LOG_ERR("ZIP", "Failed to allocate memory for EOCD scan buffer");
     return false;
   }
 
-  file.seek(fileSize - scanRange);
-  file.read(buffer, scanRange);
+  if (!file.seek(fileSize - scanRange) || file.read(buffer.get(), scanRange) != scanRange) {
+    LOG_ERR("ZIP", "Failed to read EOCD scan buffer");
+    return false;
+  }
 
   // Scan backwards for the signature
   int foundOffset = -1;
   for (int i = scanRange - 22; i >= 0; i--) {
     constexpr uint32_t signature = 0x06054b50;
-    if (*reinterpret_cast<uint32_t*>(&buffer[i]) == signature) {
+    uint32_t candidate;
+    memcpy(&candidate, buffer.get() + i, sizeof(candidate));
+    if (candidate == signature && i + 22 + readLe16(buffer.get() + i + 20) == scanRange) {
       foundOffset = i;
       break;
     }
@@ -278,19 +255,25 @@ bool ZipFile::loadZipDetails() {
 
   if (foundOffset == -1) {
     LOG_ERR("ZIP", "EOCD signature not found in zip file");
-    free(buffer);
     return false;
   }
 
-  // Now extract the values we need from the EOCD record
-  // Relative positions within EOCD:
-  // Offset 10: Total number of entries (2 bytes)
-  // Offset 16: Offset of start of central directory with respect to the starting disk number (4 bytes)
-  zipDetails.totalEntries = *reinterpret_cast<uint16_t*>(&buffer[foundOffset + 10]);
-  zipDetails.centralDirOffset = *reinterpret_cast<uint32_t*>(&buffer[foundOffset + 16]);
+  const uint8_t* end = buffer.get() + foundOffset;
+  const uint64_t endPosition = fileSize - scanRange + foundOffset;
+  const uint32_t offset = readLe32(end + 16);
+  const uint32_t length = readLe32(end + 12);
+  const uint16_t entries = readLe16(end + 10);
+  if (readLe16(end + 4) != 0 || readLe16(end + 6) != 0 || readLe16(end + 8) != entries ||
+      static_cast<uint64_t>(offset) + length > endPosition || static_cast<uint64_t>(offset) + length > UINT32_MAX ||
+      static_cast<uint64_t>(entries) * CENTRAL_HEADER_BYTES > length ||
+      endPosition + 22 + readLe16(end + 20) != fileSize) {
+    LOG_ERR("ZIP", "Invalid or unsupported central-directory trailer");
+    return false;
+  }
+  zipDetails.centralDirOffset = offset;
+  zipDetails.centralDirEnd = offset + length;
+  zipDetails.totalEntries = entries;
   zipDetails.isSet = true;
-
-  free(buffer);
   return true;
 }
 
@@ -307,6 +290,7 @@ bool ZipFile::close() {
     file.close();
   }
   lastCentralDirPos = 0;
+  lastCentralDirIndex = 0;
   lastCentralDirPosValid = false;
   // the archive may change before the next open
   lastLookupValid = false;
@@ -323,71 +307,30 @@ bool ZipFile::getInflatedFileSize(const char* filename, size_t* size) {
   return true;
 }
 
-int ZipFile::fillUncompressedSizes(std::deque<SizeTarget>& targets, std::deque<uint32_t>& sizes) {
-  if (targets.empty()) {
-    return 0;
-  }
-
+int ZipFile::fillUncompressedSizes(std::span<const SizeTarget> targets, std::span<uint32_t> sizes) {
+  if (targets.empty()) return 0;
   const ScopedOpenClose zip{*this};
-  if (!zip) return 0;
-
-  if (!loadZipDetails()) return 0;
-
-  file.seek(zipDetails.centralDirOffset);
-
+  if (!zip || !loadZipDetails() || !seekDirectory(zipDetails.centralDirOffset)) return -1;
   int matched = 0;
-  const int targetCount = static_cast<int>(targets.size());
-  uint32_t sig;
-  char itemName[256];
-
-  while (file.available()) {
-    file.read(&sig, 4);
-    if (sig != 0x02014b50) break;
-
-    file.seekCur(6);
-    uint16_t method;
-    file.read(&method, 2);
-    file.seekCur(8);
-    uint32_t compressedSize, uncompressedSize;
-    file.read(&compressedSize, 4);
-    file.read(&uncompressedSize, 4);
-    uint16_t nameLen, m, k;
-    file.read(&nameLen, 2);
-    file.read(&m, 2);
-    file.read(&k, 2);
-    file.seekCur(8);
-    uint32_t localHeaderOffset;
-    file.read(&localHeaderOffset, 4);
-
-    if (nameLen < 256) {
-      file.read(itemName, nameLen);
-      itemName[nameLen] = '\0';
-
-      uint64_t hash = fnvHash64(itemName, nameLen);
-      SizeTarget key = {hash, nameLen, 0};
-
-      auto it = std::lower_bound(targets.begin(), targets.end(), key, [](const SizeTarget& a, const SizeTarget& b) {
-        return a.hash < b.hash || (a.hash == b.hash && a.len < b.len);
-      });
-
-      while (it != targets.end() && it->hash == hash && it->len == nameLen) {
-        if (it->index < sizes.size()) {
-          sizes[it->index] = uncompressedSize;
-          matched++;
-        }
-        ++it;
+  char itemName[DIRECTORY_NAME_CAPACITY];
+  for (uint32_t i = 0; i < zipDetails.totalEntries; ++i) {
+    DirectoryEntry entry;
+    if (!readDirectoryEntry(entry, itemName)) return -1;
+    if (entry.nameLength > sizeof(itemName)) continue;
+    const uint64_t hash = fnvHash64(itemName, entry.nameLength);
+    const SizeTarget key{hash, entry.nameLength, 0};
+    auto it = std::lower_bound(targets.begin(), targets.end(), key, [](const SizeTarget& a, const SizeTarget& b) {
+      return a.hash < b.hash || (a.hash == b.hash && a.len < b.len);
+    });
+    while (it != targets.end() && it->hash == hash && it->len == entry.nameLength) {
+      if (it->index < sizes.size()) {
+        sizes[it->index] = entry.stat.uncompressedSize;
+        ++matched;
       }
-
-      if (matched >= targetCount) {
-        break;
-      }
-    } else {
-      file.seekCur(nameLen);
+      ++it;
     }
-
-    file.seekCur(m + k);
+    if (matched >= static_cast<int>(targets.size())) break;
   }
-
   return matched;
 }
 
@@ -401,11 +344,18 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
   const long fileOffset = getDataOffset(fileStat);
   if (fileOffset < 0) return nullptr;
 
-  file.seek(fileOffset);
+  if (!file.seek(fileOffset)) {
+    LOG_ERR("ZIP", "Failed to seek file payload");
+    return nullptr;
+  }
 
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
-  const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
+  if (inflatedDataSize > SIZE_MAX - static_cast<size_t>(trailingNullByte)) {
+    LOG_ERR("ZIP", "Output buffer size overflows address range");
+    return nullptr;
+  }
+  const size_t dataSize = static_cast<size_t>(inflatedDataSize) + static_cast<size_t>(trailingNullByte);
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
   if (data == nullptr) {
     LOG_ERR("ZIP", "Failed to allocate memory for output buffer (%zu bytes)", dataSize);
@@ -469,6 +419,10 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
 }
 
 bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t chunkSize, const bool allowEarlyStop) {
+  if (chunkSize == 0) {
+    LOG_ERR("ZIP", "Zero-sized stream buffer");
+    return false;
+  }
   const ScopedOpenClose zip{*this};
   if (!zip) return false;
 
@@ -478,7 +432,10 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
   const long fileOffset = getDataOffset(fileStat);
   if (fileOffset < 0) return false;
 
-  file.seek(fileOffset);
+  if (!file.seek(fileOffset)) {
+    LOG_ERR("ZIP", "Failed to seek file payload");
+    return false;
+  }
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
 
@@ -492,13 +449,14 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
 
     size_t remaining = inflatedDataSize;
     while (remaining > 0) {
-      const size_t dataRead = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
-      if (dataRead == 0) {
+      const int result = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
+      if (result <= 0) {
         LOG_ERR("ZIP", "Could not read more bytes");
         free(buffer);
         return false;
       }
 
+      const auto dataRead = static_cast<size_t>(result);
       if (out.write(buffer, dataRead) != dataRead) {
         free(buffer);
         if (allowEarlyStop) return true;  // sink has what it needs
