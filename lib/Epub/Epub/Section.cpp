@@ -75,7 +75,10 @@ namespace {
 // v65: Count literal spaces after hyphens and ellipses when justifying text.
 // v66: Omit carried no-break spaces at the start of wrapped lines.
 // v67: Count only stretchable literal spaces after visual text reordering.
-constexpr uint8_t SECTION_FILE_VERSION = 67;
+// Fork v68: upstream v67 plus the fork's pagebreak-marker handling, which keeps wrapped book text
+//      and renders pagebreak-tagged paragraphs. The fork and upstream used v56 for different
+//      layouts, so v68 rebuilds every earlier cache of either lineage.
+constexpr uint8_t SECTION_FILE_VERSION = 68;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
