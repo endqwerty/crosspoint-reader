@@ -1,11 +1,12 @@
-# WIP handoff — develop on upstream e6af0c9, X4 Pro r52
+# WIP handoff — develop on upstream e6af0c9, X4 Pro r53
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
 `e6af0c95110a66a0b7a087df2d95e7598dc79594` (four upstream commits newer than r51's
 `93e98bb`): retained X4 Pro improvements, r51 cold indexing, fork
-instructions/setup, then r52's pagebreak fix and library scan script. Upstream's
+instructions/setup, r52's pagebreak fix and library scan script, then r53's
+queued page-turn fix and Calibre sort keys. Upstream's
 own history is intact; there are no local merge commits.
 
 SDK `develop` is `d7438bb53e5a56ba698c40cdfb55cd47602977f1`, the single local patch
@@ -47,12 +48,48 @@ revalidated from source; the r51 image and package remain on the share.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r52-20260928-053827/firmware-x4pro-r52-1399c0ce.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r52-20260928-053827\firmware-x4pro-r52-1399c0ce.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r53-20260928-065705/3199`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r53-20260928-065705\3199`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r52-e6af0c9`.
-SHA-256: `5c0caf78d82f7ebc92a01a6d7b62c2cf3f93494fdedc4cb1def7cfc64062331e`.
+Version: `1.6.5-dev-x4pro-r53-e6af0c9`.
+SHA-256: `1e983bffc4e94b2cd9c6e113175aad2ccabe48952f7adce6a9d8fc81343dca37`.
+The r52 image stays in `x4pro-r52-20260928-053827`.
+
+r53 changes from r52 (items 4 and 2):
+
+- Queued page turns: a turn pressed during a page update is queued and applied
+  when the update ends. Opening the toolbar from the home button, or a pushed
+  screen (dictionary, footnote selection, sync), left it queued, so the page
+  flipped with no input after returning. `openOverlay()` and `onSuspend()` now
+  clear it. Compared with upstream #3636, this is the one case the fork's own
+  queued-turn handling missed; the rest of #3636 duplicates fork code and is
+  not imported.
+- Calibre sort keys (Library index format 4 → 5, record still 128 bytes). The
+  parser reads the title sort (title file-as, else `calibre:title_sort`), the
+  first creator's file-as when that creator is an author, and the book UUID
+  (uuid-scheme/`uuid_id` identifier, else `uuid:`; the "calibre" scheme changes
+  between conversions). Title order, group letters and search use the title
+  sort, so 199 "The …"/"A …" books move to their Calibre place; search also
+  matches the shown title. Author order uses the author sort (surname guess as
+  fallback) and headings show it unless written in capitals. Renamed books keep
+  their Added position by UUID even when Calibre rewrote them. The first open of
+  the Library after flashing re-reads all 750 package documents once; arrival
+  order is kept. Parsing rules follow upstream #3757 (Nolan Hawkins).
+  Across the real 750-book export the parser finds a title sort in 750, an
+  author sort in 749 (the EPUB 3 book lists its illustrator first) and the
+  expected UUID in 747 of 747.
+
+r53 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
+ASan/UBSan tests pass, retaining every r51 test name. The X4 Pro release build is
+warning-free: static RAM 102,320 bytes (unchanged), linked flash 5,685,162 bytes;
+image 5,690,176 bytes, ESP32-S3 image inspection valid. Firmware source is
+commit `f7f0fb5d`; the handoff commit changes only this file. An independent
+review of the sort-key change found four issues, all fixed with tests: the rename
+UUID array outlived its phase (up to ~54 KB during the sorts), search missed
+shown titles that differ from a curated title sort, size matching could claim a
+UUID-renamed book's entry first, and an author sort from a later creator split
+author groups. Relinking progress and bookmarks across renames is not included.
 
 r52 changes from r51: the upstream rebase above, and pagebreak markers no longer
 drop book text. Elements tagged `role="doc-pagebreak"`/`epub:type="pagebreak"`
@@ -114,7 +151,10 @@ cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
-unmeasured. On r52 also check Library search (upstream keyboard) and list
+unmeasured. On r53 check the Library's first open after flashing (it re-reads
+every package document once), title/author order and headings, and that a turn
+pressed during a page update no longer fires after opening the toolbar with the
+home button. Also check Library search (upstream keyboard) and list
 navigation (upstream press navigation), and that a book's first open after
 flashing re-lays out chapters without errors. Check an uncached long EPUB, TOC
 jumps, reopen and sleep/wake with AA off.
@@ -126,50 +166,37 @@ below is optional future scope, not unfinished work blocking deletion.
 ## Proposed next steps
 
 Replanned 2026-09-27 after re-reading `ROADMAP.md` and triaging all 229 open
-upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done). Priorities follow the
+upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done) and r53 (items 2
+and 4 done). Priorities follow the
 offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`. Each item needs
 the user's go-ahead. Upstream's roadmap (Phase 1: footprint and heap
 fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3, 5
 and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
 upstream merges it.
 
-1. Device validation of r52 with the real library (unchanged). Nothing has been
+1. Device validation of r53 with the real library (unchanged). Nothing has been
    measured on hardware. Measure first-entry Library reconcile time, free heap
    and largest free block (serial) with the full Calibre export on the card.
    Run `scripts/sync-calibre-library.sh -n` after a real re-export to learn
    how often renames happen and whether unchanged books are byte-identical
    (see item 2 and old item 4 below).
-2. Calibre metadata in one Library format bump. `ClixRecord` is exactly full
-   at 128 bytes (`lib/LibraryIndex/LibraryFormat.h:160`), so group all
-   Calibre-supplied fields into a single CLIX v5 migration instead of two:
-   - Calibre UUID (`dc:identifier opf:scheme="uuid"`), so reconcile can
-     relink progress, bookmarks, favorites and reading state when a
-     vanished path and a new path share a UUID. State is path-keyed today
-     (`lib/Epub/Epub.h:46`, `src/activities/library/LibraryBookState.cpp`,
-     `src/util/BookmarkUtil.cpp`). Reuse the migration-helper shape of open
-     PRs #3354/#3166, which only cover moves made on the device.
-   - Author sort (`opf:file-as`) and title sort (`calibre:title_sort`), which
-     Calibre always writes. The fork only guesses surnames heuristically;
-     `ContentOpfParser.cpp` reads `calibre:series` (line 289) but not these.
-     Adapt the parsing from PR #3757 (digitaltembo, with series/tags) and
-     #3651 (file-as grouping). The earlier review deferred a direct import
-     because CLIX v4 diverges; take the parser and fallback rules, not
-     their format. Keep the existing heuristic as the fallback for non-Calibre
-     files.
-   The UUID relink can be dropped if item 1 shows renames are rare; the
-   sort keys are worth doing either way.
+2. Done in r53: Calibre title/author sort keys and stored UUIDs (index
+   format 5). Optional follow-up, only if item 1 shows Calibre renames are
+   common: relink path-keyed reading state (reader cache dir, bookmarks,
+   favorites/reading state, recents) from a vanished path to a new path with
+   the same stored UUID. `FileBrowserActivity`'s RenameState already moves all
+   of these with rollback; PR #3354's `moveBookData()` is the right shape. The
+   same helper would also fix the "Move finished books to /Read" move, which
+   today leaves Library state and bookmarks at the old path.
 3. Done in r52: pagebreak markers keep wrapped text (adapted #3349). The
    library scan found no pagebreak attributes, so this protects future books
    only. Optional follow-up: #3349's deferred `<br>` handling, which joins
    text a converter split with `<br>` + marker into one line. Drop the local
    patch if upstream merges its own version.
-4. Page-turn input around refreshes: PR #3636 (Daviex), which the author
-   verified on an X4 Pro. It keeps one pending turn across the async
-   `requestUpdate()` gap and chapter loads using render generations. The fork
-   already has its own queued-turn handling (`docs/page-turning.md`,
-   turn-r4). Compare the two, and import only the cases the fork misses
-   (a turn dropped while `section` is absent, or a `RenderLock::peek()` race),
-   with host tests.
+4. Done in r53: the one #3636 case the fork missed (see above). Optional:
+   #3636 also skips idle prefetch and background build on ticks with input;
+   that only affects latency, so consider it only if page turns feel slow on
+   the device.
 5. Done in r52: `scripts/scan-epub-library.py` (results above). None of
    #3375, #2987, #2297, #3539, #2614 or #2386 reproduces in the library; do
    not import them for this library. Optional: make the stale NCX "Cover"
@@ -187,7 +214,7 @@ upstream merges it.
    merge it, then rebase onto it rather than carrying it.
 8. Reduce rebase burden (unchanged, now more urgent before items 2-4). The
    fork is one 42,767-line commit ("feat: integrate X4 Pro reading
-   improvements", 487 files) plus r51 and r52. The 2026-09-28 rebase
+   improvements", 487 files) plus r51, r52 and r53. The 2026-09-28 rebase
    conflicted only in the keyboard. Split it
    into topical patches, fold the 51 `-rNN` revision docs into a few feature
    docs, and drop code upstream supersedes.
