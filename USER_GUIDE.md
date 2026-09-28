@@ -167,8 +167,8 @@ A failed rebuild retains the previous index. Scan limits are reported explicitly
 The **Use book metadata** setting controls reading titles/authors from EPUB files.
 `My Clippings.txt` and `crash_report.txt` are not listed; they remain in the file browser.
 
-See [Library details](docs/epub-library-r5.md) for series, Favorites, status and limits,
-and [RC integration](docs/upstream-rc-r6.md) for the latest release changes.
+See [Library details](docs/fork-library.md) for series, Favorites, status and limits,
+and [fork maintenance](docs/fork-maintenance.md) for the upstream changes it includes.
 
 ### 3.5 File Transfer Screen
 
