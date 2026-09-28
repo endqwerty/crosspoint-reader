@@ -1,17 +1,34 @@
-# WIP handoff — develop on upstream e6af0c9, X4 Pro r53
+# WIP handoff — develop on upstream f03d7f4, X4 Pro r53, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`e6af0c95110a66a0b7a087df2d95e7598dc79594` (four upstream commits newer than r51's
-`93e98bb`): retained X4 Pro improvements, r51 cold indexing, fork
-instructions/setup, r52's pagebreak fix and library scan script, then r53's
-queued page-turn fix and Calibre sort keys. Upstream's
-own history is intact; there are no local merge commits.
+`f03d7f4dbbab77855815dc6c90dd0832769de41f` (see `git log upstream/develop..develop`).
+Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
+patches, each built warning-free for `x4pro-gh_release` on its own:
 
-SDK `develop` is `d7438bb53e5a56ba698c40cdfb55cd47602977f1`, the single local patch
-rebased above `225c097cfb6d5ecd4ca556041746123faeb4bc79`, the revision the new
-official reader pins. `.gitmodules` resolves the SDK through the personal fork.
+1. fork settings, strings and shared utilities
+2. SD storage, atomic files and SdFat caching
+3. display refreshes and sleep images (sets the SDK pin)
+4. bounded EPUB indexing and metadata I/O
+5. incremental section layout and page cache
+6. offline Library index and browser
+7. on-demand in-book search
+8. reader navigation, page turns and bookmarks
+9. host-test wiring, user guide, file formats and compatibility notes
+
+Then r51 cold indexing, fork instructions/setup, r52 (pagebreak fix, library
+scan), r53 (queued page-turn fix, Calibre sort keys) and a docs commit that
+folds the 50 `-rNN` revision notes into six `docs/fork-*.md` feature docs.
+Upstream's own history is intact; there are no local merge commits. When
+rebasing, a conflict now names its topic, and a patch that upstream supersedes
+can be dropped or adapted on its own.
+
+SDK `develop` is `f8586305587a4efd37d086b84b5d22eb8f0a25a6`: two local patches
+(display transactions/refresh, then list and text-area components) above
+`225c097cfb6d5ecd4ca556041746123faeb4bc79`, the revision official reader pins.
+Its tree is identical to the former single patch `d7438bb`.
+`.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
 `endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
@@ -37,6 +54,8 @@ fast-forward/squash integration. No local merge commits.
   updated to its press/hold/release contract; no fork source change was needed.
 - SDK: upstream's new list reveal action and keyboard changes were kept in the
   fork's formatting; the fork's display/list/text-area patch is unchanged.
+- Upstream #3698 (ButtonNavigator allocation churn, adopted earlier) merged as
+  `f03d7f4`; the fork's copy was identical, so it dropped out of the series.
 
 ## Recovery and verification
 
@@ -84,7 +103,9 @@ r53 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
 ASan/UBSan tests pass, retaining every r51 test name. The X4 Pro release build is
 warning-free: static RAM 102,320 bytes (unchanged), linked flash 5,685,162 bytes;
 image 5,690,176 bytes, ESP32-S3 image inspection valid. Firmware source is
-commit `f7f0fb5d`; the handoff commit changes only this file. An independent
+commit `f7f0fb5d`. After the history split the same firmware source is commit
+`facd0ba5` (byte-identical source; the SDK pin moved to the identical-tree
+`f858630`), so the r53 image needs no rebuild. An independent
 review of the sort-key change found four issues, all fixed with tests: the rename
 UUID array outlived its phase (up to ~54 KB during the sorts), search missed
 shown titles that differ from a curated title sort, size matching could claim a
@@ -145,7 +166,7 @@ TOC lookup. Compare memory and correctness before changing that policy. Broader
 cold-open profiling should include real ZIP/container, CSS and first-page layout;
 the current fixture uses archive/storage doubles.
 
-Official upstream was fetched on 2026-09-28 at `e6af0c9`. Recheck upstream and
+Official upstream was fetched on 2026-09-28 at `f03d7f4`. Recheck upstream and
 open PRs when starting new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
@@ -212,12 +233,14 @@ upstream merges it.
    lost with the Arduino upgrade in #3397. It
    is a build-system change under maintainer test; wait for upstream to
    merge it, then rebase onto it rather than carrying it.
-8. Reduce rebase burden (unchanged, now more urgent before items 2-4). The
-   fork is one 42,767-line commit ("feat: integrate X4 Pro reading
-   improvements", 487 files) plus r51, r52 and r53. The 2026-09-28 rebase
-   conflicted only in the keyboard. Split it
-   into topical patches, fold the 51 `-rNN` revision docs into a few feature
-   docs, and drop code upstream supersedes.
+8. Done 2026-09-28: the X4 Pro commit is split into nine building topical
+   patches, the SDK patch into two, the revision notes are folded into
+   `docs/fork-*.md`, and superseded code (#3698 ButtonNavigator, #3506 keyboard
+   via upstream #3755) is gone. Remaining hotspots are fork changes to large
+   upstream files: `LibraryListActivity.cpp`, `EpubReaderActivity.cpp`,
+   `Section.cpp`, `BookMetadataCache.cpp`, `ChapterHtmlSlimParser.cpp`. Splitting
+   those by hunk into smaller patches is possible but only worth it if a future
+   rebase conflicts there repeatedly.
 9. Cold-open TOC lookup (unchanged): the 128-chapter fixture still does 33,556
    HAL reads in its linear TOC lookup. Compare memory and correctness first.
 10. Optional reading features, for the user to pick from; none are required:
