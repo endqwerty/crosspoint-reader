@@ -506,3 +506,6 @@ STR_HOME_BUTTON_TAP: "Appui simple"
 STR_HOME_BUTTON_DOUBLE_TAP: "Double appui"
 STR_HOME_BUTTON_LONG_PRESS: "Appui long"
 STR_TOGGLE_FRONTLIGHT: "Basculer l'éclairage"
+
+STR_LIBRARY_TAB_TIME: "Temps"
+STR_NO_RECENT_BOOKS: "Aucun livre récent"

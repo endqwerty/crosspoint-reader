@@ -191,16 +191,16 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   if (!hasSavedWidth || savedWidth < 0 || savedWidth > 5) needsResave = true;
 
   // Older files stored one combined touch mode under "touchReaderControls":
-  // 0=off, 1=tap, 2=swipe, 3=inverted tap. Split it into the master toggle
+  // 0=off, 1=tap, 2=swipe, 3=inverted tap, 4=tap always next. Split into the master toggle
   // plus the per-direction gesture pair (the generic loop above already folded
   // out-of-range toggle values back to the On default).
   if (doc["pageTurnGesture"].isNull() && doc["previousPageGesture"].isNull() &&
       doc["touchReaderControls"].is<uint8_t>()) {
     const uint8_t mode = doc["touchReaderControls"].as<uint8_t>();
-    if (mode >= 1 && mode <= 3) {
+    if (mode >= 1 && mode <= 4) {
       touchReaderControls = TOUCH_READER_ON;
-      pageTurnGesture = mode == 1 ? TAP_ONLY : mode == 2 ? SWIPE_ONLY : INVERTED_TAP;
-      previousPageGesture = pageTurnGesture;
+      pageTurnGesture = mode == 1 || mode == 4 ? TAP_ONLY : mode == 2 ? SWIPE_ONLY : INVERTED_TAP;
+      previousPageGesture = mode == 4 ? SWIPE_ONLY : pageTurnGesture;
       needsResave = true;
     }
   }
