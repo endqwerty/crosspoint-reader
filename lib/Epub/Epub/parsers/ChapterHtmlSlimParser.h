@@ -139,6 +139,20 @@ class ChapterHtmlSlimParser {
   bool syntheticCharacterData = false;
   uint16_t nonVisibleTextDepth = 0;
 
+  // Text inside a pagebreak marker is held here until the marker proves to be only a
+  // page label (dropped) or wrapped book text (replayed). Labels are a few bytes; longer
+  // text replays as soon as it overflows, so no heap is needed.
+  // Open markers skip normal element handling, so their closes must too; deeper nesting
+  // falls back to skipping the marker's subtree.
+  static constexpr int PAGEBREAK_MARKER_NESTING = 4;
+  int pagebreakMarkerDepths[PAGEBREAK_MARKER_NESTING] = {};  // depth before each marker's increment
+  int pagebreakMarkerCount = 0;
+  bool pagebreakCapturing = false;  // capturing for the innermost open marker
+  int pagebreakCaptureLen = 0;
+  uint32_t pagebreakCaptureStartOffset = 0;
+  char pagebreakLabel[24] = {};  // aria-label or title, truncated
+  char pagebreakCaptureBuffer[32] = {};
+
   // Footnote link tracking
   bool insideFootnoteLink = false;
   int footnoteLinkDepth = -1;
@@ -170,6 +184,7 @@ class ChapterHtmlSlimParser {
   bool completeCurrentPage();
   void flushPendingAnchor();
   void flushPartWordBuffer();
+  void replayPagebreakCapture();
   void fallbackTableRowToStacked();
   void closeTableCell();
   void finishTableRow();

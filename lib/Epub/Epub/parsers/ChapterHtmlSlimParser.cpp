@@ -121,6 +121,88 @@ uint16_t parseTableSpan(const char* value) {
   return span == 0 ? UINT16_MAX : static_cast<uint16_t>(span);
 }
 
+// role="doc-pagebreak" / epub:type="pagebreak" on an element other than a text-bearing
+// block. Publishers also put the attribute on the <p> or heading that starts a print page,
+// so those render normally; markers (span, a, div, hr, ...) have their text captured.
+bool isPagebreakMarker(const char* name, const XML_Char** atts) {
+  if (!atts) return false;
+  if (strcmp(name, "p") == 0 || strcmp(name, "blockquote") == 0 || strcmp(name, "li") == 0 ||
+      (name[0] == 'h' && name[1] >= '1' && name[1] <= '6' && name[2] == '\0')) {
+    return false;
+  }
+  for (int i = 0; atts[i]; i += 2) {
+    if ((strcmp(atts[i], "role") == 0 && strcmp(atts[i + 1], "doc-pagebreak") == 0) ||
+        (strcmp(atts[i], "epub:type") == 0 && strcmp(atts[i + 1], "pagebreak") == 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Lowercases ASCII letters and digits into out, dropping everything else.
+size_t pagebreakLabelKey(const char* text, const size_t len, char* out, const size_t capacity) {
+  size_t used = 0;
+  for (size_t i = 0; i < len && used < capacity; ++i) {
+    const char c = text[i];
+    if (c >= '0' && c <= '9') out[used++] = c;
+    if (c >= 'a' && c <= 'z') out[used++] = c;
+    if (c >= 'A' && c <= 'Z') out[used++] = static_cast<char>(c - 'A' + 'a');
+  }
+  return used;
+}
+
+// Front-matter page numbers are lowercase roman numerals below 1000.
+bool isLowercaseRomanNumeral(const char* text, const size_t len) {
+  // Hundreds, tens, then ones, each (one)(ten) | (one)(five) | (five)?(one){0,3}.
+  static constexpr char DIGITS[][3] = {{'c', 'd', 'm'}, {'x', 'l', 'c'}, {'i', 'v', 'x'}};
+  size_t pos = 0;
+  for (const auto& digit : DIGITS) {
+    const char one = digit[0];
+    const char five = digit[1];
+    const char ten = digit[2];
+    if (pos + 1 < len && text[pos] == one && (text[pos + 1] == five || text[pos + 1] == ten)) {
+      pos += 2;
+      continue;
+    }
+    if (pos < len && text[pos] == five) ++pos;
+    for (int count = 0; count < 3 && pos < len && text[pos] == one; ++count) ++pos;
+  }
+  return pos == len;
+}
+
+// True when a pagebreak marker's text is only its print-page label, so it renders nothing.
+// A labelled marker must repeat its aria-label/title (ignoring case, spacing, punctuation
+// and a "p"/"page" prefix); an unlabelled one may hold a page number. Anything else is book
+// text that a converter (commonly Calibre) wrapped inside the marker.
+bool isPagebreakLabelText(const char* text, int len, const char* label) {
+  while (len > 0 && isWhitespace(text[0])) {
+    ++text;
+    --len;
+  }
+  while (len > 0 && isWhitespace(text[len - 1])) --len;
+  if (len == 0) return true;
+  if (label[0] != '\0') {
+    if (strlen(label) == static_cast<size_t>(len) && memcmp(text, label, len) == 0) return true;
+    char textKey[32];
+    char labelKey[32];
+    const size_t textLen = pagebreakLabelKey(text, len, textKey, sizeof(textKey));
+    const size_t labelLen = pagebreakLabelKey(label, strlen(label), labelKey, sizeof(labelKey));
+    if (labelLen == 0) return false;
+    for (const char* prefix : {"", "p", "page"}) {
+      const size_t prefixLen = strlen(prefix);
+      if (textLen == prefixLen + labelLen && memcmp(textKey, prefix, prefixLen) == 0 &&
+          memcmp(textKey + prefixLen, labelKey, labelLen) == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (len > 8) return false;
+  bool digits = true;
+  for (int i = 0; i < len && digits; ++i) digits = text[i] >= '0' && text[i] <= '9';
+  return digits || isLowercaseRomanNumeral(text, len);
+}
+
 // Returns true if the HTML element is a purely inline, non-navigable wrapper.
 // IDs on these elements are never meaningful navigation targets in epub content.
 // Reading-system converters (Kobo KePub, Calibre, etc.) frequently inject thousands
@@ -725,6 +807,18 @@ void ChapterHtmlSlimParser::finishTableRow() {
   clearLayoutLines();
 }
 
+void ChapterHtmlSlimParser::replayPagebreakCapture() {
+  pagebreakCapturing = false;
+  if (pagebreakCaptureLen == 0) return;
+  // The captured text was already counted; recount it from the marker start so its
+  // words keep their own reading offsets, then resume where parsing had reached.
+  const uint32_t resumeOffset = visibleTextOffset;
+  visibleTextOffset = pagebreakCaptureStartOffset;
+  characterData(this, pagebreakCaptureBuffer, pagebreakCaptureLen);
+  visibleTextOffset = resumeOffset;
+  pagebreakCaptureLen = 0;
+}
+
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
   if (self->hasError()) return;
@@ -742,6 +836,18 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   if (self->skipUntilDepth < self->depth) {
     self->depth += 1;
     return;
+  }
+
+  if (self->pagebreakCapturing) {
+    // Calibre often emits <span epub:type="pagebreak"><br/></span>; a <br> after nothing
+    // but a page number is part of the marker. Any other child element proves the marker
+    // holds real content.
+    if (strcmp(name, "br") == 0 && isPagebreakLabelText(self->pagebreakCaptureBuffer, self->pagebreakCaptureLen, "")) {
+      self->depth += 1;
+      return;
+    }
+    self->replayPagebreakCapture();
+    if (self->hasError()) return;
   }
 
   if (strcmp(name, "p") == 0) {
@@ -1324,16 +1430,23 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
-  // Skip blocks with role="doc-pagebreak" and epub:type="pagebreak"
-  if (atts != nullptr) {
-    for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "role") == 0 && strcmp(atts[i + 1], "doc-pagebreak") == 0 ||
-          strcmp(atts[i], "epub:type") == 0 && strcmp(atts[i + 1], "pagebreak") == 0) {
-        self->skipUntilDepth = self->depth;
-        self->depth += 1;
-        return;
-      }
+  // Page-number markers render nothing unless they turn out to wrap book text; endElement
+  // (or a child element or capture overflow before it) decides.
+  if (isPagebreakMarker(name, atts)) {
+    if (self->pagebreakMarkerCount == PAGEBREAK_MARKER_NESTING) {
+      self->skipUntilDepth = self->depth;
+      self->depth += 1;
+      return;
     }
+    self->pagebreakMarkerDepths[self->pagebreakMarkerCount++] = self->depth;
+    self->pagebreakCapturing = true;
+    self->pagebreakCaptureLen = 0;
+    self->pagebreakCaptureStartOffset = self->visibleTextOffset;
+    const char* label = getAttribute(atts, "aria-label");
+    if (!label || label[0] == '\0') label = getAttribute(atts, "title");
+    snprintf(self->pagebreakLabel, sizeof(self->pagebreakLabel), "%s", label ? label : "");
+    self->depth += 1;
+    return;
   }
 
   // Detect internal <a href="..."> links (footnotes, cross-references)
@@ -1629,6 +1742,18 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     return;
   }
 
+  if (self->pagebreakCapturing) {
+    const int spaceLeft = static_cast<int>(sizeof(self->pagebreakCaptureBuffer)) - self->pagebreakCaptureLen;
+    if (len <= spaceLeft) {
+      memcpy(self->pagebreakCaptureBuffer + self->pagebreakCaptureLen, s, len);
+      self->pagebreakCaptureLen += len;
+      return;
+    }
+    // Longer than any page label: replay the capture, then handle this chunk normally.
+    self->replayPagebreakCapture();
+    if (self->hasError()) return;
+  }
+
   // Collect ruby text instead of normal word processing.
   if (self->collectingRubyText) {
     self->rubyTextBuffer.append(s, len);
@@ -1865,6 +1990,38 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->hasError()) return;
   if (self->nonVisibleTextDepth > 0) {
     self->nonVisibleTextDepth--;
+  }
+
+  if (self->pagebreakMarkerCount > 0) {
+    const int markerDepth = self->pagebreakMarkerDepths[self->pagebreakMarkerCount - 1];
+    // Only swallowed <br> children can be open inside a capture.
+    if (self->pagebreakCapturing && self->depth - 1 > markerDepth) {
+      self->depth -= 1;
+      return;
+    }
+    if (self->depth - 1 == markerDepth) {
+      self->pagebreakMarkerCount -= 1;
+      if (self->pagebreakCapturing) {
+        if (isPagebreakLabelText(self->pagebreakCaptureBuffer, self->pagebreakCaptureLen, self->pagebreakLabel)) {
+          self->pagebreakCapturing = false;
+          self->pagebreakCaptureLen = 0;
+        } else {
+          self->replayPagebreakCapture();
+          if (self->hasError()) return;
+        }
+      }
+      // The marker opened no block or style, so there is nothing to close; a block-level
+      // marker still ends the word.
+      if (isHeaderOrBlock(name)) {
+        if (self->partWordBufferIndex > 0) {
+          self->flushPartWordBuffer();
+          if (self->hasError()) return;
+        }
+        self->nextWordContinues = false;
+      }
+      self->depth -= 1;
+      return;
+    }
   }
 
   // Ruby text: </rt> distributes ruby to base words, </ruby> resets ruby state
