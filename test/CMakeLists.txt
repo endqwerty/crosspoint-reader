@@ -9,6 +9,15 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+option(CROSSPOINT_TEST_SANITIZERS "Instrument host tests with address and undefined-behavior checks" OFF)
+if(CROSSPOINT_TEST_SANITIZERS)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "CROSSPOINT_TEST_SANITIZERS requires GCC or Clang")
+  endif()
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -37,6 +46,8 @@ target_compile_options(crosspoint_test_common INTERFACE
 
 enable_testing()
 include(GoogleTest)
+include(cmake/FirmwareExpat.cmake)
+add_subdirectory(expat_streaming)
 
 add_subdirectory(streaming_json_parser)
 add_subdirectory(release_json_parser)
@@ -82,9 +93,12 @@ add_subdirectory(absolute_grayscale)
 
 add_subdirectory(gif_support)
 
+
+add_subdirectory(folder_search)
 add_subdirectory(sd_card_font)
 add_subdirectory(sd_font_registry)
 add_subdirectory(clipping_preview)
+add_subdirectory(gfx_refresh)
 add_subdirectory(glyph_bitmap)
 
 add_subdirectory(clipping_store)
@@ -110,3 +124,57 @@ add_test(NAME clipping_highlight_planes COMMAND ${Python3_EXECUTABLE} ${CMAKE_CU
 add_test(NAME clipping_selection_text COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_clipping_selection_text.py)
 
 add_test(NAME recursive_dictionary COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_recursive_dictionary.py)
+
+add_subdirectory(boot_splash)
+add_subdirectory(manual_refresh)
+add_subdirectory(epd_bus)
+add_subdirectory(reader_grayscale_plan)
+add_subdirectory(refresh_sequences)
+add_subdirectory(reader_progress_state)
+add_subdirectory(render_lock)
+add_subdirectory(epub_page_turn)
+add_subdirectory(section_persistence)
+add_subdirectory(section_parser_integration)
+add_subdirectory(reader_navigation)
+add_subdirectory(reader_incremental)
+add_subdirectory(reader_page_recovery)
+add_subdirectory(reader_overlay)
+
+add_subdirectory(reader_link_navigation)
+
+add_subdirectory(epub_search)
+
+add_subdirectory(library_book_state)
+
+add_subdirectory(library_ui)
+
+add_subdirectory(reader_search_handoff)
+
+add_subdirectory(atomic_file)
+add_subdirectory(bookmark_actions)
+
+add_subdirectory(bookmark_persistence)
+add_subdirectory(settings_migration)
+add_subdirectory(text_truncation)
+add_subdirectory(sleep_grayscale)
+add_subdirectory(hal_storage)
+add_subdirectory(file_browser)
+add_subdirectory(ttf_epd_font)
+add_subdirectory(slider_input)
+add_subdirectory(sleep_quick_resume)
+
+add_subdirectory(library_details)
+
+add_subdirectory(button_navigator)
+
+add_subdirectory(reader_lifecycle)
+add_subdirectory(reader_font_sizes)
+
+add_subdirectory(chunked_vector)
+add_subdirectory(huge_book_index)
+
+
+add_subdirectory(sdfat_cache)
+add_subdirectory(epub_load)
+
+add_subdirectory(epub_indexing)
