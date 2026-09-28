@@ -90,6 +90,13 @@ if (parsedSize != fileSize) {
 
 ## `section.bin`
 
+### Version 69 (fork)
+
+The byte layout is upstream version 68's. Sections include upstream's bounded
+drop-cap wrapping and the fork's pagebreak-marker handling. Version 69 rebuilds
+completed and partial sections from both lineages, including the fork's previous
+version 68. Reading positions, bookmarks and Library metadata are preserved.
+
 ### Version 68
 
 Version 68 preserves the binary layout but rebuilds completed and partial
@@ -232,10 +239,22 @@ section caches are rebuilt automatically; book and progress files are kept.
 
 ### Version 52
 
-The serialized layout is unchanged. Missing full-block (`U+2588`) and black-square
-(`U+25A0`) symbols now use font-sized solid rectangles instead of replacement
-glyphs. Rebuild older sections so cached line breaks and word positions match
-their new widths.
+Version 52 keeps the version 51 byte layout and incorporates upstream's
+paragraph continuity and top-spacing fixes across soft flushes. Upstream and
+the previous fork both used version 51 for different layout changes; version 52
+rejects either older cache. The partial sentinel is 230. Reading positions,
+bookmarks and Library metadata are preserved.
+
+### Version 51
+
+Version 51 keeps the version 50 byte layout. Pagebreak markers
+(`role="doc-pagebreak"` / `epub:type="pagebreak"`) no longer drop the book text
+that converters such as Calibre wrap inside them, and paragraphs, headings, list
+items and blockquotes carrying the attribute render normally. It also retires
+the version 50 caches of earlier local builds, which carried this pagebreak
+handling in a 43-byte header without `paragraphIndentSpaces`. Caches built by
+version 50, and its partial sentinel 232, are rebuilt. Its partial sentinel is
+231. Reading positions, bookmarks and Library metadata are preserved.
 
 ### Version 51
 
@@ -246,10 +265,9 @@ preserved across soft flushes. Older sections are rebuilt for the updated layout
 
 The header adds `paragraphIndentSpaces` after `extraParagraphSpacing`, as in
 upstream version 50, and is now 44 bytes. The value participates in cache
-validation, so sections with different indentation settings are rebuilt. Current
-partial sentinel: 232.
+validation, so sections with different indentation settings are rebuilt.
 
-### Version 49
+### Earlier local version 49
 
 Version 49 adopts upstream version 48 Korean layout: Hangul words wrap at spaces,
 justification stretches word gaps, and hyphenation can split a word at a legal
@@ -387,7 +405,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 64
+#define EXPECTED_VERSION 68
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 256
