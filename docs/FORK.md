@@ -6,12 +6,16 @@ names, release hashes and outstanding work in `WIP.md`.
 
 ## Precedence
 
-1. The user's current instructions for the task at hand.
+1. The user's current instructions and explicit standing authorizations recorded
+   below (automatic commits, local integration and personal `develop` pushes).
 2. The official project: upstream `AGENTS.md`, its architecture, interfaces,
    conventions and maintainer decisions.
 3. This file.
 
-Upstream always wins over the fork. The preferences below narrow where fork
+For firmware architecture and behavior, upstream always wins over the fork.
+The recorded user authorizations satisfy generic requirements to obtain approval;
+they do not waive engineering, validation or upstream-compatibility requirements.
+The preferences below narrow where fork
 effort goes; they never justify diverging from upstream's design. If a fork
 preference conflicts with upstream, follow upstream and note the conflict in
 `WIP.md`.
@@ -54,9 +58,12 @@ Both personal forks use a single `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
-The maintained checkout uses `origin` for each official upstream and `fork` for
-its personal fork, with local `develop` tracking `fork/develop`. Fresh clones may
-name remotes differently; always verify their URLs. `.gitmodules` points to the
+The maintained checkout uses GitHub's fork layout in both repos: `origin` is the
+personal fork and `upstream` the official project, with local `develop` tracking
+`origin/develop`. `origin/HEAD` points to `origin/develop`, so tools that start
+from the default branch, such as T3 Code worktrees, begin at the fork. Where
+`AGENTS.md` says to push to `fork`, use `origin`. Fresh clones may name remotes
+differently; always verify their URLs. `.gitmodules` points to the
 SDK fork so the pinned local SDK commit is available to a recursive checkout:
 
 ```sh
@@ -64,16 +71,64 @@ git clone --recurse-submodules --branch develop https://github.com/endqwerty/cro
 ```
 
 Keep backup history in verified bundles before removing obsolete branches. After
-finishing a feature, return to the single maintained `develop` branch; temporary
-feature branches may be used during active development.
+finishing a feature, integrate it into the maintained `develop` branch. Keep the
+active worktree on its feature branch until the user deletes it; do not attempt
+to check out `develop` there while the permanent checkout owns that branch.
+
+## Starting a new worktree
+
+- Start from the latest personal `develop`, never a retired worktree branch.
+  Read this file and `WIP.md`, inspect `git worktree list`, status and remote
+  URLs, then fetch personal and official `develop`. Resolve remote advances
+  and update the linear upstream base before implementing the requested feature.
+- Initialize the reader-pinned SDK with `git submodule update --init` if needed.
+  Do not substitute the SDK's newest branch tip. Recursive icon submodules are
+  needed only for icon generation, not ordinary firmware builds.
+- Perform feature work in the isolated local worktree. Use the permanent
+  checkout for final integration into `develop`, preserving unrelated changes.
+  A shared local build mirror is usable only after verifying its source matches
+  the intended worktree; never reuse another feature's outputs without checking.
+- `WIP.md` separates completed handoff evidence from possible future work.
+  Its roadmap is context, not an instruction to begin unrequested features.
 
 ## Local work and publication
 
-- Commit only when the user requests it. A commit request does not authorize a
-  push, PR, release publication, or history rewrite.
-- Push to a personal fork or open/close a PR only with explicit user approval.
-  Verify remotes before pushing; use `fork` unless the user specifies otherwise.
-  Never infer authorization to publish from a previous task's permission.
+- The user's standing instruction authorizes automatic local administration:
+  commit completed, validated work, rebase as needed, and integrate it into
+  local `develop` without asking again. This is explicit ongoing authorization
+  for commits and local integration, including where generic agent guidance
+  otherwise asks for a per-task commit request. Do not leave completed work
+  only on a disposable worktree branch.
+- Before integration, fetch official upstream `develop` and bring local
+  `develop` up to date by rebasing the fork-only patch series above it. Keep
+  upstream commits and their trees unchanged; all customizations must remain
+  later commits. Never amend/squash upstream commits, interleave upstream with
+  local patches, or create merge commits to update the fork. Follow the backup,
+  conflict-resolution and validation rules above when rebasing.
+- Integrate the completed worktree branch using fast-forward or squash after
+  rebasing it onto the updated local `develop`. Preserve concurrent/unrelated
+  work. Run relevant checks, export requested firmware/evidence, and update
+  `WIP.md` before the final commit. Verify local `develop` contains the finished
+  work, includes the fetched upstream tip, and has no fork-only merge commits.
+- Finish with clean integrated source state and durable outputs so the user can
+  simply delete the worktree. Leave the active worktree for the user to delete;
+  report any genuine blocker instead of claiming unfinished work is complete.
+- Complete applicable host tests and firmware builds before integrating source
+  changes. Record physical-device checks separately as pending when unavailable;
+  do not claim device validation or block authorized local administration solely
+  on that absence. Documentation-only changes require review and diff checks,
+  not a firmware rebuild or device test.
+- The user's standing authorization includes pushing completed `develop` to
+  their personal fork. Verify remote URLs before every push; for this reader
+  repository, push `develop` to `origin` only when it resolves to
+  `https://github.com/endqwerty/crosspoint-reader.git` (or its SSH equivalent).
+  Fetch the personal remote first and preserve concurrent remote work. Prefer
+  a normal push; after a required upstream rebase, use an explicit
+  `--force-with-lease` tied to the inspected remote tip, never unconditional
+  force. Verify the remote `develop` tip matches local `develop` before handoff.
+- This standing authorization does not cover pushes to official upstream,
+  other branches, PR creation/closure, or release publication; those still
+  require explicit user approval.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
 - After an upstream update, confirm `AGENTS.md` still directs agents here and
@@ -98,8 +153,25 @@ feature branches may be used during active development.
   files, and keeping reading state across re-exports. The supported copy step is
   `scripts/sync-calibre-library.sh`; update it rather than documenting another
   procedure.
-- The maintained checkout lives on an SMB share where macOS creates `._*` files.
-  Ignore them through `.git/info/exclude`, not upstream's `.gitignore`.
+- The maintained checkout lives on local disk at `~/workspace/crosspoint-reader`;
+  T3 Code worktrees go under the local `~/.t3/worktrees`. Keep source and git
+  data off the SMB share. Write exported firmware images, release packages and
+  evidence to the share at `/Volumes/workspace/builds/crosspoint-reader/`, not
+  to the repository's `build/`.
+- All development work runs in isolated, disposable worktrees. Do not rely on
+  a worktree surviving a handoff. Before deleting it, deliver the completed
+  firmware and its build evidence to a new dated folder under the shared
+  output directory above. PlatformIO normally writes to the worktree's local
+  `.pio/build/x4pro-gh_release/`; it does not automatically export to SMB.
+- For each firmware handoff, build `x4pro-gh_release`, inspect the resulting
+  image, and copy `firmware.bin` with a descriptive filename, `SHA256SUMS`,
+  source commit/SDK revision, version, build log and flash instructions.
+  Re-read the copied image and verify its SHA-256, then update the shared
+  `FLASH-LATEST.md` with a relative link and Windows path. Preserve previous
+  builds. Windows opens `\\<server>\workspace\builds\crosspoint-reader`.
+  Never store the only output under `workspace/projects/crosspoint-reader`;
+  that shared source checkout is disposable. A successful compilation does
+  not establish physical-device validation.
 - Review existing upstream changes before choosing a new implementation.
 - Measure parser, storage, allocation and rendering work with meaningful fixtures.
   Report host operation counts separately from physical page-turn latency,
@@ -109,7 +181,8 @@ feature branches may be used during active development.
   rebuild solely for documentation, commits, or history changes when source bytes
   remain identical to a validated build.
 - Default firmware handoffs to the web flasher: Xteink X4 Pro → Custom .bin.
-  `build/FLASH-LATEST.md` identifies the currently validated image. Historical
+  `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` identifies the
+  currently validated image. Historical
   filenames alone do not establish which image should be flashed.
 - Do not start open-ended roadmap work from a handoff. Finish the user's requested
   scope and record concrete remaining work in `WIP.md`.
