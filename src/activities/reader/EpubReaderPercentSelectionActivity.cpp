@@ -89,6 +89,8 @@ void EpubReaderPercentSelectionActivity::confirm() {
 }
 
 void EpubReaderPercentSelectionActivity::loop() {
+  // Routing and rendering share the app's event and slider state.
+  RenderLock lock;
   // Touch goes through the FreeInkApp: render() registered the slider and -/+ hit
   // rects; the slider follows the finger via InputDrag (dragPermille per held frame).
   // Runs before the Back handler because the release of a drag can also register as a
