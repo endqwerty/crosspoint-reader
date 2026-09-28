@@ -670,3 +670,5 @@ STR_BT_CONNECTED_TO: "מחובר ל-%s"
 STR_BT_LOW_MEMORY: "Bluetooth: אין מספיק זיכרון"
 STR_BT_HOLD: "ארוכה"
 STR_BT_MAPPING_CLEARED: "המיפוי נמחק"
+
+STR_NO_RECENT_BOOKS: "אין ספרים אחרונים"
