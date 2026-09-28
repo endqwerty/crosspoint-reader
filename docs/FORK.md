@@ -92,10 +92,17 @@ feature branches may be used during active development.
 - Finish with clean integrated source state and durable outputs so the user can
   simply delete the worktree. Leave the active worktree for the user to delete;
   report any genuine blocker instead of claiming unfinished work is complete.
-  Automatic local administration does not authorize remote publication.
-- Push to a personal fork or open/close a PR only with explicit user approval.
-  Verify remotes before pushing; use `origin` unless the user specifies otherwise.
-  Never infer authorization to publish from a previous task's permission.
+- The user's standing authorization includes pushing completed `develop` to
+  their personal fork. Verify remote URLs before every push; for this reader
+  repository, push `develop` to `origin` only when it resolves to
+  `https://github.com/endqwerty/crosspoint-reader.git` (or its SSH equivalent).
+  Fetch the personal remote first and preserve concurrent remote work. Prefer
+  a normal push; after a required upstream rebase, use an explicit
+  `--force-with-lease` tied to the inspected remote tip, never unconditional
+  force. Verify the remote `develop` tip matches local `develop` before handoff.
+- This standing authorization does not cover pushes to official upstream,
+  other branches, PR creation/closure, or release publication; those still
+  require explicit user approval.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
 - After an upstream update, confirm `AGENTS.md` still directs agents here and
