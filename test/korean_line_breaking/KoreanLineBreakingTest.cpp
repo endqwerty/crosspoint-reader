@@ -24,13 +24,15 @@ std::vector<Line> layout(const std::vector<const char*>& words, const bool hyphe
   ParsedText text(hyphenation, false, style, 0);
   for (const char* word : words) text.addWord(word, EpdFontFamily::REGULAR);
   std::vector<Line> lines;
-  text.layoutAndExtractLines(renderer, 0, width, [&](std::unique_ptr<TextBlock> block, auto) {
+  const bool ok = text.layoutAndExtractLines(renderer, 0, width, [&](std::unique_ptr<TextBlock> block, auto) {
     auto& line = lines.emplace_back();
     for (uint16_t i = 0; i < block->wordCount(); ++i) {
       line.words.emplace_back(block->wordText(i));
       line.xpos.push_back(block->wordXpos(i));
     }
+    return true;
   });
+  EXPECT_TRUE(ok);
   return lines;
 }
 

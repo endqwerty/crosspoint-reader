@@ -1,5 +1,6 @@
 add_executable(KoreanLineBreakingTest
   KoreanLineBreakingTest.cpp
+  ${REPO_ROOT}/test/chapter_html_slim_parser/ScopedAllocationFailure.cpp
   ${REPO_ROOT}/lib/Epub/Epub/ParsedText.cpp
   ${REPO_ROOT}/lib/Epub/Epub/WordStore.cpp
   ${REPO_ROOT}/lib/Epub/Epub/blocks/TextBlock.cpp
