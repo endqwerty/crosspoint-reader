@@ -461,9 +461,21 @@ Written by `lib/LibraryIndex/LibraryBuilder.cpp`, read by `LibraryIndexFile`. On
 file describing every book on the card, so the shelf can sort and search
 thousands of titles without opening any of them.
 
-Format version 4. Versions 2 and 3 are read only during reconciliation to preserve
+Format version 5. Versions 2 to 4 are read only during reconciliation to preserve
 `firstSeen` arrival order and `nextFirstSeen`; they are never exposed directly by
 the current Library UI. Their EPUB metadata is parsed again into the new format.
+
+Version 5 adds the sort forms and book UUID a Calibre library curates, with no
+record or section change. Title order folds the book's title sort (title
+`file-as`, else `calibre:title_sort`) into `fold`, so "The Hobbit" sorts, groups
+and is searched as "hobbit the"; books without one fold their title as before.
+Author order keys the chosen spelling's author sort and falls back to the
+surname guess. The sort is the first creator's `file-as`, used only when that
+creator is an author, because the grouped author string starts with the first
+creator. The author heading shows that sort unless it is written only in
+capitals. The name blob gains three fields, below. Reconciliation matches
+renamed books by UUID before any size matching, since Calibre rewrites a book
+whose title or author changes, and never pairs two books whose UUIDs differ.
 The index migration does not change EPUB reading-position or section-cache files.
 Fold/sort revision 6 preserves leading words in title and series sorting and search,
 adopting upstream fold revision 4 while retaining the local author and arrival rules.
@@ -479,7 +491,7 @@ Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
 | Permutations | `permStart` | `bookCount` u16 author, arrival, then series order |
 | Series | `seriesStart` | `seriesCount` × 64-byte series entries |
 | Series references | `seriesRefStart` | `bookCount` × 4-byte references, parallel to title-order records |
-| Name blob | `nameStart` | per record: path hash, name, canonical author, title, source author (see below) |
+| Name blob | `nameStart` | per record: path hash, name, canonical author, title, source author, author sorts, UUID (see below) |
 
 Sections are 512-byte aligned so each starts on an SD block boundary.
 
@@ -537,7 +549,15 @@ Per record, at `nameStart + nameOff`:
 [u8][author]     display author, one spelling chosen per authorKey across the library
 [u8][title]      the book's own title, or length 0 if it never gave one
 [u8][source]     cleaned author spelling before the library-wide spelling vote
+[u8][authorSort] author sort of the chosen display author's book, or length 0
+[u8][sourceSort] this book's own author sort, or length 0
+[u8][uuid]       16 raw UUID bytes (uuid-scheme identifier or "uuid:" value), or length 0
 ```
+
+The source fields exist so an unchanged rebuild can carry every value across
+without parsing the book. The UUID is Calibre's library book UUID, the
+`uuid_id`/uuid-scheme identifier; the "calibre"-scheme identifier changes
+between conversions and is ignored.
 
 The filename must stay the first textual field and stay the filename: `readPath`
 rebuilds a book's path from it, so writing the display title there makes the book
