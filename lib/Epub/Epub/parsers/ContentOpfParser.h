@@ -19,6 +19,7 @@ class ContentOpfParser final : public Print {
     IN_BOOK_AUTHOR,
     IN_BOOK_LANGUAGE,
     IN_META_VALUE,
+    IN_IDENTIFIER,
     IN_MANIFEST,
     IN_SPINE,
     IN_GUIDE,
@@ -46,6 +47,21 @@ class ContentOpfParser final : public Print {
     std::string target;
     std::string position;
     CollectionType type = CollectionType::Untyped;
+  };
+
+  // Creators with their file-as and role. A refine is applied to its creator or
+  // title directly; only one arriving before its target is staged.
+  static constexpr size_t MAX_CREATORS = 8;
+  static constexpr size_t MAX_PERSON_REFINES = 8;
+  struct StagedCreator {
+    std::string id;
+    std::string fileAs;
+    std::string role;
+  };
+  struct StagedPersonRefine {
+    std::string target;
+    std::string value;
+    bool isRole = false;
   };
 
   const std::string& cachePath;
@@ -78,7 +94,21 @@ class ContentOpfParser final : public Print {
   bool metaIsCollection = false;
   bool metaIsCollectionType = false;
   bool metaIsGroupPosition = false;
+  bool metaIsFileAs = false;
+  bool metaIsRole = false;
   bool metaTextTooLong = false;
+
+  StagedCreator creators[MAX_CREATORS];
+  size_t creatorCount = 0;
+  StagedPersonRefine personRefines[MAX_PERSON_REFINES];
+  size_t personRefineCount = 0;
+  std::string titleId;
+  std::string titleFileAs;
+  std::string calibreTitleSort;
+  // The <dc:identifier> being read, and the best book UUID seen so far.
+  std::string identifierText;
+  bool identifierIsUuidScheme = false;
+  uint8_t uuidRank = 0;
 
   StagedCollection collections[MAX_COLLECTIONS];
   size_t collectionCount = 0;
@@ -91,6 +121,13 @@ class ContentOpfParser final : public Print {
 
   // Pick the series from everything staged during <metadata>.
   void resolveSeries();
+  // Pick the title and author sort keys from everything staged during <metadata>.
+  void resolveSortKeys();
+  // Keep the identifier just read if it names the book's UUID more reliably.
+  void considerIdentifier();
+  // Apply a file-as or role refine to an already-seen title or creator; false
+  // when its target has not appeared yet.
+  bool applyPersonRefine(const std::string& target, const std::string& value, bool isRole);
   // Read the collection-type and group-position refining `id`. A collection with
   // no id carries no refines to find, so it stays untyped and positionless.
   void resolveCollection(const std::string& id, CollectionType& type, std::string& position) const;
@@ -134,6 +171,14 @@ class ContentOpfParser final : public Print {
   // is the Library index's business, not the parser's.
   std::string series;
   std::string seriesIndexText;
+  // Sort forms curated in Calibre ("Hobbit, The"; "Tolkien, J. R. R."), empty
+  // when the book names none. The author sort is the first creator's, and only
+  // when that creator is an author.
+  std::string titleSort;
+  std::string authorSort;
+  // The book's UUID in canonical lowercase form, or empty. Calibre stores its
+  // library UUID as the uuid-scheme identifier; its "calibre" scheme is not stable.
+  std::string uuid;
 
   explicit ContentOpfParser(const std::string& cachePath, const std::string& baseContentPath, const size_t xmlSize,
                             BookMetadataCache* cache, const bool metadataOnly = false)
