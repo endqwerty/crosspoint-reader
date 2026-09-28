@@ -40,11 +40,18 @@ older instructions. Use this handoff for current branch state.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-epub-r51/firmware-x4pro-epub-r51-final.bin`.
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r51-rebuild-20260927-222421/firmware-x4pro-r51-211f3827.bin`.
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
 Version: `1.6.5-dev-x4pro-r51-93e98bb`.
-SHA-256: `a53470a2e253fcf5804f0f3c91ebc3b6dac9e017abb481dae0a8cb92f3cd0040`.
+SHA-256: `2da4397367da79dbf3bc64681e0bc141e0bf8083cf2ad37e5de9aed97972ceef`.
+
+Fresh local develop `211f3827` rebuild: firmware inputs match r51; build with an
+empty cache and ESP32-S3 image inspection passed. Copied artifacts were verified
+on SMB. Existing native/sanitizer tests were not rerun; no firmware source changed.
+Persistent delivery policy is in the permanent checkout's `docs/FORK.md` and the
+share's `BUILD-WORKFLOW.md`. Worktrees are isolated and disposable. The `builds`
+folder is canonical; the earlier `firmware` folder is a redundant copy.
 
 r51 uses a transient 512-byte nothrow buffer for the large-book spine-index scan,
 with checked unbuffered OOM fallback. No cache-format or foreground-reading change.
@@ -76,6 +83,17 @@ cold-layout/input-responsiveness concerns. Evidence is in
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
 unmeasured. Check an uncached long EPUB, TOC jumps, reopen and sleep/wake with AA
 off. No cache deletion or recording required.
+
+## Completed build and administration handoff
+
+The fresh r51 rebuild is exported to the canonical SMB `builds` folder above.
+All six exported artifact checksums passed; build and image inspection passed.
+Future work uses isolated disposable worktrees. The user's standing instruction
+now authorizes automatic commits, local rebases and integration into `develop`;
+see `docs/FORK.md`. Remote publication still requires explicit approval.
+Official upstream was fetched on 2026-09-27 and remains `93e98bb`; local develop
+contains that unchanged base with only linear fork patches above it. This handoff
+changes documentation only; no firmware rebuild is needed after integration.
 
 ## Proposed next steps (not started)
 
