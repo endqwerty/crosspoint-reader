@@ -1,10 +1,20 @@
 # Fork instructions
 
 This is the canonical location for persistent instructions specific to this fork.
-Read it alongside the upstream `AGENTS.md`. These instructions govern the fork's
-workflow; upstream remains authoritative for firmware architecture and behavior.
-Current user instructions take precedence. Keep temporary task state, branch
+Read it alongside the upstream `AGENTS.md`. Keep temporary task state, branch
 names, release hashes and outstanding work in `WIP.md`.
+
+## Precedence
+
+1. The user's current instructions for the task at hand.
+2. The official project: upstream `AGENTS.md`, its architecture, interfaces,
+   conventions and maintainer decisions.
+3. This file.
+
+Upstream always wins over the fork. The preferences below narrow where fork
+effort goes; they never justify diverging from upstream's design. If a fork
+preference conflicts with upstream, follow upstream and note the conflict in
+`WIP.md`.
 
 ## Upstream first
 
@@ -72,8 +82,24 @@ feature branches may be used during active development.
 
 ## Development and validation preferences
 
-- Focus on offline EPUB reading for Xteink X4 Pro (`x4pro-gh_release`). Shared
-  changes must still respect C3 memory limits and upstream HAL interfaces.
+- Focus on offline EPUB reading for Xteink X4 Pro (`x4pro-gh_release`). The X4 Pro
+  is the only device the user owns or tests. Other targets still have to build,
+  and shared changes must respect C3 memory limits and upstream HAL interfaces.
+  Do not spend effort optimizing or validating other devices beyond that.
+- Remote file loading (web server upload/WebDAV, OPDS, Calibre wireless) is
+  unused. Do not remove, hide or compile it out, because that would diverge from
+  upstream. Do not invest in it, prioritize upstream PRs that only touch it, or
+  use it in validation plans. Local changes must not break it.
+- Library workflow: the user keeps their full Calibre library on the SD card.
+  They export from Calibre ("Save to disk") on a computer and copy the files
+  with an SD card reader. USB transfer from the device is much slower, so don't
+  suggest it. The library has about 400-500 books. Prioritize work that makes
+  this dependable: adding, removing or renaming files externally, re-exported
+  files, and keeping reading state across re-exports. The supported copy step is
+  `scripts/sync-calibre-library.sh`; update it rather than documenting another
+  procedure.
+- The maintained checkout lives on an SMB share where macOS creates `._*` files.
+  Ignore them through `.git/info/exclude`, not upstream's `.gitignore`.
 - Review existing upstream changes before choosing a new implementation.
 - Measure parser, storage, allocation and rendering work with meaningful fixtures.
   Report host operation counts separately from physical page-turn latency,
