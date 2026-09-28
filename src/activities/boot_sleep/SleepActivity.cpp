@@ -64,6 +64,15 @@ bool useOriginalCoverThresholds(const GfxRenderer& renderer) {
          SETTINGS.sleepScreenCoverFilter == CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 }
 
+bool displayBwIfSleepGrayscaleUnsupported(const GfxRenderer& renderer) {
+  if (renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported() ||
+      renderer.grayscaleCapabilities(HalDisplay::GrayscaleMode::Overlay).supported()) {
+    return false;
+  }
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  return true;
+}
+
 // Kept separate from normal custom sleep sources so alpha-overlay art does not mix with full-screen wallpapers.
 constexpr char TRANSPARENT_SLEEP_ROOT_BMP[] = "/sleep-overlay.bmp";
 constexpr char TRANSPARENT_SLEEP_ROOT_PNG[] = "/sleep-overlay.png";
@@ -417,6 +426,7 @@ AlphaOverlayResult tryRenderTransparentOverlayBmp(HalFile& file, GfxRenderer& re
 
   if (!renderTransparentOverlayPass(file, info, placement, renderer, row.get(), TransparentOverlayPass::BW))
     return AlphaOverlayResult::Error;
+  if (displayBwIfSleepGrayscaleUnsupported(renderer)) return AlphaOverlayResult::Rendered;
   const bool absolute = renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported();
   const BwFrameKeeper bwFrame(renderer, !absolute);
   if (!bwFrame.ready()) {
@@ -880,6 +890,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     return;
   }
 
+  if (hasGreyscale && displayBwIfSleepGrayscaleUnsupported(renderer)) return;
   const bool absolute = hasGreyscale && renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported();
   const BwFrameKeeper bwFrame(renderer, hasGreyscale && !absolute);
   if (!bwFrame.ready()) {
@@ -975,6 +986,7 @@ bool SleepActivity::renderTransparentOverlayPng(const std::string& path) const {
   LOG_DBG("SLP", "Rendering transparent PNG overlay: %s (%dx%d)", path.c_str(), dimensions.width, dimensions.height);
 
   if (!converter.decodeToFramebuffer(path, renderer, config)) return false;
+  if (displayBwIfSleepGrayscaleUnsupported(renderer)) return true;
   const bool absolute = renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported();
   const BwFrameKeeper bwFrame(renderer, !absolute);
   if (!bwFrame.ready()) {
