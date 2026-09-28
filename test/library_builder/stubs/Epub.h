@@ -11,6 +11,9 @@ struct FakeMetadata {
   std::string series;
   std::string seriesIndexText;
   bool success = true;
+  std::string titleSort;
+  std::string authorSort;
+  std::string uuid;
 };
 
 inline std::map<std::string, FakeMetadata> bookMetadata;
@@ -30,14 +33,28 @@ class Epub {
     return true;
   }
 
-  bool loadMetadata(std::string& title, std::string& author, std::string& series, std::string& seriesIndexText) {
+  struct LibraryMetadata {
+    std::string title;
+    std::string author;
+    std::string series;
+    std::string seriesIndexText;
+    std::string titleSort;
+    std::string authorSort;
+    std::string uuid;
+  };
+
+  bool loadMetadata(LibraryMetadata& out) {
     ++fake::parses;
+    out = LibraryMetadata{};
     const auto& metadata = bookMetadata[path];
     if (!metadata.success) return false;
-    title = metadata.title;
-    author = metadata.author;
-    series = metadata.series;
-    seriesIndexText = metadata.seriesIndexText;
+    out.title = metadata.title;
+    out.author = metadata.author;
+    out.series = metadata.series;
+    out.seriesIndexText = metadata.seriesIndexText;
+    out.titleSort = metadata.titleSort;
+    out.authorSort = metadata.authorSort;
+    out.uuid = metadata.uuid;
     return true;
   }
 };

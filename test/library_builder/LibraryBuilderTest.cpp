@@ -11,6 +11,7 @@
 #include "LibraryBuilder.h"
 #include "LibraryIndexFile.h"
 #include "LibrarySession.h"
+#include "LibraryText.h"
 
 using namespace library;
 
@@ -1242,13 +1243,14 @@ TEST_F(LibraryBuilderTest, ShortCanonicalAuthorReadsRetainIndexAndAllowRetry) {
   initial();
   const auto snapshot = fake::files;
   const auto committed = fake::files[INDEX]->bytes;
-  // Two non-canonical books need the chosen spelling in each of the two output passes.
-  for (int fault = 0; fault < 4; ++fault) {
+  // The surname pass reads the chosen spelling once; two non-canonical books need
+  // it again in each of the two output passes.
+  for (int fault = 0; fault < 5; ++fault) {
     fake::reset();
     fake::files = snapshot;
     fake::files["/c.epub"]->time = 2;
     fake::shortReadPath = "/.crosspoint/library.stage";
-    fake::shortReadSize = 129;  // one length byte plus the bounded 128-byte author
+    fake::shortReadSize = 258;  // the bounded 128-byte author and author sort, each with its length
     fake::shortReadMatch = fault;
     EXPECT_FALSE(buildLibraryIndex("/", stats, true)) << fault;
     ASSERT_TRUE(fake::failureTriggered) << fault;
@@ -1289,9 +1291,9 @@ TEST_F(LibraryBuilderTest, SharedSurnameKeysPreserveInterleavedCanonicalSources)
   std::printf("SURNAME_REUSE books=%u groups=%u reads=%u seeks=%u bytes=%zu image_bytes=%zu hash=%016llx delays=%u\n",
               GROUPS * PER_GROUP, GROUPS, reads, seeks, bytes, image.size(), static_cast<unsigned long long>(hash),
               fake::delays);
-  EXPECT_EQ(reads, 2562u);
-  EXPECT_EQ(seeks, 2561u);
-  EXPECT_EQ(hash, 0x3283ba34535ac3c7ULL);
+  EXPECT_EQ(reads, 2530u);
+  EXPECT_EQ(seeks, 2529u);
+  EXPECT_EQ(hash, 0xe14a1d1ddfb4e9fbULL);
   LibraryIndexFile index;
   ASSERT_TRUE(index.open(INDEX));
   ASSERT_EQ(index.bookCount(), GROUPS * PER_GROUP);
@@ -1336,9 +1338,153 @@ TEST_F(LibraryBuilderTest, PriorScanPreservesIdentityAndYieldBudgetAcrossTitleOr
     EXPECT_EQ(fake::files[INDEX]->bytes, committed);
     EXPECT_EQ(fake::reads, 5u * count + 1u);
     EXPECT_EQ(fake::seeks, 4u * count + 1u);
-    EXPECT_EQ(fake::bytesRead, 332u * count + 41u);
+    EXPECT_EQ(fake::bytesRead, 332u * count + 44u);
     EXPECT_EQ(fake::delays, 3u * count / 32u);
     std::printf("PRIOR_SCAN books=%u reads=%u seeks=%u bytes=%zu delays=%u\n", count, fake::reads, fake::seeks,
                 fake::bytesRead, fake::delays);
   }
+}
+
+TEST_F(LibraryBuilderTest, CalibreSortKeysOrderTitlesAndAuthors) {
+  fake::add("/c.epub");
+  fake::add("/d.epub");
+  bookMetadata["/a.epub"] = {"The Hobbit",
+                             "J. R. R. Tolkien",
+                             "",
+                             "",
+                             true,
+                             "Hobbit, The",
+                             "Tolkien, J. R. R.",
+                             "0f3c2b1a-0000-4000-8000-00000000000a"};
+  bookMetadata["/b.epub"] = {"Gormenghast", "Mervyn Peake", "", ""};
+  bookMetadata["/c.epub"] = {"A Wizard of Earthsea",  "Ursula K. Le Guin", "", "", true,
+                             "Wizard of Earthsea, A", "Le Guin, Ursula K."};
+  bookMetadata["/d.epub"] = {"Pandora's Star", "Peter F. Hamilton", "", "", true, "", "Hamilton, Peter F."};
+  initial();
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  // Leading articles move behind the title exactly as the Calibre library sorts them.
+  EXPECT_EQ(pathAt(index, SortOrder::TitleAsc, 0), "/b.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::TitleAsc, 1), "/a.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::TitleAsc, 2), "/d.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::TitleAsc, 3), "/c.epub");
+  // "Le Guin" files under L, where the last-word guess would put her under G.
+  EXPECT_EQ(pathAt(index, SortOrder::AuthorAsc, 0), "/d.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::AuthorAsc, 1), "/c.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::AuthorAsc, 2), "/b.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::AuthorAsc, 3), "/a.epub");
+
+  ClixRecord record{};
+  std::string title, author, sort, uuid;
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 1), record));
+  ASSERT_TRUE(index.readTitleAuthorAndSort(record, title, author, sort));
+  EXPECT_EQ(title, "The Hobbit");
+  EXPECT_EQ(author, "J. R. R. Tolkien");
+  EXPECT_EQ(sort, "Tolkien, J. R. R.");
+  ASSERT_TRUE(index.readUuid(record, uuid));
+  EXPECT_EQ(uuid, std::string("\x0f\x3c\x2b\x1a\x00\x00\x40\x00\x80\x00\x00\x00\x00\x00\x00\x0a", 16));
+  EXPECT_EQ(foldedGroupInitial(std::string_view(record.fold, record.foldLen)), static_cast<uint32_t>('h'));
+
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 0), record));
+  ASSERT_TRUE(index.readAuthorSort(record, sort));
+  EXPECT_TRUE(sort.empty());
+  EXPECT_FALSE(index.readUuid(record, uuid));
+  index.close();
+
+  // An unchanged rebuild carries every Calibre field across without parsing.
+  const auto committed = fake::files[INDEX]->bytes;
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 0u);
+  EXPECT_EQ(fake::files[INDEX]->bytes, committed);
+}
+
+TEST_F(LibraryBuilderTest, UuidMatchesARenamedBookWhoseSizeChanged) {
+  bookMetadata["/a.epub"] = {"Old Title", "Writer", "", "", true, "", "", "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf"};
+  bookMetadata["/b.epub"] = {"Other", "Writer", "", "", true, "", "", "ee1cc8b6-8ba2-44c7-bd80-0d01b0896268"};
+  initial();
+
+  // Calibre rewrites the book when its title changes, so the renamed file differs in size.
+  ASSERT_TRUE(Storage.remove("/a.epub"));
+  fake::add("/new title.epub", "a rewritten book", 5);
+  bookMetadata["/new title.epub"] = {"New Title", "Writer", "", "",
+                                     true,        "",       "", "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf"};
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.renamed, 1);
+  EXPECT_EQ(stats.added, 0);
+  EXPECT_EQ(stats.removed, 0);
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  ClixRecord renamed{};
+  ClixRecord kept{};
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 0), renamed));
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 1), kept));
+  EXPECT_LT(renamed.firstSeen, kept.firstSeen);
+}
+
+TEST_F(LibraryBuilderTest, PreviousFormatReparsesMetadataButKeepsArrivalOrder) {
+  bookMetadata["/a.epub"] = {"The Hobbit", "J. R. R. Tolkien", "", "", true, "Hobbit, The"};
+  initial();
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  ClixRecord before{};
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::AddedAsc, 0), before));
+  index.close();
+
+  auto& bytes = fake::files[INDEX]->bytes;
+  ClixHeader header{};
+  std::memcpy(&header, bytes.data(), sizeof(header));
+  header.formatVersion = CLIX_FORMAT_VERSION - 1;
+  std::memcpy(bytes.data(), &header, sizeof(header));
+  fake::parses = 0;
+
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 2u);
+  EXPECT_EQ(stats.metadataReused, 0);
+  EXPECT_TRUE(stats.indexReplaced);
+  ASSERT_TRUE(index.open(INDEX));
+  EXPECT_EQ(index.header().formatVersion, CLIX_FORMAT_VERSION);
+  EXPECT_EQ(pathAt(index, SortOrder::AddedAsc, 0), "/a.epub");
+  ClixRecord after{};
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::AddedAsc, 0), after));
+  EXPECT_EQ(after.firstSeen, before.firstSeen);
+}
+
+TEST_F(LibraryBuilderTest, UuidRenameWinsOverAnEarlierBookOfTheSameSize) {
+  bookMetadata["/a.epub"] = {"Old Title", "Writer", "", "", true, "", "", "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf"};
+  initial();
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  ClixRecord original{};
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 0), original));
+  index.close();
+
+  // The new book is walked first and has the removed book's exact size.
+  ASSERT_TRUE(Storage.remove("/a.epub"));
+  fake::add("/0 new.epub", "book", 5);
+  fake::add("/z renamed.epub", "a rewritten book", 5);
+  bookMetadata["/z renamed.epub"] = {"New Title", "Writer", "", "",
+                                     true,        "",       "", "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf"};
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.renamed, 1);
+  EXPECT_EQ(stats.added, 1);
+  ASSERT_TRUE(index.open(INDEX));
+  ASSERT_EQ(pathAt(index, SortOrder::TitleAsc, 0), "/z renamed.epub");
+  ClixRecord renamed{};
+  ASSERT_TRUE(index.readRecord(index.ordinalForRow(SortOrder::TitleAsc, 0), renamed));
+  EXPECT_EQ(renamed.firstSeen, original.firstSeen);
+}
+
+TEST_F(LibraryBuilderTest, SameSizeBookWithADifferentUuidIsNew) {
+  bookMetadata["/a.epub"] = {"Old", "Writer", "", "", true, "", "", "1731e1ca-38a6-47da-9c5b-6f324ab6a3bf"};
+  initial();
+  ASSERT_TRUE(Storage.remove("/a.epub"));
+  fake::add("/c.epub", "book", 5);
+  bookMetadata["/c.epub"] = {"Other", "Writer", "", "", true, "", "", "ee1cc8b6-8ba2-44c7-bd80-0d01b0896268"};
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.renamed, 0);
+  EXPECT_EQ(stats.added, 1);
+  EXPECT_EQ(stats.removed, 1);
 }
