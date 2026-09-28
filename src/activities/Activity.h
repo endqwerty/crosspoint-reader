@@ -32,6 +32,8 @@ class Activity {
   virtual void onExit();
   // Last chance to queue activity-owned state before sleep events are drained.
   virtual void prepareForSleep() {}
+  // Called with RenderLock held before a child activity takes the shared renderer.
+  virtual void onSuspend() {}
   virtual void loop() {}
 
   virtual void render(RenderLock&&) {}
