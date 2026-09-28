@@ -75,3 +75,46 @@ cold-layout/input-responsiveness concerns. Evidence is in
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
 unmeasured. Check an uncached long EPUB, TOC jumps, reopen and sleep/wake with AA
 off. No cache deletion or recording required.
+
+## Proposed next steps (not started)
+
+Review of 2026-09-27, in priority order for the Calibre-library workflow in
+`docs/FORK.md`. Each item needs the user's go-ahead.
+
+1. Device validation of r51 with the real library. Nothing has been measured on
+   hardware yet. Measure first-entry Library reconcile time, free heap and
+   largest free block (serial) with the full Calibre export on the card.
+2. Library size: resolved. The library is about 400-500 books, far below the
+   4,096-book index cap (`lib/LibraryIndex/LibraryFormat.h:57`). No work needed.
+3. State survives re-export. Progress, bookmarks, favorites and reading state
+   are all keyed by path (`lib/Epub/Epub.h:46`,
+   `src/activities/library/LibraryBookState.cpp`, `src/util/BookmarkUtil.cpp`).
+   A Calibre rename (author or title edit) therefore orphans them. Options:
+   (a) a stable Calibre save template and incremental copying, which is
+   workflow only; (b) during reconcile, relink state when a vanished path and a
+   new path share an OPF `dc:identifier` (Calibre UUID). Check upstream for
+   equivalent work before choosing (b).
+4. Re-export cost. Reconcile reuses metadata only when size and mtime match
+   (`LibraryBuilder.cpp:403`). `scripts/sync-calibre-library.sh` compares by
+   content and does not copy source mtimes, so books whose bytes are unchanged
+   keep their SD mtime. Remaining: check whether Calibre re-exports are
+   byte-identical for unchanged books (run the script with `-n` after a
+   re-export; a full list of changes means they are not), and measure
+   first-entry reconcile time on the device.
+5. Reduce rebase burden. The fork is one ~43k-line patch with 51 `-rNN`
+   revision docs. Split it into topical patches and fold the revision logs into
+   a few feature docs. Track upstream PR #3366 (Library) and drop local code
+   that upstream supersedes.
+
+Workspace note: `/Volumes/workspace` is an SMB share whose server does not
+advertise named-stream support (`smbutil statshares -m /Volumes/workspace`), so
+macOS stores file metadata as `._*` AppleDouble files. `._*` is ignored through
+`.git/info/exclude` and each submodule git dir's `info/exclude`. That rule cannot
+override the `!Ubuntu/**`-style re-includes in
+`lib/EpdFont/builtinFonts/source/.gitignore`, so `._*` files there reappear after
+checkouts. Delete them with
+`find lib/EpdFont/builtinFonts/source -name '._*' -delete`. The lasting fix is on
+the server: Samba `vfs objects = catia fruit streams_xattr`. Separately, the
+`freeink-sdk` submodule in the `t3code-467772ef` worktree has an index showing
+every tracked file as deleted. Repair it with `git -C freeink-sdk reset` (index
+only), then `git submodule update --init` before building in that worktree.
