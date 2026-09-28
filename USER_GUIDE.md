@@ -164,8 +164,8 @@ remains powered on, select **Library options → Refresh library** or
 A failed rebuild retains the previous index. Scan limits are reported explicitly.
 The **Use book metadata** setting controls reading titles/authors from EPUB files.
 
-See [Library details](docs/epub-library-r5.md) for series, Favorites, status and limits,
-and [RC integration](docs/upstream-rc-r6.md) for the latest release changes.
+See [Library details](docs/fork-library.md) for series, Favorites, status and limits,
+and [fork maintenance](docs/fork-maintenance.md) for the upstream changes it includes.
 
 ### 3.5 File Transfer Screen
 

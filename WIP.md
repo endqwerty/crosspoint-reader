@@ -233,7 +233,7 @@ Upstream PR triage, 2026-09-27 (open, not merged):
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
     #2603
-  - #3764: link-return progress (`docs/reading-navigation.md`)
+  - #3764: link-return progress (`docs/fork-reader.md`)
   - #3698: `ButtonNavigator` uses `std::initializer_list`
   - #2602: flat CSS rule pools in `CssParser.h:150-168`
   - #2343: ordered lists (`ChapterHtmlSlimParser.cpp:1472`)
