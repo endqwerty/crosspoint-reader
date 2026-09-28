@@ -1,5 +1,6 @@
 #pragma once
 
+#include <LibraryBookState.h>
 #include <LibraryIndexFile.h>
 
 #include <cstdint>
@@ -7,23 +8,11 @@
 #include <string>
 #include <vector>
 
-#include "RecentBooksStore.h"
 #include "activities/UiTabListActivity.h"
-#include "components/OptionPopup.h"
 
-// One Library screen: every indexed book on the card shown by recency, title,
-// or author. The Recent shelf orders by file modification time (when a book
-// landed on the card) and pins the recently OPENED books from RecentBooksStore
-// on top, so active reads and fresh arrivals share one list.
-//
-// The two-slot row is the whole point rather than a styling choice: the problem
-// being solved is "I cannot find my books because I do not know the authors",
-// and that is answered by a column the eye can sweep, not by a tidier filename.
-//
-// Rows render through fui::list on the UiTabListActivity ring (0 = the sort
-// strip, 1..N = the books), which is what brings touch to rows and tabs. Titles
-// are truncated to one line by the widget — more books on the screen, even if
-// half a name is hidden.
+// Recent, arrival and title shelves, plus author/series directories whose rows
+// open only that group's books. Rows use the shared UiTabListActivity ring
+// (0 = the tab strip, 1..N = rows) for both buttons and touch.
 //
 // Only the visible window of rows is materialized per render (strings and
 // ListItems for at most one page). The ordinary shelf therefore keeps one page
@@ -34,6 +23,7 @@ class LibraryListActivity final : public UiTabListActivity {
   LibraryListActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
 
   void onEnter() override;
+  void loop() override;
   void onExit() override;
 
  protected:
@@ -54,37 +44,48 @@ class LibraryListActivity final : public UiTabListActivity {
   // The FreeInkUI header owns both the title and search touch target.
   void drawChrome() override {}
   void drawFooter() override;
-  // OptionPopup is a self-contained modal: it owns rendering (and the button
-  // hints) whenever it is up.
-  void render(RenderLock&& lock) override;
 
  private:
   // The screen's own actions, after the base's ACTION_ROW / ACTION_TAB.
   static constexpr freeink::ui::ActionId ACTION_SEARCH = ACTION_TAB_USER;
-  static constexpr freeink::ui::ActionId ACTION_REBUILD = ACTION_SEARCH + 1;
+  static constexpr freeink::ui::ActionId ACTION_OPTIONS = ACTION_TAB_USER + 1;
+  static constexpr freeink::ui::ActionId ACTION_REBUILD = ACTION_TAB_USER + 2;
+  static void rebuildActionTrampoline(const freeink::ui::ActionEvent&, void* user);
+  static void optionsActionTrampoline(const freeink::ui::ActionEvent&, void* user);
   static constexpr freeink::ui::ActionId ACTION_BACK = ACTION_REBUILD + 1;
 
-  // Walk the card and write a fresh index. Blocking, with a popup: at ~70 books
-  // it is well under a second, and it only runs when the index is missing or the
-  // user asks.
+  // Reconcile the card under the render lock with a static progress popup.
   bool rebuildIndex();
+  void refreshLibrary();
+  struct RefreshSelection {
+    std::string paths[2];
+    uint64_t hashes[2]{};
+    uint32_t sizes[2]{};
+    int entry = 0;
+    int group = -1;
+    bool collapsed = false;
+    bool inGroup = false;
+    bool tabFocus = true;
+  };
+  RefreshSelection captureRefreshSelection();
+  void restoreRefreshSelection(const RefreshSelection& selection);
+  void openOptions();
+  void openGrouping();
+  void openShelfFilter();
+  void openBookOptions(int entry);
+  void openBookDetails(const std::string& path, const std::string& title);
+  void promptDeleteBook(const std::string& path, const std::string& title);
+  bool resolveBook(int entry, std::string& path, std::string& title);
+  bool hasFilter() const { return !query.empty() || shelfFilter != library::ShelfFilter::All; }
+  bool seriesFor(int entry, std::string& name, uint16_t* position = nullptr, uint16_t* seriesId = nullptr);
+  bool releaseIndexForChild();
+  bool restoreIndexAfterChild(bool reopen);
+  library::ShelfFilter shelfFilter = library::ShelfFilter::All;
 
   // Input
   void openSelectedBook();
   void openSearch();
-  // Shared tail of row activation and the options menu's Open entry.
-  void openBookByPath(const std::string& path);
-  void promptRebuildIndex();
-  void resetAfterRebuild();
-  // Recent-row long-press menu: open / remove from recents / delete / rebuild.
-  void showRecentBookOptions(int entry);
   void promptRemoveRecentBook(const std::string& path, const std::string& title);
-  // Long-press delete owns the gesture where grouping does not apply: the
-  // Recent sort, degraded lists, and any active search result.
-  bool deleteEligible() const;
-  // Resolves the row's path and title, then confirms via promptDeleteBookByPath.
-  void promptDeleteBook(int entry);
-  void promptDeleteBookByPath(const std::string& path, const std::string& title);
   bool collapseGroups(int bookEntry);
   void expandGroup(int groupEntry);
   void restoreExpandedList();
@@ -96,20 +97,22 @@ class LibraryListActivity final : public UiTabListActivity {
   // Staged back-out shared by Button::Back and the header back arrow.
   void handleBackAction();
   static void searchActionTrampoline(const freeink::ui::ActionEvent& event, void* user);
-  static void rebuildActionTrampoline(const freeink::ui::ActionEvent& event, void* user);
   static void backActionTrampoline(const freeink::ui::ActionEvent& event, void* user);
 
   // Data
   void applyFilter();
+  void refilterAfterBookChange(int entry);
+  void filterBooks();
+  int totalBookRowCount() const;
   int bookRowCount() const;
   int rowFor(int entry) const;
-  // fileName, when asked for, is the on-card name the row's icon derives from
-  // (the display title may come from metadata and carry no extension).
-  bool rowTextFor(int entry, std::string& title, std::string& author, std::string* fileName = nullptr);
+  bool authorFor(int entry, std::string& author);
+  bool rowTextFor(int entry, std::string& title, std::string& author, uint32_t* titleInitial = nullptr);
   uint32_t titleInitialFor(int entry);
   bool buildGroupStarts();
   int groupForBook(int bookEntry) const;
   bool groupable() const;
+  bool browsesGroups() const;
 
   // Screen building
   void buildHeader(UiScreen& screen);
@@ -125,45 +128,37 @@ class LibraryListActivity final : public UiTabListActivity {
   // row 0 as the working selection exactly as the pre-ring code did.
   int selectedEntry() const;
   bool tabsFocused() const { return ringPos() == 0; }
-
-  // --- pinned recently-opened overlay ---------------------------------------
-  // On the unfiltered Recent shelf the RecentBooksStore entries sit on top, in
-  // read order; the modification-time list follows with those books skipped.
-  // Entries below pinnedCount() are store rows; the rest go through rowFor().
-  int pinnedCount() const;
-  // Re-match the store against the index (chunked scan). Call whenever the
-  // index or the store changes.
-  void resolvePinned();
-  // Direction-space translation of the matched rows. Call on sort toggles.
-  void refreshOverlap();
+  bool showingRecents() const;
 
   library::LibraryIndexFile index;
   int activeTabIndex = 0;
-  library::SortOrder sortOrder = library::SortOrder::RecentDesc;
-  // One bit per tab; Recent starts descending (newest first).
-  uint8_t descendingTabs = 1u << 0;
+  library::SortOrder sortOrder = library::SortOrder::AddedDesc;
+  // One bit per tab; only Added starts descending (Recent has no direction).
+  uint8_t descendingTabs = 1u << 1;
   // Set when the walk finished but the sort did not, so the screen can say the
   // order is discovery order rather than silently showing a wrong one.
   bool degraded = false;
+  bool refreshFailed = false;
 
   // Rows surviving the current query, as positions in the active sort order.
   // Empty query means no filtering and this owns no allocation, so the ordinary
   // shelf pays nothing proportional to the library for the feature.
   std::string query;
-  // The active query, pre-quoted for the header: headerTitle() returns a
-  // stable c_str the render task can hold across a build.
+  // Prepared when the filter changes, so rendering borrows stable text.
   std::string headerSearchTitle;
   std::unique_ptr<uint16_t[]> filtered;
   uint16_t filteredCount = 0;
   bool filterFailed = false;
 
-  // One start row per group. Grouping is only offered for the sorted <=512-book
-  // index, so this fallible allocation is at most 1 KiB and is reused after its
-  // first successful allocation.
+  // One start row per group: at most 8 KiB at the 4096-book index limit.
+  // This fallible allocation is reused after its first successful allocation.
   std::unique_ptr<uint16_t[]> groupStarts;
   uint16_t groupCapacity = 0;
   uint16_t groupCount = 0;
   bool groupsCollapsed = false;
+  int selectedGroup = -1;
+  // Only the selected group's caption is retained, not every group name.
+  std::string groupTitle;
   freeink::ui::ListNav expandedNav;
 
   // Visible-window row storage, reused across renders (buildRows). Bounded by
@@ -175,18 +170,6 @@ class LibraryListActivity final : public UiTabListActivity {
   std::vector<std::string> winAuthors;
   std::vector<std::string> winHeaders;
 
-  // Pinned overlay state: per store entry its RecentAsc row (0xFFFF when the
-  // book is not in the index), and the current-direction rows to skip, sorted
-  // ascending, so unpinned entries map to sort rows with a <=10-step walk.
-  uint16_t pinnedAscRows[RecentBooksStore::MAX_RECENT_BOOKS] = {};
-  uint16_t overlapRows[RecentBooksStore::MAX_RECENT_BOOKS] = {};
-  uint8_t pinnedTotal = 0;
-  uint8_t overlapCount = 0;
-
   bool lockNextConfirmRelease = false;
   bool lockNextBackRelease = false;
-
-  // Row options modal (Recent long-press menu); owned here so it outlives the
-  // touch event that opened it.
-  OptionPopup optionPopup;
 };
