@@ -289,6 +289,19 @@ TEST_F(ReaderOverlayTest, ActivityPushWithoutPendingChromeDoesNotWriteBaseline) 
   EXPECT_EQ(display.lastRefresh, HalDisplay::FAST_REFRESH);
 }
 
+TEST_F(ReaderOverlayTest, ActivityPushDropsTurnQueuedBehindPageUpdate) {
+  OverlayActivityManagerFixture manager;
+  auto parent = std::make_unique<EpubReaderActivity>(renderer);
+  auto* suspended = parent.get();
+  parent->pendingManualTurn = 1;
+  display.frame.fill(0x55);
+  manager.pendingActivity = std::make_unique<PaintingChild>(renderer, display, *parent, false);
+  manager.currentActivity = std::move(parent);
+  manager.transitionForTest();
+  ASSERT_EQ(manager.stackActivities.size(), 1u);
+  EXPECT_EQ(suspended->pendingManualTurn, 0);
+}
+
 TEST_F(ReaderOverlayTest, ActivityPushCarriesFailedChromeRecoveryIntoChildRefresh) {
   for (bool failWait : {false, true}) {
     SCOPED_TRACE(failWait);
