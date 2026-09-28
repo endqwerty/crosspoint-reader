@@ -51,6 +51,8 @@ class UiListActivity : public Activity, protected UiAppHost {
   virtual void swipeDelete(int index) {}
   void configureSwipeDelete(UiScreen& screen, freeink::ui::ListProps& props);
   void closeSwipeDelete();
+  // Takes the render lock itself; subclasses with their own loop call it unlocked.
+  bool handleSwipeDeleteInput();
 #endif
   // The selection/viewport state the loop, sync, and row dispatch operate on.
   // Default is the single `nav` member; UiTabListActivity redirects it to the
@@ -100,7 +102,6 @@ class UiListActivity : public Activity, protected UiAppHost {
   static void rowActionTrampoline(const freeink::ui::ActionEvent& event, void* user);
 #if FREEINK_CAP_TOUCH
   static void swipeDeleteTrampoline(const freeink::ui::ActionEvent& event, void* user);
-  bool handleSwipeDeleteInput();
   std::atomic<int16_t> revealedIndex{-1};
   freeink::ui::ListRevealAction swipeReveal{};
 #endif
