@@ -97,6 +97,8 @@ void IntervalSelectionActivity::onOkEvent(const fui::ActionEvent&, void* user) {
 }
 
 void IntervalSelectionActivity::loop() {
+  // Routing and rendering share the app's event and slider state.
+  RenderLock lock;
   // Touch goes through the FreeInkApp: render() registered the slider, -/+ zones,
   // and Cancel/OK hit rects; the slider follows the finger via InputDrag. Runs
   // before the Back handler because the release of a drag can also register as a
