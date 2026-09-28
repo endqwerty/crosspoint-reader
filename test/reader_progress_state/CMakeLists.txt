@@ -1,0 +1,3 @@
+add_executable(ReaderProgressStateTest ReaderProgressStateTest.cpp)
+target_link_libraries(ReaderProgressStateTest PRIVATE crosspoint_test_common GTest::gtest_main)
+gtest_discover_tests(ReaderProgressStateTest)

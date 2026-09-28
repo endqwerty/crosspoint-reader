@@ -17,6 +17,8 @@
 #include "LinkNoteTitle.h"
 #include "ProgressMapper.h"
 #include "ReaderActivity.h"
+#include "ReaderNavigationHistory.h"
+#include "ReaderProgressState.h"
 #include "ReaderToolbarUi.h"
 #include "components/OptionPopup.h"
 
@@ -26,6 +28,7 @@ class EpubReaderActivity final : public ReaderActivity {
   int currentSpineIndex = 0;
   int nextPageNumber = 0;
   std::optional<uint16_t> pendingPageJump;
+  bool pendingLastPageJump = false;
   std::string pendingAnchor;
   int cachedSpineIndex = 0;
   int cachedChapterTotalPageCount = 0;
@@ -40,11 +43,13 @@ class EpubReaderActivity final : public ReaderActivity {
   float pendingSpineProgress = 0.0f;
   bool pendingScreenshot = false;
   bool pendingSyncSaveError = false;
+  bool pendingBuildError = false;
   uint8_t pageLoadRetryCount = 0;
   static constexpr uint8_t MAX_PAGE_LOAD_RETRIES = 3;
   bool skipNextButtonCheck = false;
   bool automaticPageTurnActive = false;
   bool showBookmarkMessage = false;
+  bool bookmarkSaveFailed = false;
   bool showDictionaryMessage = false;
   unsigned long dictionaryMessageTime = 0UL;
   bool showFontDamagedMessage = false;
@@ -58,6 +63,7 @@ class EpubReaderActivity final : public ReaderActivity {
   unsigned long lastRenderCompleteMs = 0;
   bool bookmarkRemoved = false;
   std::vector<BookmarkEntry> cachedBookmarks;
+  bool bookmarkCacheValid = false;
   bool recentsEntryRemoved = false;
   unsigned long bookmarkMessageTime = 0UL;
   bool pendingReadFolderMove = false;
@@ -94,6 +100,8 @@ class EpubReaderActivity final : public ReaderActivity {
   // page. Until renderBook() redraws, nothing may be painted straight onto it. Set by the loop task,
   // cleared by the render task.
   std::atomic<bool> pageBufferStale{false};
+  // A B/W snapshot cannot restore the gray detail of the last rendered page.
+  bool renderedPageNeedsGrayscale = true;
   // True while a deferred overlay chrome refresh (pushOverlayRefresh) may still
   // be running on the panel. settleOverlayRefresh() must run before the
   // framebuffer is touched or another differential refresh is pushed.
@@ -108,13 +116,7 @@ class EpubReaderActivity final : public ReaderActivity {
   std::vector<PageLink> currentPageLinks;
   int currentPageLinkMarginLeft = 0;
   int currentPageLinkMarginTop = 0;
-  struct SavedPosition {
-    int spineIndex;
-    int pageNumber;
-  };
-  static constexpr int MAX_FOOTNOTE_DEPTH = 3;
-  SavedPosition savedPositions[MAX_FOOTNOTE_DEPTH] = {};
-  int footnoteDepth = 0;
+  ReaderNavigationHistory navigationHistory;
   // The back-stack outlives the reader (sleep, home) in links.bin so Back
   // still returns to where a followed link was tapped.
   void saveLinkStack() const;
@@ -124,9 +126,7 @@ class EpubReaderActivity final : public ReaderActivity {
   uint16_t buildViewportHeight = 0;
   bool partialRebuildStartFailed = false;
 
-  int lastSavedSpineIndex = -1;
-  int lastSavedPage = -1;
-  int lastSavedPageCount = -1;
+  ReaderProgressState progressState;
 
   static constexpr int BUILD_PAGES_PER_CHUNK = 8;
   static constexpr int BACKGROUND_BUILD_PAGES_PER_TICK = 2;
@@ -135,6 +135,9 @@ class EpubReaderActivity final : public ReaderActivity {
   // Requires the render lock; heap admission is checked separately by the build tick.
   bool backgroundBuildWanted() const;
   bool buildTickHeapGate();
+  bool hasPendingSectionJump() const { return pendingPercentJump || pendingLastPageJump; }
+  bool resolvePendingSectionJump();
+  void advanceSectionBuild();
   bool buildHeapPaused = false;
   // One bounded build step on the loop task, in a frame whose input did nothing. Lays out about
   // BACKGROUND_BUILD_PAGES_PER_TICK pages (one 1 KB parse step may add more) and hands the loop
@@ -162,8 +165,10 @@ class EpubReaderActivity final : public ReaderActivity {
   void showBuildPopup(GfxRenderer& renderer, int& pagesUntilFullRefresh);
   bool applyDeferredReposition();
   void clearDeferredReposition();
+  void clearPendingNavigation();
   void rememberCurrentContentOffset();
-  bool saveProgress(int spineIndex, int currentPage, int pageCount);
+  bool saveProgress(int spineIndex, int currentPage, int pageCount,
+                    std::optional<uint32_t> visibleTextOffset = std::nullopt);
   void jumpToPercent(int percent);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);
   int currentTocIndex() const;
@@ -204,12 +209,14 @@ class EpubReaderActivity final : public ReaderActivity {
   void applyProgressChange(const ProgressChangeResult& progress);
   bool launchKOReaderSync();
   unsigned long confirmLongPressThreshold() const;
+  void prepareForBookSearch();
+  void launchBookSearch();
   void toggleAutoPageTurn(uint8_t selectedPageTurnOption);
   void loadCachedBookmarks();
   void addBookmark();
   void updateBookmarkFlag();
 
-  void navigateToHref(const std::string& href, bool savePosition = false);
+  void navigateToHref(const std::string& href, ReaderNavigationHistory::Jump jump);
   void restoreSavedPosition();
 
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
@@ -250,6 +257,7 @@ class EpubReaderActivity final : public ReaderActivity {
       : ReaderActivity("EpubReader", renderer, mappedInput, std::move(bookPath), allowFastInitialRefresh) {}
   ~EpubReaderActivity() override;
 
+  void onSuspend() override;
   void loop() override;
   void render(RenderLock&& lock) override;
 
