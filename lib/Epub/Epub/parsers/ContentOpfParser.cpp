@@ -1,5 +1,6 @@
 #include "ContentOpfParser.h"
 
+#include <Arduino.h>
 #include <FsHelpers.h>
 #include <Logging.h>
 #include <Serialization.h>
@@ -17,6 +18,7 @@ constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char MEDIA_TYPE_CSS[] = "text/css";
 constexpr char MEDIA_TYPE_IMAGE_PREFIX[] = "image/";
 constexpr char itemCacheFile[] = "/.items.bin";
+constexpr uint32_t ITEM_INDEX_MIN_FREE_HEAP = 16 * 1024;
 
 bool startsWithImageMediaType(const std::string& mediaType) {
   constexpr size_t prefixLen = sizeof(MEDIA_TYPE_IMAGE_PREFIX) - 1;
@@ -40,11 +42,9 @@ bool isXmlWhitespace(const char c) { return c == ' ' || c == '\t' || c == '\r' |
 // a multi-megabyte title would exhaust the heap. Downstream consumers truncate
 // far below this anyway, so overflow is clamped, not fatal.
 constexpr size_t MAX_METADATA_TEXT = 512;
-constexpr size_t MAX_COLLECTION_CANDIDATES = 8;
 
-void appendMetadataText(std::string& out, const XML_Char* text, const int len, bool& spacePending,
-                        bool* separatorPending = nullptr) {
-  if (out.size() >= MAX_METADATA_TEXT) return;  // already clamped and logged
+bool appendMetadataText(std::string& out, const XML_Char* text, const int len, bool& spacePending,
+                        bool* separatorPending = nullptr, const size_t limit = 512) {
   for (int i = 0; i < len; i++) {
     const char c = text[i];
     if (isXmlWhitespace(c)) {
@@ -52,10 +52,11 @@ void appendMetadataText(std::string& out, const XML_Char* text, const int len, b
       continue;
     }
 
-    if (out.size() >= MAX_METADATA_TEXT) {
-      LOG_DBG("COF", "Metadata text exceeds %u bytes; truncating", static_cast<unsigned>(MAX_METADATA_TEXT));
-      return;
-    }
+    const auto byte = static_cast<unsigned char>(c);
+    const size_t glyphBytes = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+    const size_t prefixBytes = separatorPending && *separatorPending ? 2 : spacePending && !out.empty() ? 1 : 0;
+    if (out.size() + prefixBytes + glyphBytes > limit) return false;
+
     if (separatorPending != nullptr && *separatorPending) {
       out.append(", ");
       *separatorPending = false;
@@ -66,6 +67,7 @@ void appendMetadataText(std::string& out, const XML_Char* text, const int len, b
     spacePending = false;
     out.push_back(c);
   }
+  return true;
 }
 
 std::string lowerAscii(std::string value) {
@@ -249,12 +251,12 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     // Sort the (unconditionally-built) item index so every idref lookup uses binary
     // search. Without this, small/medium manifests fell back to an O(spine × manifest)
     // linear rescan of .items.bin per itemref (up to ~200ms/item at large scale).
-    if (!self->itemIndex.empty()) {
-      std::sort(self->itemIndex.begin(), self->itemIndex.end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
+    if (self->itemIndex && !self->itemIndex->empty()) {
+      std::sort(self->itemIndex->begin(), self->itemIndex->end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
         return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
       });
       self->useItemIndex = true;
-      LOG_DBG("COF", "Using fast index for %zu manifest items", self->itemIndex.size());
+      LOG_DBG("COF", "Using fast index for %zu manifest items", self->itemIndex->size());
     }
     return;
   }
@@ -304,6 +306,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       self->state = IN_META_TEXT;
       self->metadataSpacePending = false;
     }
+
     return;
   }
 
@@ -331,7 +334,17 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       entry.idHash = fnvHash(itemId);
       entry.idLen = static_cast<uint16_t>(itemId.size());
       entry.fileOffset = static_cast<uint32_t>(self->tempItemStore.position());
-      self->itemIndex.push_back(entry);
+      if ((!self->itemIndex || self->itemIndex->size() % 32 == 0) && ESP.getFreeHeap() < ITEM_INDEX_MIN_FREE_HEAP) {
+        LOG_ERR("COF", "Insufficient heap for manifest index");
+        XML_StopParser(self->parser, XML_FALSE);
+        return;
+      }
+      if (!self->itemIndex) self->itemIndex = makeUniqueNoThrow<ItemIndex>();
+      if (!self->itemIndex || !self->itemIndex->push_back(entry)) {
+        LOG_ERR("COF", "OOM or capacity limit in manifest index");
+        XML_StopParser(self->parser, XML_FALSE);
+        return;
+      }
     }
 
     if (self->tempItemStore) {
@@ -397,14 +410,14 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
             uint32_t targetHash = fnvHash(idref);
             uint16_t targetLen = static_cast<uint16_t>(idref.size());
 
-            auto it = std::lower_bound(self->itemIndex.begin(), self->itemIndex.end(),
+            auto it = std::lower_bound(self->itemIndex->begin(), self->itemIndex->end(),
                                        ItemIndexEntry{targetHash, targetLen, 0},
                                        [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
                                          return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
                                        });
 
             // Check for match (may need to check a few due to hash collisions)
-            while (it != self->itemIndex.end() && it->idHash == targetHash) {
+            while (it != self->itemIndex->end() && it->idHash == targetHash) {
               self->tempItemStore.seek(it->fileOffset);
               std::string itemId;
               serialization::readString(self->tempItemStore, itemId);
@@ -474,17 +487,24 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
   }
 
   if (self->state == IN_BOOK_TITLE) {
-    appendMetadataText(self->title, s, len, self->metadataSpacePending);
+    if (!self->titleClamped) {
+      self->titleClamped = !appendMetadataText(self->title, s, len, self->metadataSpacePending);
+    }
     return;
   }
 
   if (self->state == IN_BOOK_AUTHOR) {
-    appendMetadataText(self->author, s, len, self->metadataSpacePending, &self->authorSeparatorPending);
+    if (!self->authorClamped) {
+      self->authorClamped =
+          !appendMetadataText(self->author, s, len, self->metadataSpacePending, &self->authorSeparatorPending);
+    }
     return;
   }
 
   if (self->state == IN_BOOK_LANGUAGE) {
-    appendMetadataText(self->language, s, len, self->metadataSpacePending);
+    if (!self->languageClamped) {
+      self->languageClamped = !appendMetadataText(self->language, s, len, self->metadataSpacePending);
+    }
     return;
   }
 
@@ -558,7 +578,8 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
     const std::string property = lowerAscii(self->metaProperty);
     if (property == "belongs-to-collection" && !self->metaId.empty()) {
       CollectionMetadata* candidate = nullptr;
-      for (auto& collection : self->collectionCandidates) {
+      for (size_t i = 0; i < self->collectionCount; ++i) {
+        auto& collection = self->collectionCandidates[i];
         if (collection.id == self->metaId) {
           candidate = &collection;
           break;
@@ -566,23 +587,24 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
       }
       if (candidate != nullptr) {
         candidate->title = self->metaText;
-      } else if (self->collectionCandidates.size() < MAX_COLLECTION_CANDIDATES) {
-        self->collectionCandidates.push_back({self->metaId, self->metaText, std::nullopt, false});
+      } else if (self->collectionCount < MAX_COLLECTION_CANDIDATES) {
+        self->collectionCandidates[self->collectionCount++] = {self->metaId, self->metaText, std::nullopt, false};
       } else {
         LOG_DBG("COF", "Ignoring collection metadata beyond %u entries",
                 static_cast<unsigned>(MAX_COLLECTION_CANDIDATES));
       }
     } else if (!self->metaRefines.empty() && (property == "collection-type" || property == "group-position")) {
       CollectionMetadata* candidate = nullptr;
-      for (auto& collection : self->collectionCandidates) {
+      for (size_t i = 0; i < self->collectionCount; ++i) {
+        auto& collection = self->collectionCandidates[i];
         if (collection.id == self->metaRefines) {
           candidate = &collection;
           break;
         }
       }
-      if (candidate == nullptr && self->collectionCandidates.size() < MAX_COLLECTION_CANDIDATES) {
-        self->collectionCandidates.push_back({self->metaRefines, {}, std::nullopt, false});
-        candidate = &self->collectionCandidates.back();
+      if (candidate == nullptr && self->collectionCount < MAX_COLLECTION_CANDIDATES) {
+        candidate = &self->collectionCandidates[self->collectionCount++];
+        candidate->id = self->metaRefines;
       }
       if (candidate != nullptr) {
         if (property == "collection-type" && lowerAscii(self->metaText) == "series") {
@@ -601,7 +623,8 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
       self->series = self->calibreSeries;
       self->seriesIndex = self->calibreSeriesIndex;
     } else {
-      for (const auto& candidate : self->collectionCandidates) {
+      for (size_t i = 0; i < self->collectionCount; ++i) {
+        const auto& candidate = self->collectionCandidates[i];
         if (!candidate.isSeries || candidate.title.empty()) continue;
         self->series = candidate.title;
         self->seriesIndex = candidate.index;
@@ -609,6 +632,11 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
       }
     }
     self->state = IN_PACKAGE;
+    if (self->seriesIndex.has_value()) {
+      char position[32];
+      snprintf(position, sizeof(position), "%.9g", static_cast<double>(*self->seriesIndex));
+      self->seriesIndexText = position;
+    }
     self->metadataComplete = true;
     return;
   }
