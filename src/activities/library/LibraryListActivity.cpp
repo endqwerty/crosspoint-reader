@@ -350,14 +350,17 @@ bool LibraryListActivity::browsesGroups() const {
   return !showingRecents() && (isAuthorSort(sortOrder) || isSeriesSort(sortOrder));
 }
 
-bool LibraryListActivity::authorFor(const int entry, std::string& author) {
+bool LibraryListActivity::authorFor(const int entry, std::string& author, std::string* authorSort) {
   author.clear();
+  if (authorSort) authorSort->clear();
   if (entry < 0 || entry >= bookRowCount()) return false;
   const uint16_t ordinal = index.ordinalForRow(sortOrder, rowFor(entry));
   library::ClixRecord record{};
   if (ordinal == 0xFFFF || !index.readRecord(ordinal, record)) return false;
   // Missing author metadata is a valid Unknown Author group.
-  return index.readAuthor(record, author) && !index.ioFailed();
+  if (!index.readAuthor(record, author)) return false;
+  if (authorSort && !index.readAuthorSort(record, *authorSort)) return false;
+  return !index.ioFailed();
 }
 
 bool LibraryListActivity::groupable() const {
@@ -484,8 +487,9 @@ void LibraryListActivity::expandGroup(const int groupEntry) {
       if (!seriesFor(bookEntry, groupTitle)) return;
     } else {
       std::string author;
-      if (!authorFor(bookEntry, author)) return;
-      formatAuthorHeading(author, groupTitle);
+      std::string authorSort;
+      if (!authorFor(bookEntry, author, &authorSort)) return;
+      authorHeadingFor(author, authorSort, groupTitle);
     }
     closeRouting();
     expandedNav = activeNav();
@@ -597,6 +601,7 @@ void LibraryListActivity::filterBooks() {
   // Title/name/author blob lengths are u8. Reuse one string for every field,
   // allocating only when a stored prefix misses and a blob must be read.
   std::string candidateText;
+  std::string candidateTitle;
   std::string foldedCandidate;
   uint16_t lastSeriesId = library::CLIX_SERIES_NONE;
   bool lastSeriesMatches = false;
@@ -610,25 +615,31 @@ void LibraryListActivity::filterBooks() {
     }
     bool textMatches = needle.empty() || library::matchesQuery(std::string_view(record.fold, record.foldLen), needle);
     if (!textMatches && candidateText.capacity() < UINT8_MAX) candidateText.reserve(UINT8_MAX);
-    // A four-byte UTF-8 codepoint can leave the 96-byte prefix three bytes short.
-    if (!textMatches && record.foldLen >= library::CLIX_FOLD_BYTES - 3) {
-      if (!index.readTitle(record, candidateText)) {
-        if (index.ioFailed() || !index.readName(record, candidateText)) {
+    if (!textMatches && candidateTitle.capacity() < UINT8_MAX) candidateTitle.reserve(UINT8_MAX);
+    // The stored fold is the title SORT, which a Calibre library may curate away
+    // from the shown title ("Dune 02" for "Dune Messiah"), and is capped at 96
+    // bytes. The shown title comes from the same blob pass as the author.
+    if (!textMatches) {
+      if (!index.readTitleAndAuthor(record, candidateTitle, candidateText)) {
+        filterFailed = true;
+        break;
+      }
+      // A four-byte UTF-8 codepoint can leave the 96-byte prefix three bytes short.
+      if (candidateTitle.empty() && record.foldLen >= library::CLIX_FOLD_BYTES - 3) {
+        if (!index.readName(record, candidateTitle)) {
           filterFailed = true;
           break;
         }
         // Match the builder's filename-stem fallback, excluding the extension.
-        const size_t dot = candidateText.find_last_of('.');
-        if (dot != std::string::npos && dot != 0) candidateText.resize(dot);
+        const size_t dot = candidateTitle.find_last_of('.');
+        if (dot != std::string::npos && dot != 0) candidateTitle.resize(dot);
       }
-      library::foldInto(candidateText, foldedCandidate);
-      textMatches = library::matchesQuery(foldedCandidate, needle);
+      if (!candidateTitle.empty()) {
+        library::foldInto(candidateTitle, foldedCandidate);
+        textMatches = library::matchesQuery(foldedCandidate, needle);
+      }
     }
     if (!textMatches) {
-      if (!index.readAuthor(record, candidateText)) {
-        filterFailed = true;
-        break;
-      }
       library::foldInto(candidateText, foldedCandidate);
       textMatches = library::matchesQuery(foldedCandidate, needle);
     }
@@ -712,9 +723,11 @@ void LibraryListActivity::backActionTrampoline(const fui::ActionEvent&, void* us
 // Title and author for one entry, read straight from the index. Only ever
 // called for rows about to be drawn, so at most a screenful of strings exists
 // at once.
-bool LibraryListActivity::rowTextFor(const int entry, std::string& title, std::string& author, uint32_t* titleInitial) {
+bool LibraryListActivity::rowTextFor(const int entry, std::string& title, std::string& author, uint32_t* titleInitial,
+                                     std::string* authorSort) {
   title.clear();
   author.clear();
+  if (authorSort) authorSort->clear();
   if (titleInitial) *titleInitial = 0;
   if (entry < 0 || entry >= bookRowCount()) return false;
   if (showingRecents()) {
@@ -730,7 +743,9 @@ bool LibraryListActivity::rowTextFor(const int entry, std::string& title, std::s
   if (ordinal == 0xFFFF || !index.readRecord(ordinal, record)) return false;
   if (titleInitial) *titleInitial = library::foldedGroupInitial(std::string_view(record.fold, record.foldLen));
   // The index stores one spelling per author; absent metadata uses the filename.
-  if (!index.readTitleAndAuthor(record, title, author)) return false;
+  const bool read = authorSort ? index.readTitleAuthorAndSort(record, title, author, *authorSort)
+                               : index.readTitleAndAuthor(record, title, author);
+  if (!read) return false;
   if (title.empty() && !index.readName(record, title)) return false;
   if (index.ioFailed()) return false;
   if (title.empty()) title = tr(STR_LIBRARY_UNKNOWN_TITLE);
@@ -849,6 +864,7 @@ void LibraryListActivity::buildRows(UiScreen& screen) {
   uint16_t previousSeries = library::CLIX_SERIES_NONE;
   // Capture this after syncTabListViewport(), which may clamp nav.top.
   const int windowStart = static_cast<int>(props.topIndex);
+  std::string rowAuthorSort;  // the author sort behind an author heading
   for (int entry = windowStart; entry < count && rows < static_cast<int>(cap); entry++) {
     std::string& title = winTitles[static_cast<size_t>(rows)];
     std::string& author = winAuthors[static_cast<size_t>(rows)];
@@ -858,8 +874,8 @@ void LibraryListActivity::buildRows(UiScreen& screen) {
       if (seriesGrouped) {
         if (!seriesFor(bookEntry, title)) break;
       } else if (authorGrouped) {
-        if (!authorFor(bookEntry, author)) break;
-        formatAuthorHeading(author, title);
+        if (!authorFor(bookEntry, author, &rowAuthorSort)) break;
+        authorHeadingFor(author, rowAuthorSort, title);
       } else {
         formatInitialHeading(titleInitialFor(bookEntry), title);
       }
@@ -871,7 +887,7 @@ void LibraryListActivity::buildRows(UiScreen& screen) {
       item.value = author.c_str();
     } else {
       uint32_t initial = 0;
-      if (!rowTextFor(entry, title, author, &initial)) break;
+      if (!rowTextFor(entry, title, author, &initial, authorGrouped ? &rowAuthorSort : nullptr)) break;
       bool startsGroup = false;
       if (seriesGrouped) {
         std::string& heading = winHeaders[static_cast<size_t>(headers)];
@@ -898,7 +914,7 @@ void LibraryListActivity::buildRows(UiScreen& screen) {
       if (startsGroup) {
         std::string& heading = winHeaders[static_cast<size_t>(headers++)];
         if (authorGrouped)
-          formatAuthorHeading(author, heading);
+          authorHeadingFor(author, rowAuthorSort, heading);
         else
           formatInitialHeading(initial, heading);
         item.sectionHeading = heading.c_str();
@@ -932,6 +948,22 @@ void LibraryListActivity::formatInitialHeading(uint32_t initial, std::string& ou
   }
   if (initial >= 'a' && initial <= 'z') initial -= 'a' - 'A';
   utf8AppendCodepoint(initial, out);
+}
+
+void LibraryListActivity::authorHeadingFor(const std::string& author, const std::string& authorSort,
+                                           std::string& out) const {
+  // The author sort the books name ("Acemoglu, Daron & Robinson, James A.") is
+  // what the shelf is ordered by; formatAuthorHeading() only guesses at it.
+  // Publishers sometimes write it in capitals ("HUNA, KUGA"), which orders
+  // correctly but reads as shouting, so such a sort is only used for order.
+  const auto hasLowercase = [](const std::string& text) {
+    return std::any_of(text.begin(), text.end(), [](const char c) { return c >= 'a' && c <= 'z'; });
+  };
+  if (!author.empty() && !authorSort.empty() && (hasLowercase(authorSort) || !hasLowercase(author))) {
+    out = authorSort;
+    return;
+  }
+  formatAuthorHeading(author, out);
 }
 
 void LibraryListActivity::formatAuthorHeading(const std::string& author, std::string& out) const {

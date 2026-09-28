@@ -43,8 +43,11 @@ class Epub {
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   std::unique_ptr<CssParser> cssParser;
   bool load(bool buildIfMissing = true, bool skipLoadingCss = true);
+  struct LibraryMetadata {
+    std::string title, author, series, seriesIndexText, titleSort, authorSort, uuid;
+  };
   bool parseContentOpf(BookMetadataCache::BookMetadata&, bool writeSpine = true, bool metadataOnly = false,
-                       ZipFile* zip = nullptr, std::string* series = nullptr, std::string* seriesIndex = nullptr);
+                       ZipFile* zip = nullptr, LibraryMetadata* libraryOut = nullptr);
   bool parseTocNavFile() const;
   bool parseTocNcxFile() const;
   const std::string& getCachePath() const { return cachePath; }
