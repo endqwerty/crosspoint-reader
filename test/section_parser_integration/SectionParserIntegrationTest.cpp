@@ -112,8 +112,8 @@ TEST_F(SectionParserIntegration, SpacingSurvivesParagraphTableAndSoftFlushCacheR
   ASSERT_GT(section->pageCount, 1u);
   const auto bytes = readCache();
   ASSERT_GE(bytes.size(), SectionPageReader::HEADER_SIZE);
-  EXPECT_EQ(bytes[0], 49);
-  EXPECT_EQ(SectionPageReader::HEADER_SIZE, 43u);
+  EXPECT_EQ(bytes[0], 51);
+  EXPECT_EQ(SectionPageReader::HEADER_SIZE, 44u);
   size_t words = 0;
   for (uint16_t index = 0; index < section->pageCount; ++index) {
     SCOPED_TRACE(index);
@@ -184,6 +184,47 @@ TEST_F(SectionParserIntegration, PreviousVersion48AndPartialAreRejectedBeforeFie
     EXPECT_EQ(fault.failures(), 0u);
     EXPECT_FALSE(Storage.exists(section->filePath.c_str()));
   }
+}
+
+TEST_F(SectionParserIntegration, PreviousVersion50AndPartialAreRejectedBeforeFieldReads) {
+  commitPrevious();
+  for (uint8_t version : {50, 232}) {
+    SCOPED_TRACE(version);
+    auto bytes = previous;
+    bytes[0] = version;
+    {
+      std::ofstream out(section->filePath, std::ios::binary | std::ios::trunc);
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    }
+    parser_test::ScopedReadFailure fault(1);
+    EXPECT_FALSE(section->loadSectionFile(spec));
+    EXPECT_EQ(fault.failures(), 0u);
+    EXPECT_FALSE(Storage.exists(section->filePath.c_str()));
+  }
+}
+
+TEST_F(SectionParserIntegration, CalibrePagebreakMarkersKeepWrappedTextAndDropLabels) {
+  prepare(
+      "<html xmlns:epub=\"http://www.idpf.org/2007/ops\"><body>"
+      "<p>the sentence stops<br class=\"calibre1\"/><span epub:type=\"pagebreak\" aria-label=\"136\" "
+      "id=\"page136\" title=\"136\">and its continuation</span> more.</p>"
+      "<p>next<span epub:type=\"pagebreak\" title=\"137\"><br class=\"calibre1\"/></span> para"
+      "<span role=\"doc-pagebreak\" id=\"p138\">138</span> end</p>"
+      "<h2 epub:type=\"pagebreak\" title=\"139\">Part Two</h2></body></html>");
+  ASSERT_TRUE(section->buildSomeMore(0));
+  ASSERT_TRUE(section->buildComplete_);
+  auto page = SectionPageReader::load(section->filePath, 0);
+  ASSERT_NE(nullptr, page);
+  std::vector<std::string> words;
+  words.reserve(12);
+  for (const auto& element : page->elements) {
+    if (element->getTag() != TAG_PageLine) continue;
+    const auto* block = static_cast<const PageLine&>(*element).getBlock();
+    for (uint16_t i = 0; i < block->wordCount(); ++i) words.emplace_back(block->wordText(i));
+  }
+  EXPECT_EQ((std::vector<std::string>{"the", "sentence", "stops", "and", "its", "continuation", "more.", "next", "para",
+                                      "end", "Part", "Two"}),
+            words);
 }
 
 TEST_F(SectionParserIntegration, TwoPageTicksMeasureNewPagesBehindPartialWatermark) {
@@ -382,7 +423,7 @@ TEST_F(SectionParserIntegration, SuspendedBuildIsReadableAndOverflowingWatermark
   ASSERT_NE(nullptr, SectionPageReader::load(section->filePath, 0));
   auto bytes = readCache();
   ASSERT_FALSE(bytes.empty());
-  EXPECT_EQ(bytes[0], 233);
+  EXPECT_EQ(bytes[0], 231);
   const uint32_t forgedOffset = UINT32_MAX - 3;
   std::memcpy(bytes.data() + SectionPageReader::HEADER_SIZE - sizeof(uint32_t), &forgedOffset, sizeof(forgedOffset));
   {
