@@ -51,7 +51,9 @@ class PersistableStoreBase {
 
   // Reads path and parses it into doc. Returns false silently when the file
   // does not exist (expected on first boot); logs on read/parse failure.
-  static bool readDocFromFile(const char* path, JsonDocument& doc);
+  // When provided, exists distinguishes a missing file from an unreadable one.
+  // Allocation failures leave exists true because absence was not established.
+  static bool readDocFromFile(const char* path, JsonDocument& doc, bool* exists = nullptr);
 
  protected:
   /**
