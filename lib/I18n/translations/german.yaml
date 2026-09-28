@@ -517,3 +517,5 @@ STR_WIFI_NETWORKS: "WLAN-Netzwerke"
 STR_WORD_SPACING: "Wortabstand"
 STR_XTC_STATUS_BAR: "XTC-Statuszeile"
 STR_YES: "Ja"
+
+STR_NO_RECENT_BOOKS: "Keine Bücher"
