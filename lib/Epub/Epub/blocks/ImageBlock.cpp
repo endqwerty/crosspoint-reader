@@ -418,20 +418,27 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
 }
 
 bool ImageBlock::serialize(HalFile& file) {
-  serialization::writeString(file, imagePath);
-  serialization::writeString(file, srcPath);
-  serialization::writePod(file, width);
-  serialization::writePod(file, height);
+  if (width <= 0 || height <= 0 || imagePath.size() > MAX_CACHED_PATH_BYTES || srcPath.size() > MAX_CACHED_PATH_BYTES ||
+      !serialization::writeStringChecked(file, imagePath) || !serialization::writeStringChecked(file, srcPath) ||
+      !serialization::writePodChecked(file, width) || !serialization::writePodChecked(file, height)) {
+    LOG_ERR("IMG", "Failed to serialize image metadata");
+    return false;
+  }
   return true;
 }
 
 std::unique_ptr<ImageBlock> ImageBlock::deserialize(HalFile& file) {
   std::string path;
   std::string src;
-  serialization::readString(file, path);
-  serialization::readString(file, src);
-  int16_t w, h;
-  serialization::readPod(file, w);
-  serialization::readPod(file, h);
-  return std::unique_ptr<ImageBlock>(new (std::nothrow) ImageBlock(path, src, w, h));
+  int16_t w = 0;
+  int16_t h = 0;
+  if (!serialization::readStringChecked(file, path, MAX_CACHED_PATH_BYTES) ||
+      !serialization::readStringChecked(file, src, MAX_CACHED_PATH_BYTES) || !serialization::readPodChecked(file, w) ||
+      !serialization::readPodChecked(file, h) || w <= 0 || h <= 0) {
+    LOG_ERR("IMG", "Failed to deserialize image metadata");
+    return nullptr;
+  }
+  auto block = makeUniqueNoThrow<ImageBlock>(path, src, w, h);
+  if (!block) LOG_ERR("IMG", "OOM: ImageBlock");
+  return block;
 }
