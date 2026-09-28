@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "Epub.h"
+#include "PrefetchedPageCache.h"
 #include "ReaderRenderSpec.h"
 
 class Page;
@@ -19,9 +20,12 @@ class Section {
   GfxRenderer& renderer;
   std::string filePath;
   HalFile file;
+  PrefetchedPageCache prefetchedPage;
 
-  void writeSectionFileHeader(const ReaderRenderSpec& spec);
+  bool writeSectionFileHeader(const ReaderRenderSpec& spec);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
+  void appendPage(std::unique_ptr<Page> page, uint16_t paragraphIndex, uint16_t listItemIndex,
+                  uint32_t visibleTextOffset);
 
   // Page-offset table entry, kept in RAM while an incremental build is running so
   // already-built pages can be located in the partially-written .bin.
@@ -35,7 +39,6 @@ class Section {
   // live parser plus the strings it references (the parser stores them by reference)
   // and the in-RAM page-offset table.
   struct BuildContext {
-    std::unique_ptr<ChapterHtmlSlimParser> parser;
     std::vector<PageLutEntry> lut;
     std::string parsePath;
     std::string contentBase;
@@ -43,6 +46,7 @@ class Section {
     std::string htmlPath;
     std::string tmpHtmlPath;
     bool reusedHtml = false;
+    bool ioFailed = false;
     CssParser* cssParser = nullptr;
     // HTML byte progress, for estimating the section's total page count while it's still building.
     uint32_t bytesConsumed = 0;
@@ -52,6 +56,8 @@ class Section {
     // the EMA is stepped once per build advance (not per redraw) to damp that wobble.
     float smoothedEstimate = 0;
     uint32_t smoothedAtConsumed = 0;
+    // Destroy the borrowing parser before its path strings.
+    std::unique_ptr<ChapterHtmlSlimParser> parser;
   };
   std::unique_ptr<BuildContext> build_;
   bool buildComplete_ = false;
@@ -72,6 +78,8 @@ class Section {
   // Builds write here and are swapped over filePath only on commit, so a prior
   // partial/finalized file stays readable while a rebuild is in progress.
   std::string binTmpPath() const { return filePath + ".part"; }
+  std::string binBackupPath() const { return filePath + ".bak"; }
+  bool recoverBuildBackup();
   std::unique_ptr<Page> loadPageAt(int page) const;
   // Read a page already laid out by the in-progress build (page < build LUT size), from
   // the partially-written tmp .bin without disturbing the build's write cursor.
@@ -86,7 +94,7 @@ class Section {
   explicit Section(const std::shared_ptr<Epub>& epub, int spineIndex, GfxRenderer& renderer);
   ~Section();
   bool loadSectionFile(const ReaderRenderSpec& spec);
-  bool clearCache() const;
+  bool clearCache();
   bool createSectionFile(const ReaderRenderSpec& spec, const std::function<void()>& popupFn = nullptr);
 
   // Incremental build: lay out the section a few pages at a time so a large chapter
@@ -117,6 +125,11 @@ class Section {
   // Unified page read: from the active build if it has reached the page, otherwise from
   // the on-disk file (finalized section, or a partial the rebuild hasn't caught up to).
   std::unique_ptr<Page> loadPage(int page);
+  bool retainPrefetchedPage(int page, std::unique_ptr<Page> decoded, size_t freeHeap, size_t largestBlock);
+  void discardPrefetchedPage() { prefetchedPage.clear(); }
+  void releasePrefetchedPageIfLowMemory(size_t freeHeap, size_t largestBlock) {
+    prefetchedPage.releaseIfLowMemory(freeHeap, largestBlock);
+  }
 
   std::string getTextFromSectionFile();
 

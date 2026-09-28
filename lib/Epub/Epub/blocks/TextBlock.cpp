@@ -7,9 +7,81 @@
 #include <MemoryManager.h>
 #include <Serialization.h>
 
+#include <cstdint>
 #include <cstring>
 
 #include "../../../../src/fontIds.h"
+
+namespace {
+bool readRubyTexts(HalFile& file, const uint16_t wordCount, std::vector<std::string>& rubyTexts) {
+  uint8_t buffer[64];
+  size_t cursor = 0;
+  size_t buffered = 0;
+  // Read ahead only within the minimum bytes required by the remaining strings.
+  const auto read = [&](void* destination, size_t count, const size_t remainingWords) {
+    auto* output = static_cast<uint8_t*>(destination);
+    while (count != 0) {
+      if (cursor == buffered) {
+        if (remainingWords == 0) return serialization::readBytesChecked(file, output, count);
+        buffered = std::min(sizeof(buffer), count + remainingWords * sizeof(uint32_t));
+        cursor = 0;
+        if (!serialization::readBytesChecked(file, buffer, buffered)) return false;
+      }
+      const size_t copied = std::min(count, buffered - cursor);
+      memcpy(output, buffer + cursor, copied);
+      output += copied;
+      cursor += copied;
+      count -= copied;
+    }
+    return true;
+  };
+
+  size_t bytesRemaining = TextBlock::MAX_RUBY_BYTES;
+  for (uint16_t i = 0; i < wordCount; ++i) {
+    uint32_t length = 0;
+    if (!read(&length, sizeof(length), wordCount - i - 1) || length > bytesRemaining) return false;
+    if (length == 0) continue;
+    const auto position = file.position();
+    const auto fileSize = file.size();
+    if (position > fileSize || length > fileSize - position + buffered - cursor) return false;
+    if (rubyTexts.empty()) rubyTexts.resize(wordCount);
+    auto& text = rubyTexts[i];
+    text.resize(length);
+    if (!read(text.data(), length, 0)) return false;
+    bytesRemaining -= length;
+  }
+  return true;
+}
+
+bool readBlockStyle(HalFile& file, BlockStyle& style) {
+  // The wire layout has no struct padding; keep multi-byte loads aligned.
+  constexpr size_t FLAG_OFFSET = 2 + 9 * sizeof(int16_t);
+  uint8_t bytes[FLAG_OFFSET + 3 + sizeof(int8_t)];
+  if (!serialization::readBytesChecked(file, bytes, sizeof(bytes)) ||
+      bytes[0] > static_cast<uint8_t>(CssTextAlign::None) || bytes[1] > 1 || bytes[FLAG_OFFSET] > 1 ||
+      bytes[FLAG_OFFSET + 1] > 1 || bytes[FLAG_OFFSET + 2] > 1) {
+    return false;
+  }
+  int16_t spacing[9];
+  memcpy(spacing, bytes + 2, sizeof(spacing));
+  style.alignment = static_cast<CssTextAlign>(bytes[0]);
+  style.textAlignDefined = bytes[1] != 0;
+  style.marginTop = spacing[0];
+  style.marginBottom = spacing[1];
+  style.marginLeft = spacing[2];
+  style.marginRight = spacing[3];
+  style.paddingTop = spacing[4];
+  style.paddingBottom = spacing[5];
+  style.paddingLeft = spacing[6];
+  style.paddingRight = spacing[7];
+  style.textIndent = spacing[8];
+  style.textIndentDefined = bytes[FLAG_OFFSET] != 0;
+  style.isRtl = bytes[FLAG_OFFSET + 1] != 0;
+  style.directionDefined = bytes[FLAG_OFFSET + 2] != 0;
+  memcpy(&style.characterSpacing, bytes + FLAG_OFFSET + 3, sizeof(style.characterSpacing));
+  return true;
+}
+}  // namespace
 
 size_t TextBlock::arenaSize(const uint16_t wordCount, const bool hasFocus, const uint16_t textBytes) {
   // Layout documented in TextBlock.h: 16-bit arrays first, then 8-bit arrays, then text.
@@ -18,6 +90,28 @@ size_t TextBlock::arenaSize(const uint16_t wordCount, const bool hasFocus, const
     size += static_cast<size_t>(wordCount) * (sizeof(uint16_t) + sizeof(uint8_t));
   }
   return size + textBytes;
+}
+
+size_t TextBlock::cacheBudgetBytes() const {
+  if (!isValid) return SIZE_MAX;
+  constexpr size_t ALLOCATION_ALLOWANCE = 64;
+  size_t total = sizeof(TextBlock) + 2 * ALLOCATION_ALLOWANCE;
+  const auto chargeAllocation = [&total](const size_t count, const size_t elementSize) {
+    if (count == 0) return true;
+    if (total > SIZE_MAX - ALLOCATION_ALLOWANCE || count > (SIZE_MAX - total - ALLOCATION_ALLOWANCE) / elementSize)
+      return false;
+    total += count * elementSize + ALLOCATION_ALLOWANCE;
+    return true;
+  };
+  if ((arena && !chargeAllocation(arenaSize(numWords, focusPresent, textBytes), 1)) ||
+      !chargeAllocation(rubyTexts.capacity(), sizeof(rubyTexts[0])) ||
+      !chargeAllocation(linkSpans.capacity(), sizeof(linkSpans[0])))
+    return SIZE_MAX;
+  for (const auto& ruby : rubyTexts) {
+    // Charge even inline strings as separate storage to avoid depending on STL small-string layout.
+    if (ruby.capacity() == SIZE_MAX || !chargeAllocation(ruby.capacity() + 1, 1)) return SIZE_MAX;
+  }
+  return total;
 }
 
 void TextBlock::bindArenaPointers() {
@@ -147,7 +241,6 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   // left and extraEndOffset on the right, so the centered rubyX is always within the page margins.
   struct RubyDrawInfo {
     int x;
-    std::string text;
     BidiUtils::BidiBaseDir baseDir;
   };
   const bool blockHasRuby = hasRuby();
@@ -168,7 +261,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
         const int leaderWordX = xposArr[i] + x;
         const auto baseDir =
             static_cast<BidiUtils::BidiBaseDir>(BidiUtils::detectParagraphLevel(wordText(i), blockStyle.isRtl ? 1 : 0));
-        rubies[i] = {leaderWordX - (rubyWidth - groupActualWidth) / 2, rubyTexts[i], baseDir};
+        rubies[i] = {leaderWordX - (rubyWidth - groupActualWidth) / 2, baseDir};
         i += groupWordCount - 1;
       }
     }
@@ -256,7 +349,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     if (blockHasRuby && i < rubyTexts.size() && !rubyTexts[i].empty() &&
         (wordStyle(i) & EpdFontFamily::RUBY_CONTINUE) == 0) {
       const int rubyY = wordY - ascender;
-      renderer.drawText(fontId, rubies[i].x, rubyY, rubies[i].text.c_str(), true, EpdFontFamily::SUP, rubies[i].baseDir,
+      renderer.drawText(fontId, rubies[i].x, rubyY, rubyTexts[i].c_str(), true, EpdFontFamily::SUP, rubies[i].baseDir,
                         tracking);
     }
 
@@ -311,9 +404,12 @@ bool TextBlock::serialize(HalFile& file) const {
   // Word data: scalars, then the arena verbatim -- its in-memory layout is
   // exactly the on-disk layout (see TextBlock.h), so one write covers all
   // per-word arrays and the text blob.
-  serialization::writePod(file, numWords);
-  serialization::writePod(file, static_cast<uint8_t>(focusPresent ? 1 : 0));
-  serialization::writePod(file, textBytes);
+  if (!serialization::writePodChecked(file, numWords) ||
+      !serialization::writePodChecked(file, static_cast<uint8_t>(focusPresent ? 1 : 0)) ||
+      !serialization::writePodChecked(file, textBytes)) {
+    LOG_ERR("TXB", "Serialization failed: text header");
+    return false;
+  }
   if (numWords > 0) {
     const size_t size = arenaSize(numWords, focusPresent, textBytes);
     if (file.write(arena.get(), size) != size) {
@@ -322,38 +418,50 @@ bool TextBlock::serialize(HalFile& file) const {
     }
   }
 
-  // Ruby text data
+  size_t rubyBytesRemaining = MAX_RUBY_BYTES;
   for (size_t i = 0; i < numWords; i++) {
-    serialization::writeString(file, (i < rubyTexts.size()) ? rubyTexts[i] : std::string());
+    const std::string_view ruby = i < rubyTexts.size() ? std::string_view(rubyTexts[i]) : std::string_view();
+    if (ruby.size() > rubyBytesRemaining || !serialization::writeStringChecked(file, ruby)) {
+      LOG_ERR("TXB", "Serialization failed: ruby text");
+      return false;
+    }
+    rubyBytesRemaining -= ruby.size();
   }
 
   // Style (alignment + margins/padding/indent)
-  serialization::writePod(file, blockStyle.alignment);
-  serialization::writePod(file, blockStyle.textAlignDefined);
-  serialization::writePod(file, blockStyle.marginTop);
-  serialization::writePod(file, blockStyle.marginBottom);
-  serialization::writePod(file, blockStyle.marginLeft);
-  serialization::writePod(file, blockStyle.marginRight);
-  serialization::writePod(file, blockStyle.paddingTop);
-  serialization::writePod(file, blockStyle.paddingBottom);
-  serialization::writePod(file, blockStyle.paddingLeft);
-  serialization::writePod(file, blockStyle.paddingRight);
-  serialization::writePod(file, blockStyle.textIndent);
-  serialization::writePod(file, blockStyle.textIndentDefined);
-  serialization::writePod(file, blockStyle.isRtl);
-  serialization::writePod(file, blockStyle.directionDefined);
-  serialization::writePod(file, blockStyle.characterSpacing);
+  if (!serialization::writePodChecked(file, blockStyle.alignment) ||
+      !serialization::writePodChecked(file, blockStyle.textAlignDefined) ||
+      !serialization::writePodChecked(file, blockStyle.marginTop) ||
+      !serialization::writePodChecked(file, blockStyle.marginBottom) ||
+      !serialization::writePodChecked(file, blockStyle.marginLeft) ||
+      !serialization::writePodChecked(file, blockStyle.marginRight) ||
+      !serialization::writePodChecked(file, blockStyle.paddingTop) ||
+      !serialization::writePodChecked(file, blockStyle.paddingBottom) ||
+      !serialization::writePodChecked(file, blockStyle.paddingLeft) ||
+      !serialization::writePodChecked(file, blockStyle.paddingRight) ||
+      !serialization::writePodChecked(file, blockStyle.textIndent) ||
+      !serialization::writePodChecked(file, blockStyle.textIndentDefined) ||
+      !serialization::writePodChecked(file, blockStyle.isRtl) ||
+      !serialization::writePodChecked(file, blockStyle.directionDefined) ||
+      !serialization::writePodChecked(file, blockStyle.characterSpacing)) {
+    LOG_ERR("TXB", "Serialization failed: block style");
+    return false;
+  }
 
   return true;
 }
 
 std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
-  uint16_t wc;
-  uint8_t hasFocus;
-  uint16_t textBytes;
-  serialization::readPod(file, wc);
-  serialization::readPod(file, hasFocus);
-  serialization::readPod(file, textBytes);
+  uint8_t header[2 * sizeof(uint16_t) + sizeof(uint8_t)];
+  uint16_t wc = 0;
+  uint16_t textBytes = 0;
+  if (!serialization::readBytesChecked(file, header, sizeof(header)) || header[sizeof(uint16_t)] > 1) {
+    LOG_ERR("TXB", "Deserialization failed: text header");
+    return nullptr;
+  }
+  memcpy(&wc, header, sizeof(wc));
+  memcpy(&textBytes, header + sizeof(uint16_t) + sizeof(uint8_t), sizeof(textBytes));
+  const bool hasFocus = header[sizeof(uint16_t)] != 0;
 
   // Sanity checks: cap the arena allocation and reject impossible geometry
   // (every word carries at least its NUL terminator).
@@ -382,7 +490,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
       LOG_ERR("TXB", "OOM: arena %u bytes", static_cast<uint32_t>(size));
       return nullptr;
     }
-    if (file.read(block->arena.get(), size) != size) {
+    if (!serialization::readBytesChecked(file, block->arena.get(), size)) {
       LOG_ERR("TXB", "Deserialization failed: arena read (%u bytes)", static_cast<uint32_t>(size));
       return nullptr;
     }
@@ -405,43 +513,17 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
     }
   }
 
-  // Ruby text data. Ruby is a CJK feature, so for nearly every book every entry here
-  // is the empty string. Materializing the vector regardless costs wordCount * 24 bytes
-  // (sizeof(std::string)) plus a heap block per line, held for as long as the page is
-  // resident -- several KB of DRAM on a full page, none of it ever read. An empty
-  // rubyTexts is already the "no ruby" representation: hasRuby() reports false and every
-  // other reader is guarded by `i < rubyTexts.size()`, so allocate lazily and only once a
-  // non-empty annotation actually shows up.
-  //
-  // `scratch` is reused across words: readString() resizes it to the incoming length and
-  // overwrites every byte, so a moved-from value carries nothing into the next iteration.
-  std::string scratch;
-  for (uint16_t i = 0; i < wc; i++) {
-    serialization::readString(file, scratch);
-    if (scratch.empty()) continue;
-    if (block->rubyTexts.empty()) {
-      block->rubyTexts.resize(wc);
-    }
-    block->rubyTexts[i] = std::move(scratch);
+  // Empty annotations share a bounded read buffer and need no retained vector.
+  if (!readRubyTexts(file, wc, block->rubyTexts)) {
+    LOG_ERR("TXB", "Deserialization failed: ruby text");
+    return nullptr;
   }
 
   // Style (alignment + margins/padding/indent)
-  BlockStyle& blockStyle = block->blockStyle;
-  serialization::readPod(file, blockStyle.alignment);
-  serialization::readPod(file, blockStyle.textAlignDefined);
-  serialization::readPod(file, blockStyle.marginTop);
-  serialization::readPod(file, blockStyle.marginBottom);
-  serialization::readPod(file, blockStyle.marginLeft);
-  serialization::readPod(file, blockStyle.marginRight);
-  serialization::readPod(file, blockStyle.paddingTop);
-  serialization::readPod(file, blockStyle.paddingBottom);
-  serialization::readPod(file, blockStyle.paddingLeft);
-  serialization::readPod(file, blockStyle.paddingRight);
-  serialization::readPod(file, blockStyle.textIndent);
-  serialization::readPod(file, blockStyle.textIndentDefined);
-  serialization::readPod(file, blockStyle.isRtl);
-  serialization::readPod(file, blockStyle.directionDefined);
-  serialization::readPod(file, blockStyle.characterSpacing);
+  if (!readBlockStyle(file, block->blockStyle)) {
+    LOG_ERR("TXB", "Deserialization failed: block style");
+    return nullptr;
+  }
 
   return block;
 }
