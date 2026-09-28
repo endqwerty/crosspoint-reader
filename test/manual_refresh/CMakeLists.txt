@@ -1,0 +1,35 @@
+# Compile complete production panel methods; keep only hardware/UI plumbing in stubs.
+set(PANEL_SOURCE ${REPO_ROOT}/src/activities/util/FrontlightPanelActivity.cpp)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PANEL_SOURCE})
+file(READ ${PANEL_SOURCE} PANEL_IMPLEMENTATION)
+
+function(panel_method start_marker end_marker output)
+  string(FIND "${PANEL_IMPLEMENTATION}" "${start_marker}" start)
+  if(start LESS 0)
+    message(FATAL_ERROR "Manual refresh test start marker moved: ${start_marker}")
+  endif()
+  string(SUBSTRING "${PANEL_IMPLEMENTATION}" ${start} -1 remainder)
+  if(end_marker STREQUAL "EOF")
+    set(${output} "${remainder}" PARENT_SCOPE)
+    return()
+  endif()
+  string(FIND "${remainder}" "${end_marker}" end)
+  if(end LESS 0)
+    message(FATAL_ERROR "Manual refresh test end marker moved: ${end_marker}")
+  endif()
+  string(SUBSTRING "${remainder}" 0 ${end} result)
+  set(${output} "${result}" PARENT_SCOPE)
+endfunction()
+
+panel_method("void FrontlightPanelActivity::persistLightSettings()" "void FrontlightPanelActivity::onBrightnessEvent(" exit_methods)
+panel_method("void FrontlightPanelActivity::onTileEvent(" "bool FrontlightPanelActivity::handleHomeGesture()" tile_methods)
+panel_method("void FrontlightPanelActivity::loop()" "int FrontlightPanelActivity::computePanelBottom()" loop_method)
+panel_method("void FrontlightPanelActivity::render(" "EOF" render_method)
+
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ManualRefreshProduction.cpp
+  "#include \"ManualRefreshFixture.h\"\n${exit_methods}\n${tile_methods}\n${loop_method}\n${render_method}\n")
+
+add_executable(ManualRefreshTest ManualRefreshTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/ManualRefreshProduction.cpp)
+target_include_directories(ManualRefreshTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ManualRefreshTest PRIVATE GfxRefreshHost GTest::gtest_main)
+gtest_discover_tests(ManualRefreshTest)
