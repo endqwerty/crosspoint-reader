@@ -116,6 +116,21 @@ See [Reading Mode](#4-reading-mode) below for more information.
 
 ### 3.3 Browse Files Screen
 
+Select **Search folders and files** at the top of the list to enter a filename search
+with the touch or button keyboard. Submit with the keyboard's OK key. Search
+matches the beginnings of words, ignoring ASCII case and Latin accents: for
+example, `gar cien` finds `Garcia Marquez - Cien años.epub`.
+
+The search covers filenames and folder names in the current folder and all its
+subfolders. Results show relative paths. It does not read book metadata. The query
+stays visible in the Search row. Press **Back** to cancel a scan or clear results,
+or reopen Search and submit empty text. Cancelling the keyboard keeps the previous search. Opening a matching
+folder clears the filter; opening or deleting a file uses its original SD path.
+An empty result still leaves the Search row available. The firmware-file picker
+retains its existing controls. To bound memory, searches keep at most 256 results
+and 256 pending folders, each limited to 16 KiB of path text. Limits or unreadable
+folder opens show **Partial results. Try a smaller folder.**
+
 The Browse Files screen acts as a file and folder browser. The full path to the current directory is shown at the top of the screen. File extensions are displayed alongside each filename, and directories are shown with brackets (e.g. `[folder-name]`). Hidden directories (those beginning with `.`) are also visible.
 
 * **Navigate List:** Use **Left** (or **Side Up**), or **Right** (or **Side Down**) to move the selection cursor up and down through folders and books. You can also long-press these buttons to scroll a full page up or down.
@@ -125,24 +140,33 @@ The Browse Files screen acts as a file and folder browser. The full path to the 
 
 ### 3.4 Library Screen
 
-The Library indexes up to 4,096 supported books on the SD card and shows their titles and authors without requiring you to remember their folders. Its four tabs provide different views. An arrow beside an indexed tab shows the sort direction:
+The Library indexes up to 4,096 books on the SD card and shows titles and authors.
+Its tabs are **Recent**, **Added**, **Title**, and **Author** or **Series**. Choose
+Series grouping in Settings. Recent lists recently opened books. Added follows
+the files’ modification timestamps on the card, with first-discovered order
+breaking equal timestamps. An arrow shows the indexed sort direction.
 
-- **Recent** lists the ten books you opened most recently. Hold a book to remove it from this list.
-- **Added** keeps books in the order in which the Library first discovered them. Down shows newest additions first; up shows oldest first.
-- **Title** groups books by the first letter of the title. Up sorts A-Z and down sorts Z-A. Titles beginning with numbers or punctuation appear under `#`; letters from non-English scripts, including Hebrew, have their own groups.
-- **Author** groups books by author. Up sorts A-Z and down sorts Z-A.
+Use direction buttons to move through books, or hold a direction to move a page.
+The list wraps between its first and last entries. Press Confirm to read a book;
+hold Confirm on a book for Favorites, reading status and other book actions.
+Press Back to focus the tabs. Confirm or a held direction switches tabs;
+previous/Up opens Search and next/Down returns to books. Authors and Series show
+only group names and matching book counts; select one to see its books. Back from
+those books returns to the group directory. Hold Confirm on the tab strip for Library options:
+grouping, filters, Reverse and Refresh library. Touch users can tap tabs, rows and
+header icons; tap the active indexed tab to reverse its sort, or long-press a book
+for its actions. The header Back arrow follows the same stages as the Back button;
+the blocks icon opens Library options, including Refresh library.
 
-On a button-only device:
+Library reconciles on the first entry after boot and after known file changes.
+Later visits use the validated index. After copying files to a card while the reader
+remains powered on, select **Library options → Refresh library** or
+**Settings → System → Rebuild library index**. Unchanged metadata is reused.
+A failed rebuild retains the previous index. Scan limits are reported explicitly.
+The **Use book metadata** setting controls reading titles/authors from EPUB files.
 
-- Use **Up/Down** or **Left/Right** to move one row at a time. Hold a direction to move a page at a time.
-- Press **Confirm** to open the selected book.
-- Press **Back** from the book list to focus the tabs. Use **Left/Right** to select another tab, press **Confirm** to reverse its sort direction, or press **Down** to return to the list.
-- While the tabs are focused, hold **Confirm** to open Search.
-- In the Title or Author views, hold **Confirm** on a book to collapse the list to its letter or author groups. The matching group remains selected. Press **Confirm** to enter a group, or **Back** to restore the exact book and position you came from.
-
-On a touch device, tap tabs, books, and the Search icon directly. Tap an active indexed tab again to reverse its sort direction. Swipe to scroll. Long-press a book in the Recent view to remove it from the list. Long-press a book in a Title or Author view to collapse to the group list, then tap a group to expand it. The **Added** view is not grouped; tapping or long-pressing a book opens it.
-
-The index is created automatically the first time the Library is opened. To pick up later file changes or updated metadata, use **Settings → System → Rebuild library index**. The **Use book metadata** setting controls whether the index reads titles and authors stored inside books.
+See [Library details](docs/epub-library-r5.md) for series, Favorites, status and limits,
+and [RC integration](docs/upstream-rc-r6.md) for the latest release changes.
 
 ### 3.5 File Transfer Screen
 
