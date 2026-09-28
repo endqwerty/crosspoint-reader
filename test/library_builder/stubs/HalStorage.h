@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 inline constexpr int O_WRONLY = 1, O_CREAT = 2, O_TRUNC = 4, O_APPEND = 8, O_RDWR = 16, O_AT_END = 32;
@@ -20,22 +21,38 @@ struct Node {
 
 inline std::map<std::string, std::shared_ptr<Node>> files;
 inline int failRead = -1;
+inline std::string shortReadPath;
+inline size_t shortReadSize = 0;
+inline int shortReadMatch = -1;
 inline int failWrite = -1;
 inline int shortWrite = -1;
 inline int failTruncate = -1;
 inline int failRename = -1;
 inline int failAlloc = -1;
+inline int failSeek = -1;
+inline int failRemove = -1;
+inline int failNext = -1;
+inline bool failMkdir = false;
 inline bool failDirectorySeek = false;
+inline std::string failOpenPath;
 inline std::string failClosePath;
 inline std::string failWritePath;
+inline std::string failReadPath;
+inline std::string corruptWritePath;
+inline std::string partialWritePath;
+inline size_t partialWriteBytes = 0;
+inline std::vector<std::pair<std::string, std::string>> blockedRenames;
+inline void (*onNextEntry)() = nullptr;
 inline unsigned parses = 0;
 inline unsigned reads = 0;
 inline unsigned seeks = 0;
+inline size_t bytesRead = 0;
 inline unsigned delays = 0;
 inline std::map<std::string, unsigned> writesByPath;
 inline std::map<std::string, unsigned> directoryEntriesByPath;
 inline bool failureTriggered = false;
 inline std::map<std::string, std::vector<std::string>> extraDirectoryEntries;
+inline std::vector<size_t> allocations;
 
 inline bool fail(int& count) {
   if (count < 0) return false;
@@ -50,18 +67,34 @@ inline bool fail(int& count) {
 
 inline void reset() {
   files.clear();
+  onNextEntry = nullptr;
   failRead = -1;
+  shortReadPath.clear();
+  shortReadSize = 0;
+  shortReadMatch = -1;
   failWrite = -1;
   shortWrite = -1;
   failTruncate = -1;
   failRename = -1;
   failAlloc = -1;
+  failSeek = -1;
+  failRemove = -1;
+  failNext = -1;
+  failMkdir = false;
   failDirectorySeek = false;
+  failOpenPath.clear();
   failClosePath.clear();
   failWritePath.clear();
+  failReadPath.clear();
+  corruptWritePath.clear();
+  partialWritePath.clear();
+  partialWriteBytes = 0;
+  blockedRenames.clear();
+  allocations.clear();
   parses = 0;
   reads = 0;
   seeks = 0;
+  bytesRead = 0;
   delays = 0;
   writesByPath.clear();
   directoryEntriesByPath.clear();
@@ -72,6 +105,7 @@ inline void reset() {
 inline void resetIoCounters() {
   reads = 0;
   seeks = 0;
+  bytesRead = 0;
   delays = 0;
 }
 
@@ -101,6 +135,8 @@ class HalFile {
   std::shared_ptr<fake::Node> node;
   std::string path;
   size_t pos = 0;
+  bool iterationFailed = false;
+  bool hasError() const { return iterationFailed; }
 
   explicit operator bool() const { return bool(node); }
   bool isOpen() const { return bool(node); }
@@ -116,6 +152,11 @@ class HalFile {
   bool isDirectory() const { return node && node->directory; }
   void rewindDirectory() { pos = 0; }
   HalFile openNextFile() {
+    if (const auto hook = std::exchange(fake::onNextEntry, nullptr)) hook();
+    if (fake::fail(fake::failNext)) {
+      iterationFailed = true;
+      return {};
+    }
     std::vector<std::string> children;
     for (const auto& [name, value] : fake::files) {
       std::string parent = name.substr(0, name.find_last_of('/'));
@@ -147,6 +188,7 @@ class HalFile {
   size_t position() const { return pos; }
   bool seekSet(const size_t offset) {
     fake::seeks++;
+    if (fake::fail(fake::failSeek)) return false;
     if (!node || (node->directory && fake::failDirectorySeek) || (!node->directory && offset > node->bytes.size())) {
       return false;
     }
@@ -167,10 +209,12 @@ class HalFile {
   int read(void* out, size_t size) {
     fake::reads++;
     if (size == 0) return 0;
-    if (!node || fake::fail(fake::failRead)) return -1;
+    if (!node || fake::fail(fake::failRead) || (!fake::failReadPath.empty() && path == fake::failReadPath)) return -1;
+    if (size == fake::shortReadSize && path == fake::shortReadPath && fake::fail(fake::shortReadMatch) && size) --size;
     size = std::min(size, node->bytes.size() - std::min(pos, node->bytes.size()));
     std::memcpy(out, node->bytes.data() + std::min(pos, node->bytes.size()), size);
     pos += size;
+    fake::bytesRead += size;
     return static_cast<int>(size);
   }
   size_t write(const uint8_t* data, size_t size) {
@@ -186,10 +230,20 @@ class HalFile {
       size = std::min(size, static_cast<size_t>(fake::shortWrite));
       fake::shortWrite = -1;
     }
-    node->bytes.resize(std::max(node->bytes.size(), pos + size));
-    std::memcpy(node->bytes.data() + pos, data, size);
-    pos += size;
-    return size;
+    size_t written = size;
+    if (fake::partialWritePath == path) {
+      written = std::min(size, fake::partialWriteBytes);
+      fake::partialWritePath.clear();
+      fake::failureTriggered = true;
+    }
+    node->bytes.resize(std::max(node->bytes.size(), pos + written));
+    if (written > 0) {
+      std::memcpy(node->bytes.data() + pos, data, written);
+      if (fake::corruptWritePath == path) node->bytes[pos] ^= 1;
+    }
+    pos += written;
+    // SdFat reports zero on error even when a prefix changed storage/cursor.
+    return written == size ? size : 0;
   }
   size_t write(const void* data, const size_t size) { return write(static_cast<const uint8_t*>(data), size); }
 };
@@ -203,16 +257,20 @@ class HalStorage {
 
   bool exists(const char* path) const { return fake::files.count(path) != 0; }
   bool mkdir(const char* path) {
+    if (fake::failMkdir) return false;
     if (!exists(path)) fake::add(path, "");
     fake::files[path]->directory = true;
     return true;
   }
   HalFile open(const char* path) {
     HalFile file;
-    const auto found = fake::files.find(path);
+    std::string normalized(path);
+    while (normalized.size() > 1 && normalized.back() == '/') normalized.pop_back();
+    if (fake::failOpenPath == normalized) return file;
+    const auto found = fake::files.find(normalized);
     if (found != fake::files.end()) {
       file.node = found->second;
-      file.path = path;
+      file.path = normalized;
     }
     return file;
   }
@@ -231,15 +289,21 @@ class HalStorage {
     return bool(file);
   }
   bool openFileForWrite(const char*, const char* path, HalFile& file) {
+    if (fake::failOpenPath == path) return false;
     fake::add(path, "");
     file = open(path);
-    return true;
+    return bool(file);
   }
   bool openFileForWrite(const char* module, const std::string& path, HalFile& file) {
     return openFileForWrite(module, path.c_str(), file);
   }
-  bool remove(const char* path) { return fake::files.erase(path) != 0; }
+  bool remove(const char* path) { return !fake::fail(fake::failRemove) && fake::files.erase(path) != 0; }
   bool rename(const char* from, const char* to) {
+    const std::pair<std::string, std::string> operation{from, to};
+    if (std::find(fake::blockedRenames.begin(), fake::blockedRenames.end(), operation) != fake::blockedRenames.end()) {
+      fake::failureTriggered = true;
+      return false;
+    }
     if (fake::fail(fake::failRename) || !exists(from) || exists(to)) return false;
     std::vector<std::pair<std::string, std::shared_ptr<fake::Node>>> moved;
     moved.reserve(fake::files.size());
