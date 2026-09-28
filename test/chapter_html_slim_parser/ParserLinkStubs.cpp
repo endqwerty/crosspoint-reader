@@ -1,4 +1,5 @@
 #include <Epub.h>
+#include <BidiUtils.h>
 #include <Epub/Page.h>
 #include <Epub/TokenBoundary.h>
 #include <Epub/blocks/ImageBlock.h>
@@ -7,10 +8,6 @@
 #include <Epub/converters/ImageToFramebufferDecoder.h>
 #include <Epub/hyphenation/Hyphenator.h>
 #include <GfxRenderer.h>
-
-const char* lookupHtmlEntity(const char*, size_t) { return nullptr; }
-
-#include <BidiUtils.h>
 
 bool isExplicitHyphen(uint32_t) { return false; }
 bool isSoftHyphen(uint32_t) { return false; }
@@ -21,7 +18,7 @@ ImageBlock::ImageBlock(const std::string& imagePath, const std::string& srcPath,
     : imagePath(imagePath), srcPath(srcPath), width(width), height(height) {}
 
 bool ImageDecoderFactory::isFormatSupported(const std::string& path) {
-  return Epub::enableGifProbeForTest && path.ends_with(".gif");
+  return path.ends_with(".png") || (Epub::enableGifProbeForTest && path.ends_with(".gif"));
 }
 ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string&) { return nullptr; }
 
