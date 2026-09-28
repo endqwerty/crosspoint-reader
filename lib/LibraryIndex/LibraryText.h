@@ -7,8 +7,8 @@
 // metadata; a book whose metadata carries no title falls back to its filename
 // stem, unparsed, and one with no author is grouped under Unknown.
 //
-// Pure functions over UTF-8, no hardware and no allocation beyond the returned
-// strings, so the whole unit is host-testable (test/library_text).
+// Pure functions over UTF-8, no hardware. String storage can be returned or
+// supplied by the caller, so the whole unit is host-testable (test/library_text).
 //
 // Design notes that are easy to get wrong and were measured on a real card
 // (docs/superpowers/specs/2026-08-05-addendum-a-findability.md, A2.1-A2.8):
@@ -30,11 +30,12 @@
 #include <string>
 #include <string_view>
 
+#include "LibraryFormat.h"
+
 namespace library {
 
-// Longest author key written into an index record. Sized so a key fits the
-// record's fixed field; measured to collide 0 times over a 69-book library.
-inline constexpr size_t AUTHOR_KEY_MAX_BYTES = 12;
+// Binary fingerprint width, shared with the fixed record field.
+inline constexpr size_t AUTHOR_KEY_MAX_BYTES = CLIX_AUTHOR_KEY_BYTES;
 
 // Join an indexed folder with its basename using exactly one separator. The
 // root folder is stored as "/"; treating it like a normal directory would
@@ -49,6 +50,10 @@ std::string joinLibraryPath(std::string_view folder, std::string_view name);
 // dropped. Apostrophes survive as ASCII '\'' so names and elisions keep their
 // shape.
 std::string fold(std::string_view text);
+
+// Same normalization, reusing the destination capacity across calls. Input must
+// not refer to the destination's storage; an empty input clears the destination.
+void foldInto(std::string_view text, std::string& out);
 
 // First letter of an already-folded sort key, or 0 when the key starts with a
 // number/non-letter. The Library renders 0 as its shared '#' group.
@@ -70,16 +75,18 @@ uint32_t foldedGroupInitial(std::string_view folded);
 // which needs the whole library and so belongs to the index build.
 std::string cleanPersonName(std::string_view author);
 
-// Order-insensitive identity for one person, at most AUTHOR_KEY_MAX_BYTES.
-//
-// Drops bracketed spans and everything after ';' (multi-author separator), folds,
-// drops single-character tokens (initials), sorts the remaining tokens and joins
-// them. "Lu, Xun", "Xun, Lu" and "Lu Xun [Xun, Lu]" all
-// collapse to one key. Truncation uses the longest complete UTF-8 byte prefix,
-// not a token boundary: the sort puts a short forename first, so a whole-token cut would reduce
-// "Wollstonecraft, Mary" to "alex" and merge every Alex in the library; the byte
-// cut keeps "mary wollsto", still a prefix of the full key.
+// Bounded, order-insensitive prefix for the fixed-width author key API.
+// Truncate on a UTF-8 byte boundary, retaining a surname after short forenames.
 std::string authorKey(std::string_view author);
+
+// Complete identity used to keep different authors with the same prefix apart.
+// Clean and fold the name, discard initials, then sort all remaining words.
+std::string authorIdentity(std::string_view author);
+
+// Encode a normalized authorIdentity() as a four-byte prefix and full-key FNV-1a64
+// digest for the fixed record field. Returns zero for an empty identity. The
+// builder checks source identities before sharing a canonical spelling.
+uint8_t writeAuthorKey(std::string_view identity, char (&out)[AUTHOR_KEY_MAX_BYTES]);
 
 // Does a book match what has been typed so far?
 //
@@ -113,5 +120,21 @@ bool matchesQuery(std::string_view haystack, std::string_view needle);
 // this card and wrong for some others, which is a limit worth stating rather than
 // hiding: a single word name simply keys on itself.
 std::string surnameKey(std::string_view displayAuthor);
+
+// Encode a series position as written in a package document ("3", "3.5", "0,5")
+// into hundredths. Returns SERIES_INDEX_NONE when the text names no position.
+//
+// Tolerant on purpose: a comma is accepted as the decimal point because
+// exporters running under a European locale write one, and a series position is
+// never large enough for a comma to plausibly be a thousands separator. A third
+// decimal rounds half up. A value too large to represent is clamped rather than
+// rejected, since an absurd position still belongs after every sane one and
+// dropping it would move the book out of its series entirely.
+uint16_t parseSeriesIndex(std::string_view text);
+
+// Render a position for display, dropping trailing zeros so the shelf reads "3"
+// and "3.5" rather than "3.00" and "3.50". Writes an empty string and returns
+// false when the book has no position.
+bool formatSeriesIndex(uint16_t index, char* out, size_t outSize);
 
 }  // namespace library
