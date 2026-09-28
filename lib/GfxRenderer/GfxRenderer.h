@@ -49,6 +49,8 @@ class GfxRenderer {
   HalDisplay& display;
   RenderMode renderMode;
   mutable bool absoluteGrayPlanes = false;
+  mutable bool textGrayscaleTracking = false;
+  mutable bool textNeedsGrayscale = false;
   Orientation orientation;
   bool fadingFix;
   uint8_t* frameBuffer = nullptr;
@@ -73,12 +75,14 @@ class GfxRenderer {
   // as before, concentrated in a single pointer instead of four fields.
   mutable FontCacheManager* fontCacheManager_ = nullptr;
 
-  // One-shot refresh promotion (see promoteNextRefresh). Mutable because
-  // displayBuffer() is const but must consume the flag.
+  // A logical render retains its refresh request until output commits.
   mutable bool promotedRefreshPending_ = false;
   mutable HalDisplay::RefreshMode promotedRefresh_ = HalDisplay::FAST_REFRESH;
-  // Swap in (and clear) the promoted mode, if one is pending.
+  mutable bool promotedRefreshSubmitted_ = false;
+  mutable bool displayWorkActive_ = false;
   HalDisplay::RefreshMode applyPromotedRefresh(HalDisplay::RefreshMode refreshMode) const;
+  void prepareDisplayWork() const;
+  void finishDisplayWorkIfReady() const;
 
   // Tiled grayscale strip target. When active, drawPixel()/clearScreen()
   // operate on a caller-owned scratch holding one horizontal band of physical
@@ -109,6 +113,7 @@ class GfxRenderer {
   // fontId unchanged. The whole string is routed as a unit so each draw/measure
   // call stays single-font (consistent bit depth, metrics, wrapping).
   int resolveTextFontId(int fontId, const char* text, EpdFontFamily::Style style) const;
+  void trackTextGrayscale(const EpdFontFamily& font, EpdFontFamily::Style style, bool black) const;
 
   // Batch-load `text`'s glyphs into an SD-card font's resident mini tables
   // before a per-glyph measure/draw loop runs. Called when resolveTextFontId
@@ -169,6 +174,16 @@ class GfxRenderer {
                            EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void prewarmFallbackText(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   bool isFontCacheScanning() const;
+  // Scope this to the real B/W body draw, excluding prewarm and status bars.
+  // Any 2-bit font or white text conservatively keeps the gray pass.
+  void beginTextGrayscaleTracking() const {
+    textNeedsGrayscale = false;
+    textGrayscaleTracking = true;
+  }
+  bool endTextGrayscaleTracking() const {
+    textGrayscaleTracking = false;
+    return textNeedsGrayscale;
+  }
   const std::map<int, EpdFontFamily>& getFontMap() const { return fontMap; }
   void registerSdCardFont(int fontId, SdCardFont* font) { sdCardFonts_[fontId] = font; }
   void unregisterSdCardFont(int fontId) { removeFont(fontId); }
@@ -217,14 +232,21 @@ class GfxRenderer {
   int getScreenHeight() const;
   void tapToLogical(float nx, float ny, int& outX, int& outY) const;
   void displayBuffer(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
-  // One-shot: the next displayBuffer()/displayBufferAsync() call uses `mode`
-  // instead of what its caller asked for, then the override clears itself.
+  // Bracket one complete page, including deferred refresh and grayscale cleanup.
+  // Begin before composition; begin again after a placeholder frame to exclude
+  // that frame from the actual page's result. Scopes must not nest.
+  void beginDisplayWork() const;
+  bool endDisplayWork() const;
+  bool displayCommitted() const;
+  // One-shot: the next displayBuffer()/displayBufferAsync()/displayGrayscaleBase() uses `mode`
+  // instead of what its caller asked for. Clear only after committed output.
   // Lets a closing overlay (the control center's refresh tile) hand a
   // ghost-cleanup waveform to the repaint of whatever screen is underneath,
   // which it cannot reach directly.
   void promoteNextRefresh(const HalDisplay::RefreshMode mode) const {
     promotedRefreshPending_ = true;
     promotedRefresh_ = mode;
+    promotedRefreshSubmitted_ = false;
   }
   // Non-blocking refresh: starts the waveform and returns so CPU work (e.g.
   // grayscale strip rendering) can overlap the panel's refresh time. The
