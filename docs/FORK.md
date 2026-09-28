@@ -6,12 +6,16 @@ names, release hashes and outstanding work in `WIP.md`.
 
 ## Precedence
 
-1. The user's current instructions for the task at hand.
+1. The user's current instructions and explicit standing authorizations recorded
+   below (automatic commits, local integration and personal `develop` pushes).
 2. The official project: upstream `AGENTS.md`, its architecture, interfaces,
    conventions and maintainer decisions.
 3. This file.
 
-Upstream always wins over the fork. The preferences below narrow where fork
+For firmware architecture and behavior, upstream always wins over the fork.
+The recorded user authorizations satisfy generic requirements to obtain approval;
+they do not waive engineering, validation or upstream-compatibility requirements.
+The preferences below narrow where fork
 effort goes; they never justify diverging from upstream's design. If a fork
 preference conflicts with upstream, follow upstream and note the conflict in
 `WIP.md`.
@@ -67,8 +71,25 @@ git clone --recurse-submodules --branch develop https://github.com/endqwerty/cro
 ```
 
 Keep backup history in verified bundles before removing obsolete branches. After
-finishing a feature, return to the single maintained `develop` branch; temporary
-feature branches may be used during active development.
+finishing a feature, integrate it into the maintained `develop` branch. Keep the
+active worktree on its feature branch until the user deletes it; do not attempt
+to check out `develop` there while the permanent checkout owns that branch.
+
+## Starting a new worktree
+
+- Start from the latest personal `develop`, never a retired worktree branch.
+  Read this file and `WIP.md`, inspect `git worktree list`, status and remote
+  URLs, then fetch personal and official `develop`. Resolve remote advances
+  and update the linear upstream base before implementing the requested feature.
+- Initialize the reader-pinned SDK with `git submodule update --init` if needed.
+  Do not substitute the SDK's newest branch tip. Recursive icon submodules are
+  needed only for icon generation, not ordinary firmware builds.
+- Perform feature work in the isolated local worktree. Use the permanent
+  checkout for final integration into `develop`, preserving unrelated changes.
+  A shared local build mirror is usable only after verifying its source matches
+  the intended worktree; never reuse another feature's outputs without checking.
+- `WIP.md` separates completed handoff evidence from possible future work.
+  Its roadmap is context, not an instruction to begin unrequested features.
 
 ## Local work and publication
 
@@ -92,6 +113,11 @@ feature branches may be used during active development.
 - Finish with clean integrated source state and durable outputs so the user can
   simply delete the worktree. Leave the active worktree for the user to delete;
   report any genuine blocker instead of claiming unfinished work is complete.
+- Complete applicable host tests and firmware builds before integrating source
+  changes. Record physical-device checks separately as pending when unavailable;
+  do not claim device validation or block authorized local administration solely
+  on that absence. Documentation-only changes require review and diff checks,
+  not a firmware rebuild or device test.
 - The user's standing authorization includes pushing completed `develop` to
   their personal fork. Verify remote URLs before every push; for this reader
   repository, push `develop` to `origin` only when it resolves to
@@ -155,7 +181,8 @@ feature branches may be used during active development.
   rebuild solely for documentation, commits, or history changes when source bytes
   remain identical to a validated build.
 - Default firmware handoffs to the web flasher: Xteink X4 Pro → Custom .bin.
-  `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` identifies the currently validated image. Historical
+  `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` identifies the
+  currently validated image. Historical
   filenames alone do not establish which image should be flashed.
 - Do not start open-ended roadmap work from a handoff. Finish the user's requested
   scope and record concrete remaining work in `WIP.md`.
