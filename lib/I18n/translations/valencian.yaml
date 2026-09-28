@@ -660,3 +660,5 @@ STR_KOREADER_CUSTOM_HEADER_1_NAME: "Nom de la capçalera personalitzada 1 del KO
 STR_KOREADER_CUSTOM_HEADER_1_VALUE: "Valor de la capçalera personalitzada 1 del KOReader"
 STR_KOREADER_CUSTOM_HEADER_2_NAME: "Nom de la capçalera personalitzada 2 del KOReader"
 STR_KOREADER_CUSTOM_HEADER_2_VALUE: "Valor de la capçalera personalitzada 2 del KOReader"
+
+STR_NO_RECENT_BOOKS: "No hi ha llibres recents"
