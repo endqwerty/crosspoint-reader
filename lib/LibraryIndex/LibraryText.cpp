@@ -3,6 +3,8 @@
 #include <Utf8.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
 namespace library {
 
@@ -146,17 +148,6 @@ bool isUnicodeLetter(const uint32_t cp) {
 // long as the tokens, and a std::string per token costs an allocation each plus
 // 24 bytes of stack apiece -- 288 B for the twelve, over the 256 B this repo
 // asks callers to justify.
-void splitTokens(std::string_view folded, std::string_view* out, size_t maxTokens, size_t& count) {
-  count = 0;
-  size_t i = 0;
-  while (i < folded.size() && count < maxTokens) {
-    while (i < folded.size() && folded[i] == ' ') i++;
-    const size_t start = i;
-    while (i < folded.size() && folded[i] != ' ') i++;
-    if (i > start) out[count++] = folded.substr(start, i - start);
-  }
-}
-
 bool isSingleCodepoint(const std::string_view text) {
   if (text.empty()) return false;
   const auto* cursor = reinterpret_cast<const unsigned char*>(text.data());
@@ -166,8 +157,8 @@ bool isSingleCodepoint(const std::string_view text) {
 
 }  // namespace
 
-std::string fold(const std::string_view text) {
-  std::string out;
+void foldInto(const std::string_view text, std::string& out) {
+  out.clear();
   out.reserve(text.size());
 
   const auto* cursor = reinterpret_cast<const unsigned char*>(text.data());
@@ -218,7 +209,11 @@ std::string fold(const std::string_view text) {
     // words. Deferring the space keeps runs collapsed and drops trailing ones.
     if (!out.empty()) pendingSpace = true;
   }
+}
 
+std::string fold(const std::string_view text) {
+  std::string out;
+  foldInto(text, out);
   return out;
 }
 
@@ -303,41 +298,64 @@ std::string cleanPersonName(const std::string_view author) {
   return collapsed;
 }
 
-std::string authorKey(const std::string_view author) {
-  // The same cleanup the display name gets: bracketed spans dropped
-  // ("George Sand [Sand, George]") and everything after a multi-author
-  // separator cut. cleanPersonName also turns "Austen, Jane" round, which makes
-  // no difference here — the tokens are sorted below, so word order is already
-  // irrelevant to the key.
+std::string authorIdentity(const std::string_view author) {
   const std::string folded = fold(cleanPersonName(author));
-
-  constexpr size_t MAX_TOKENS = 12;
-  std::string_view tokens[MAX_TOKENS];
-  size_t count = 0;
-  splitTokens(folded, tokens, MAX_TOKENS, count);
-
-  // Initials carry no identity and appear inconsistently ("Herbert G Wells" vs
-  // "Herbert Wells"), so they must not change the key.
-  size_t kept = 0;
-  for (size_t i = 0; i < count; i++) {
-    if (!isSingleCodepoint(tokens[i])) tokens[kept++] = tokens[i];
-  }
-  std::sort(tokens, tokens + kept);
-
   std::string key;
-  for (size_t i = 0; i < kept; i++) {
-    if (!key.empty()) key.push_back(' ');
-    key.append(tokens[i]);
+  key.reserve(folded.size());
+  size_t cursor = 0;
+  while (cursor < folded.size()) {
+    while (cursor < folded.size() && folded[cursor] == ' ') ++cursor;
+    const size_t start = cursor;
+    while (cursor < folded.size() && folded[cursor] != ' ') ++cursor;
+    const std::string_view token(folded.data() + start, cursor - start);
+    // Initials are optional in the source spellings of the same name.
+    if (token.empty() || isSingleCodepoint(token)) continue;
+
+    // Insert into the reserved string so every token participates without a
+    // per-token allocation or a fixed token-count limit.
+    size_t insertion = 0;
+    while (insertion < key.size()) {
+      const size_t end = key.find(' ', insertion);
+      const size_t length = (end == std::string::npos ? key.size() : end) - insertion;
+      if (token < std::string_view(key.data() + insertion, length)) break;
+      insertion += length;
+      if (insertion < key.size()) ++insertion;
+    }
+    if (insertion == key.size()) {
+      if (!key.empty()) key.push_back(' ');
+      key.append(token);
+    } else {
+      key.insert(insertion, token);
+      key.insert(insertion + token.size(), 1, ' ');
+    }
   }
-  // Truncate on bytes, not on a token boundary. Sorting puts a short forename
-  // first, so a whole-token cut would reduce "Wollstonecraft, Mary" to the key
-  // "alex" and merge every Alex in the library; the byte cut keeps
-  // "mary wollsto", which stays a prefix of the full key and discriminates.
+  return key;
+}
+
+std::string authorKey(const std::string_view author) {
+  std::string key = authorIdentity(author);
   if (key.size() > AUTHOR_KEY_MAX_BYTES) {
     key.resize(static_cast<size_t>(utf8SafeTruncateBuffer(key.data(), AUTHOR_KEY_MAX_BYTES)));
   }
   while (!key.empty() && key.back() == ' ') key.pop_back();
   return key;
+}
+
+uint8_t writeAuthorKey(const std::string_view identity, char (&out)[AUTHOR_KEY_MAX_BYTES]) {
+  memset(out, 0, sizeof(out));
+  if (identity.empty()) return 0;
+  constexpr size_t PREFIX_BYTES = AUTHOR_KEY_MAX_BYTES - sizeof(uint64_t);
+  static_assert(PREFIX_BYTES == 4);
+  memcpy(out, identity.data(), std::min(identity.size(), PREFIX_BYTES));
+  uint64_t digest = 14695981039346656037ULL;
+  for (const unsigned char c : identity) {
+    digest ^= c;
+    digest *= 1099511628211ULL;
+  }
+  for (size_t i = 0; i < sizeof(digest); ++i) {
+    out[PREFIX_BYTES + i] = static_cast<char>(digest >> (8u * (sizeof(digest) - 1u - i)));
+  }
+  return sizeof(out);
 }
 
 // fold() keeps the apostrophe, which is right for sorting — "L'Eneide" belongs
@@ -396,6 +414,65 @@ std::string surnameKey(const std::string_view displayAuthor) {
   key.push_back(' ');
   key.append(folded.substr(0, sep));
   return key;
+}
+
+uint16_t parseSeriesIndex(const std::string_view text) {
+  const auto isDigit = [](const char c) { return c >= '0' && c <= '9'; };
+  const auto isSpace = [](const char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+
+  size_t i = 0;
+  while (i < text.size() && isSpace(text[i])) i++;
+
+  // A leading sign never reaches the digit loop, so "-1" is no position rather
+  // than a wrapped one.
+  uint32_t whole = 0;
+  size_t wholeDigits = 0;
+  while (i < text.size() && isDigit(text[i])) {
+    if (whole < 100000) whole = whole * 10 + static_cast<uint32_t>(text[i] - '0');
+    wholeDigits++;
+    i++;
+  }
+  if (wholeDigits == 0) return SERIES_INDEX_NONE;
+
+  uint32_t frac = 0;
+  if (i < text.size() && (text[i] == '.' || text[i] == ',')) {
+    i++;
+    size_t fracDigits = 0;
+    uint32_t third = 0;
+    while (i < text.size() && isDigit(text[i])) {
+      const uint32_t d = static_cast<uint32_t>(text[i] - '0');
+      if (fracDigits == 0) {
+        frac += d * 10;
+      } else if (fracDigits == 1) {
+        frac += d;
+      } else if (fracDigits == 2) {
+        third = d;
+      }
+      fracDigits++;
+      i++;
+    }
+    if (third >= 5) frac++;  // round half up, so 2.567 is nearer 2.57 than 2.56
+  }
+
+  const uint32_t scaled = whole * 100 + frac;
+  return scaled >= SERIES_INDEX_NONE ? SERIES_INDEX_MAX : static_cast<uint16_t>(scaled);
+}
+
+bool formatSeriesIndex(const uint16_t index, char* out, const size_t outSize) {
+  if (out == nullptr || outSize == 0) return false;
+  out[0] = '\0';
+  if (index == SERIES_INDEX_NONE) return false;
+
+  const unsigned whole = index / 100u;
+  const unsigned frac = index % 100u;
+  if (frac == 0) {
+    snprintf(out, outSize, "%u", whole);
+  } else if (frac % 10 == 0) {
+    snprintf(out, outSize, "%u.%u", whole, frac / 10u);
+  } else {
+    snprintf(out, outSize, "%u.%02u", whole, frac);
+  }
+  return true;
 }
 
 }  // namespace library
