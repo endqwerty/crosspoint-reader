@@ -30,4 +30,4 @@ Fault-injection tests assert that failures preserve valid data or are reported.
 They must verify that the injected failure actually occurred. A newly discovered
 production defect is left as a normal failing test; never mark it WILL_FAIL,
 disable it, or weaken its expectation solely to make the suite green.
-See docs/unit-test-audit-r7.md for the current audit results and next-fix order.
+See docs/fork-maintenance.md for the test contracts and heap-model calibration.
