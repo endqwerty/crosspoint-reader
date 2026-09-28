@@ -106,8 +106,9 @@ class LibraryListActivity final : public UiTabListActivity {
   int totalBookRowCount() const;
   int bookRowCount() const;
   int rowFor(int entry) const;
-  bool authorFor(int entry, std::string& author);
-  bool rowTextFor(int entry, std::string& title, std::string& author, uint32_t* titleInitial = nullptr);
+  bool authorFor(int entry, std::string& author, std::string* authorSort = nullptr);
+  bool rowTextFor(int entry, std::string& title, std::string& author, uint32_t* titleInitial = nullptr,
+                  std::string* authorSort = nullptr);
   uint32_t titleInitialFor(int entry);
   bool buildGroupStarts();
   int groupForBook(int bookEntry) const;
@@ -119,6 +120,8 @@ class LibraryListActivity final : public UiTabListActivity {
   // Materializes ListItems and their strings for the visible window only.
   void buildRows(UiScreen& screen);
   static void formatInitialHeading(uint32_t initial, std::string& out);
+  // Author group heading: the group's author sort, else a guess from the name.
+  void authorHeadingFor(const std::string& author, const std::string& authorSort, std::string& out) const;
   void formatAuthorHeading(const std::string& author, std::string& out) const;
   void drawPositionReadout() const;
   void drawHoldHelp() const;

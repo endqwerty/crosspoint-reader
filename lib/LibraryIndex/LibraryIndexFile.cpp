@@ -434,10 +434,11 @@ bool LibraryIndexFile::readTitle(const ClixRecord& record, std::string& out) {
   return readBlobField(record, 1, out) && !out.empty();
 }
 
-bool LibraryIndexFile::readMetadata(const ClixRecord& record, std::string& title, std::string& author,
-                                    const uint8_t authorField) {
-  title.clear();
-  author.clear();
+bool LibraryIndexFile::readFields(const ClixRecord& record, std::string* const* outs, const uint8_t count) {
+  for (uint8_t field = 0; field < count; ++field) {
+    if (outs[field]) outs[field]->clear();
+  }
+  if (count == 0) return false;
   if (!opened || record.nameLen == 0 || record.nameOff > head.nameLen ||
       sizeof(uint64_t) > head.nameLen - record.nameOff ||
       record.nameLen > head.nameLen - record.nameOff - sizeof(uint64_t))
@@ -465,31 +466,52 @@ bool LibraryIndexFile::readMetadata(const ClixRecord& record, std::string& title
   };
 
   uint32_t at = record.nameOff + sizeof(uint64_t) + record.nameLen;
-  const uint8_t lastField = std::max<uint8_t>(1, authorField);
-  for (uint8_t field = 0; field <= lastField; ++field) {
+  for (uint8_t field = 0; field < count; ++field) {
     uint8_t len = 0;
     if (at >= head.nameLen || !copyBytes(at, &len, sizeof(len))) break;
     ++at;
     if (len > head.nameLen - at) break;
-    std::string* value = field == 1 ? &title : field == authorField ? &author : nullptr;
-    if (value) {
+    if (std::string* value = outs[field]) {
       value->resize(len);
       if (!copyBytes(at, value->data(), len)) break;
     }
     at += len;
-    if (field == lastField) return true;
+    if (field + 1 == count) return true;
   }
-  title.clear();
-  author.clear();
+  for (uint8_t field = 0; field < count; ++field) {
+    if (outs[field]) outs[field]->clear();
+  }
   return false;
 }
 
 bool LibraryIndexFile::readTitleAndAuthor(const ClixRecord& record, std::string& title, std::string& author) {
-  return readMetadata(record, title, author, 0);
+  std::string* const outs[] = {&author, &title};
+  return readFields(record, outs, 2);
+}
+
+bool LibraryIndexFile::readTitleAuthorAndSort(const ClixRecord& record, std::string& title, std::string& author,
+                                              std::string& authorSort) {
+  std::string* const outs[] = {&author, &title, nullptr, &authorSort};
+  return readFields(record, outs, 4);
 }
 
 bool LibraryIndexFile::readTitleAndSourceAuthor(const ClixRecord& record, std::string& title, std::string& author) {
-  return readMetadata(record, title, author, 2);
+  std::string* const outs[] = {nullptr, &title, &author};
+  return readFields(record, outs, 3);
+}
+
+bool LibraryIndexFile::readReuseFields(const ClixRecord& record, std::string& title, std::string& sourceAuthor,
+                                       std::string& sourceAuthorSort, std::string& uuid) {
+  std::string* const outs[] = {nullptr, &title, &sourceAuthor, nullptr, &sourceAuthorSort, &uuid};
+  return readFields(record, outs, 6);
+}
+
+bool LibraryIndexFile::readAuthorSort(const ClixRecord& record, std::string& out) {
+  return readBlobField(record, 3, out);
+}
+
+bool LibraryIndexFile::readUuid(const ClixRecord& record, std::string& out) {
+  return readBlobField(record, 5, out) && out.size() == CLIX_UUID_BYTES;
 }
 
 bool LibraryIndexFile::readSourceAuthor(const ClixRecord& record, std::string& out) {
