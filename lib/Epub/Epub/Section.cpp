@@ -53,14 +53,15 @@ namespace {
 // v45: Internal EPUB links preserve CSS superscript/subscript positioning.
 // v46: Ordered lists number their items, list-style-type: none suppresses markers,
 //      and <ul>/<ol> containers contribute their own margins/padding to child insets.
-// v47: Word and character spacing in the header (cache validation); cached BlockStyle stores only character spacing.
-// v48: Hangul words wrap at spaces; with hyphenation on they may also split at a line end.
-//      Justification no longer stretches between syllables.
-// v49 was used by pre-release builds with a different header layout.
-// v50: Paragraph indentation width in the header for cache validation.
-// v51: Preserve paragraph continuity and top spacing across soft flushes.
-// v52: Missing full-block and black-square symbols now have visible widths.
-constexpr uint8_t SECTION_FILE_VERSION = 52;
+// v47: Word/character spacing; earlier local v47 retained the v46 byte layout.
+// v48: Spacing fields distinguish this layout from both earlier version 47 formats.
+// v49: Hangul wraps at word spaces and only stretches word gaps, matching upstream v48.
+// v50: Paragraph indentation width in the header for cache validation, matching upstream v50.
+// v51: Pagebreak markers keep wrapped book text; pagebreak-tagged paragraphs render.
+//      Earlier local v50 files lack the indentation field.
+// v52: Preserve paragraph continuity and top spacing across soft flushes (upstream v51).
+// v53: Missing full-block and black-square symbols now have visible widths (upstream v52).
+constexpr uint8_t SECTION_FILE_VERSION = 53;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
