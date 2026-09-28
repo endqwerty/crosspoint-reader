@@ -3,6 +3,7 @@
 #include <FontCacheManager.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include <string>
 
@@ -85,7 +86,7 @@ void EpubReaderChapterSelectionActivity::refreshTocWindow(const int start) {
 }
 
 void EpubReaderChapterSelectionActivity::activateIndex(const int index) {
-  if (index < 0 || index >= listCount()) {
+  if (!epub || index < 0 || index >= listCount()) {
     return;
   }
   // The activated row leaves this screen (finish); a lingering flash would gray
@@ -93,7 +94,8 @@ void EpubReaderChapterSelectionActivity::activateIndex(const int index) {
   app.clearTapFlash();
   nav.selected = index;
   const auto tocItem = epub->getTocItem(index);
-  if (tocItem.spineIndex == -1) {
+  if (tocItem.spineIndex < 0 || tocItem.spineIndex >= epub->getSpineItemsCount()) {
+    if (tocItem.spineIndex != -1) LOG_ERR("ECS", "Invalid chapter destination: %d", tocItem.spineIndex);
     ActivityResult result;
     result.isCancelled = true;
     setResult(std::move(result));
