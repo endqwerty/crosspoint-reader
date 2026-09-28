@@ -664,3 +664,5 @@ STR_BT_CONNECTED_TO: "Қосылды: %s"
 STR_BT_LOW_MEMORY: "Bluetooth: жад жеткіліксіз"
 STR_BT_HOLD: "ұстау"
 STR_BT_MAPPING_CLEARED: "Тағайындау өшірілді"
+
+STR_NO_RECENT_BOOKS: "Жуырда оқылған кітаптар жоқ"

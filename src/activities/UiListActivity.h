@@ -85,6 +85,9 @@ class UiListActivity : public Activity, protected UiAppHost {
   void syncListViewport(UiScreen& screen, freeink::ui::ListProps& props, int selectionOffset = 0);
   // Move the selection to index and pull the viewport to it.
   void moveSelectionTo(int index);
+  // Route list gestures from a subclass-owned input loop.
+  // Named apart from UiAppHost::routeTouch so that overload remains visible.
+  bool routeListTouch();
 
   // --- shared state ----------------------------------------------------------
   // Selection + viewport (selected/top/visibleRows/followOnBuild). Access via
@@ -95,9 +98,6 @@ class UiListActivity : public Activity, protected UiAppHost {
  private:
   static void screenTrampoline(UiScreen& screen, void* user);
   static void rowActionTrampoline(const freeink::ui::ActionEvent& event, void* user);
-  // Named apart from UiAppHost::routeTouch so the host overload stays visible
-  // (not name-hidden) to subclasses with extra touch surfaces.
-  bool routeListTouch();
 #if FREEINK_CAP_TOUCH
   static void swipeDeleteTrampoline(const freeink::ui::ActionEvent& event, void* user);
   bool handleSwipeDeleteInput();
