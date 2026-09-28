@@ -110,9 +110,19 @@ class LibraryIndexFile {
   // malformed or unreadable blobs fail and clear both outputs.
   bool readTitleAndAuthor(const ClixRecord& record, std::string& title, std::string& author);
   bool readTitleAndSourceAuthor(const ClixRecord& record, std::string& title, std::string& author);
+  // The display fields plus the chosen spelling's author sort, for author headings.
+  bool readTitleAuthorAndSort(const ClixRecord& record, std::string& title, std::string& author,
+                              std::string& authorSort);
   // Cleaned author spelling before the library-wide spelling vote. Empty is a
   // valid value, so success is independent of `out.empty()`.
   bool readSourceAuthor(const ClixRecord& record, std::string& out);
+  // Everything a rebuild carries across for an unchanged book (format 5 only).
+  bool readReuseFields(const ClixRecord& record, std::string& title, std::string& sourceAuthor,
+                       std::string& sourceAuthorSort, std::string& uuid);
+  // Author sort of the chosen spelling ("Tolkien, J. R. R."); empty is valid.
+  bool readAuthorSort(const ClixRecord& record, std::string& out);
+  // The book's 16-byte UUID; false when the book names none.
+  bool readUuid(const ClixRecord& record, std::string& out);
 
   // Absolute path of the book, rebuilt from its folder record.
   bool readPath(const ClixRecord& record, std::string& out);
@@ -129,7 +139,8 @@ class LibraryIndexFile {
   bool readAt(uint32_t offset, void* dst, size_t len);
   uint16_t readOrdinal(uint32_t orderStart, uint16_t row);
   bool readBlobField(const ClixRecord& record, uint8_t field, std::string& out);
-  bool readMetadata(const ClixRecord& record, std::string& title, std::string& author, uint8_t authorField);
+  // Blob fields 0..count-1 into the non-null outputs, in one buffered pass.
+  bool readFields(const ClixRecord& record, std::string* const* outs, uint8_t count);
 
   HalFile file;
   ClixHeader head{};
