@@ -116,8 +116,12 @@ class HalFile : public Print {
   size_t write(uint8_t b) override;
   bool isDirectory() const;
   void rewindDirectory();
+  // Closing an empty or already-closed handle succeeds without touching SD.
   bool close();
   HalFile openNextFile();
+  // SdFat errors or a failed directory-entry wrapper allocation. The allocation
+  // error persists across rewind; reopen the handle to retry a complete scan.
+  bool hasError() const;
   bool isOpen() const;
   operator bool() const;
 };
