@@ -178,6 +178,34 @@ TEST(LibraryAuthorKey, FitsTheRecordFieldWithoutCollapsingToAForename) {
   EXPECT_TRUE(authorKey("Q. X. Z.").empty());  // initials only: no identity
 }
 
+TEST(LibraryAuthorKey, CompleteIdentityKeepsTheSuffixAfterLongForenames) {
+  EXPECT_EQ(library::authorIdentity("Christopher Tolkien"), "christopher tolkien");
+  EXPECT_NE(library::authorIdentity("Christopher Tolkien"), library::authorIdentity("Christopher Priest"));
+  EXPECT_NE(library::authorIdentity("Christopher Priest"), library::authorIdentity("Christopher Paolini"));
+  EXPECT_EQ(library::authorIdentity("Wollstonecraft, Mary"), "mary wollstonecraft");
+  EXPECT_TRUE(library::authorIdentity("").empty());
+  EXPECT_TRUE(library::authorIdentity("Q. X. Z.").empty());
+}
+
+TEST(LibraryAuthorKey, EveryTokenParticipatesInTheIdentity) {
+  const std::string common = "aa bb cc dd ee ff gg hh ii jj kk ll ";
+  EXPECT_NE(library::authorIdentity(common + "Smith"), library::authorIdentity(common + "Tolkien"));
+  EXPECT_EQ(library::authorIdentity(common + "Smith"),
+            library::authorIdentity("Smith ll kk jj ii hh gg ff ee dd cc bb aa"));
+}
+
+TEST(LibraryAuthorKey, CompactRecordFingerprintUsesTheWholeIdentity) {
+  char first[library::AUTHOR_KEY_MAX_BYTES];
+  char second[library::AUTHOR_KEY_MAX_BYTES];
+  ASSERT_EQ(library::writeAuthorKey(library::authorIdentity("Christopher Tolkien"), first), sizeof(first));
+  ASSERT_EQ(library::writeAuthorKey(library::authorIdentity("Christopher Priest"), second), sizeof(second));
+  EXPECT_NE(std::string(first, sizeof(first)), std::string(second, sizeof(second)));
+  library::writeAuthorKey(library::authorIdentity("Tolkien, Christopher"), second);
+  EXPECT_EQ(std::string(first, sizeof(first)), std::string(second, sizeof(second)));
+  EXPECT_EQ(library::writeAuthorKey(library::authorIdentity(""), second), 0);
+  EXPECT_EQ(std::string(second, sizeof(second)), std::string(sizeof(second), '\0'));
+}
+
 // --- matchesQuery ------------------------------------------------------------
 //
 // Cases taken from the shape of the accented and
@@ -284,4 +312,47 @@ TEST(LibraryPath, RootDoesNotGainASecondSeparator) {
 
 TEST(LibraryPath, NestedFolderGetsOneSeparator) {
   EXPECT_EQ(library::joinLibraryPath("/Books", "book.epub"), "/Books/book.epub");
+}
+
+TEST(FileBrowserSearch, MatchesCaseAccentsAndMultipleFilenameWords) {
+  EXPECT_TRUE(library::matchesQuery(fold("Gabriel Garcia Marquez - Cien años.epub"), fold("GAB cien")));
+  EXPECT_TRUE(library::matchesQuery(fold("Émile Zola - Germinal.epub"), fold("emile germ")));
+  EXPECT_TRUE(library::matchesQuery(fold("E\xCC\x81mile Zola - Germinal.epub"), fold("emile germ")));
+  EXPECT_FALSE(library::matchesQuery(fold("Dune.epub"), fold("dune messiah")));
+}
+
+TEST(FileBrowserSearch, KeepsFullFilenameSearchableWithoutAnIndexPrefixLimit) {
+  const std::string filename = std::string(120, 'a') + " - Needle.epub";
+  EXPECT_TRUE(library::matchesQuery(fold(filename), fold("needle")));
+  EXPECT_TRUE(library::matchesQuery(fold(filename), fold("EPUB")));
+}
+
+TEST(FileBrowserSearch, EmptyQueryAndFolderNames) {
+  EXPECT_TRUE(library::matchesQuery(fold("Science Fiction/"), fold("sci fic")));
+  EXPECT_TRUE(library::matchesQuery(fold("Dune.epub"), fold("   ")));
+  EXPECT_TRUE(library::matchesQuery(fold("Dune.epub"), fold("---")));
+  EXPECT_FALSE(library::matchesQuery(fold("Dune.epub"), fold("unknown")));
+}
+
+TEST(LibraryText, FoldIntoReusesOutputAcrossUnicodeAndEmptyInputs) {
+  std::string output(255, 'x');
+  const auto capacity = output.capacity();
+  for (const auto& pair : PAIRS) {
+    library::foldInto(pair.nfc, output);
+    EXPECT_EQ(output, pair.expected);
+    library::foldInto(pair.nfd, output);
+    EXPECT_EQ(output, pair.expected);
+    library::foldInto("", output);
+    EXPECT_TRUE(output.empty());
+    EXPECT_EQ(output.capacity(), capacity);
+  }
+  library::foldInto("  Café, 東京!  ", output);
+  EXPECT_EQ(output, "cafe 東京");
+  const char bounded[] = {'A', '\xC3', '\xA9', 'Z'};
+  library::foldInto(std::string_view(bounded, 3), output);
+  EXPECT_EQ(output, "ae");
+  library::foldInto(std::string_view(bounded, 2), output);
+  EXPECT_EQ(output, "a");
+  library::foldInto("!!!", output);
+  EXPECT_TRUE(output.empty());
 }
