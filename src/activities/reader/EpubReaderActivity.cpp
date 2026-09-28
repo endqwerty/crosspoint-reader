@@ -209,7 +209,11 @@ EpubReaderActivity::~EpubReaderActivity() {
   }
 }
 
-void EpubReaderActivity::onSuspend() { settleOverlayRefresh(); }
+void EpubReaderActivity::onSuspend() {
+  // A turn queued behind a page update must not fire when the pushed screen returns.
+  pendingManualTurn = 0;
+  settleOverlayRefresh();
+}
 
 bool EpubReaderActivity::loadBook() {
   auto loadedEpub = makeUniqueNoThrow<Epub>(bookPath, "/.crosspoint");
@@ -722,7 +726,6 @@ void EpubReaderActivity::loop() {
     // Toolbar style: the page is on screen and in the framebuffer, so paint the
     // toolbar over it (one refresh) instead of pushing a full-screen menu.
     if (usesToolbarMenu() && section) {
-      pendingManualTurn = 0;
       openOverlay(Overlay::Toolbar);
     } else {
       openReaderMenu();
@@ -2215,6 +2218,7 @@ void EpubReaderActivity::settleOverlayRefresh() {
 }
 
 void EpubReaderActivity::openOverlay(Overlay target) {
+  pendingManualTurn = 0;
   mappedInput.resetHomeButtonInput();
   const Overlay previous = overlay;
   overlay = target;
