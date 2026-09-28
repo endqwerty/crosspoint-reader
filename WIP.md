@@ -26,10 +26,11 @@ fast-forward/squash integration. No local merge commits.
 
 ## Recovery and verification
 
-Verified self-contained bundles preserve every pre-cleanup local and fetched
-remote branch and tag. Recovery instructions, before/after refs and verification
-are under `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`.
-Recovery copies are also stored under `/Volumes/workspace/builds/crosspoint-reader/branch-cleanup-20260927/`.
+The user reports the recovery copies deleted; do not rely on the shared copies.
+Local `reader.bundle` and `sdk.bundle` still exist under
+`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`, along
+with `RESTORE.md`. Both local bundles passed `git bundle verify` again on
+2026-09-27 and report complete history. They were not deleted by this session.
 Backup branch refs are removed after verification so only `develop` remains.
 
 The cleanup changes history, repository setup and instructions only. It does not
