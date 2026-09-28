@@ -124,3 +124,23 @@ TEST(GlyphBitmap, EmptyAndFullyClippedGlyphsDoNotWrite) {
     }
   }
 }
+
+TEST(GlyphBitmap, MatchesPerPixelReferenceAcrossOrientationsPlanesAndClipping) {
+  for (int orientation = 0; orientation < 4; ++orientation) {
+    for (bool twoBit : {false, true}) {
+      for (Plane plane : {Plane::BW, Plane::GrayLSB, Plane::GrayMSB}) {
+        for (bool state : {false, true}) {
+          for (int width : {1, 3, 7, 16, 31}) {
+            for (const auto [x, y] : {std::pair{-5, -3}, std::pair{0, 0}, std::pair{9, 11}, std::pair{29, 31}}) {
+              for (const auto [origin, rows] :
+                   {std::pair{0, 32}, std::pair{0, 7}, std::pair{7, 11}, std::pair{28, 4}}) {
+                compare(orientation, 0, twoBit, plane, state, width, 13, x, y, origin, rows, {-20, -20, 60, 60});
+                compare(orientation, 0, twoBit, plane, state, width, 13, x, y, origin, rows, {2, 3, 9, 11});
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
