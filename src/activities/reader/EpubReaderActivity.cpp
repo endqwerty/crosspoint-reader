@@ -12,6 +12,7 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <LibraryBookState.h>
+#include <LibraryBuilder.h>
 #include <LibrarySession.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -58,6 +59,7 @@
 #include "clippings/ClippingsManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/BookStateMove.h"
 #include "util/BookmarkUtil.h"
 #include "util/ButtonNavigator.h"
 #include "util/ScreenshotUtil.h"
@@ -144,7 +146,7 @@ std::string buildReadFolderDestination(const std::string& srcPath) {
 
   Storage.mkdir(READ_FOLDER);
   std::string dstPath = std::string(READ_FOLDER) + "/" + filename;
-  if (!Storage.exists(dstPath.c_str())) {
+  if (isBookPathFree(dstPath)) {
     return dstPath;
   }
 
@@ -155,15 +157,14 @@ std::string buildReadFolderDestination(const std::string& srcPath) {
   do {
     dstPath = std::string(READ_FOLDER) + "/" + base + " (" + std::to_string(suffix) + ")" + ext;
     suffix++;
-  } while (Storage.exists(dstPath.c_str()) && suffix < 100);
+  } while (!isBookPathFree(dstPath) && suffix < 100);
   return dstPath;
 }
 
-void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string& dstPath,
-                                  const std::string& oldCachePath) {
+void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string& dstPath) {
   LOG_INF("ERS", "Moving finished epub: %s -> %s", srcPath.c_str(), dstPath.c_str());
-  if (!ClippingStore::moveBook(srcPath, dstPath)) {
-    LOG_ERR("ERS", "Failed to move finished book and clippings to '/Read' folder");
+  if (!moveBookWithState(srcPath, dstPath)) {
+    LOG_ERR("ERS", "Failed to move finished book to '/Read' folder");
     return;
   }
 
@@ -179,22 +180,14 @@ void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string&
     for (size_t j = 0; j < i; j++) {
       Storage.rename((dstPath + SIDECARS[j]).c_str(), (srcPath + SIDECARS[j]).c_str());
     }
-    if (!Storage.rename(dstPath.c_str(), srcPath.c_str())) {
+    if (!moveBookWithState(dstPath, srcPath)) {
       LOG_ERR("ERS", "Failed to restore epub after sidecar move failure: %s -> %s", dstPath.c_str(), srcPath.c_str());
     }
     return;
   }
 
-  const std::string newCachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(dstPath));
-  bool cacheMoved = false;
-  if (!oldCachePath.empty() && Storage.exists(oldCachePath.c_str())) {
-    cacheMoved = Storage.rename(oldCachePath.c_str(), newCachePath.c_str());
-    if (!cacheMoved) {
-      LOG_ERR("ERS", "Failed to rename cache dir %s -> %s (non-fatal)", oldCachePath.c_str(), newCachePath.c_str());
-    }
-  }
-
-  RECENT_BOOKS.updatePath(srcPath, dstPath, oldCachePath, cacheMoved ? newCachePath : oldCachePath);
+  library::markLibraryIndexDirty();
+  RECENT_BOOKS.updatePath(srcPath, dstPath, getBookCachePath(srcPath), getBookCachePath(dstPath));
   if (APP_STATE.openEpubPath == srcPath) {
     APP_STATE.openEpubPath = dstPath;
     APP_STATE.saveToFile();
@@ -225,10 +218,9 @@ EpubReaderActivity::~EpubReaderActivity() {
   if (pendingReadFolderMove && epub) {
     library::librarySession.invalidate();
     const std::string srcPath = epub->getPath();
-    const std::string oldCachePath = epub->getCachePath();
     const std::string dstPath = buildReadFolderDestination(srcPath);
     epub.reset();
-    moveFinishedBookToReadFolder(srcPath, dstPath, oldCachePath);
+    moveFinishedBookToReadFolder(srcPath, dstPath);
   } else {
     epub.reset();
   }
