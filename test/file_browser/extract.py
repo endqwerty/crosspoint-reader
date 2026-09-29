@@ -15,8 +15,7 @@ def extract(marker):
             depth -= 1
             if depth == 0: return source[start:brace + token.end()]
     raise RuntimeError('Unbalanced production method: ' + marker)
-chunks = [extract('bool isBookFile('), extract('std::string getBookCachePath('), extract('class RenameState {') + ';',
-          extract('void formatFileName('), extract('void formatFileExtension('),
+chunks = [extract('bool isBookFile('), extract('void formatFileName('), extract('void formatFileExtension('),
           extract('std::string getFileExtension(const std::string& filename) {')]
 methods = '''loadFiles advanceSearch openSearch clearSearch provideRow prewarmRowGlyphs activateSelected
 showEntryActions deleteSelected startRename renameSelectedFile handleCustomInput handleButtons findEntry'''.split()
