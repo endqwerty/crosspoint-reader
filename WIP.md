@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream f03d7f4, X4 Pro r53, split patch series
+# WIP handoff — develop on upstream ce9f5c2, X4 Pro r54, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`f03d7f4dbbab77855815dc6c90dd0832769de41f` (see `git log upstream/develop..develop`).
+`ce9f5c28` (see `git log upstream/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -24,10 +24,9 @@ Upstream's own history is intact; there are no local merge commits. When
 rebasing, a conflict now names its topic, and a patch that upstream supersedes
 can be dropped or adapted on its own.
 
-SDK `develop` is `f8586305587a4efd37d086b84b5d22eb8f0a25a6`: two local patches
+SDK `develop` is `d466732a9a10002e23e5c05eda53430cd2490101`: two local patches
 (display transactions/refresh, then list and text-area components) above
-`225c097cfb6d5ecd4ca556041746123faeb4bc79`, the revision official reader pins.
-Its tree is identical to the former single patch `d7438bb`.
+`87c4493a6a5aa0c7c0e61aacc4a24e2c273e6895`, the revision official reader pins.
 `.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
@@ -56,6 +55,10 @@ fast-forward/squash integration. No local merge commits.
   fork's formatting; the fork's display/list/text-area patch is unchanged.
 - Upstream #3698 (ButtonNavigator allocation churn, adopted earlier) merged as
   `f03d7f4`; the fork's copy was identical, so it dropped out of the series.
+- Upstream `ce9f5c2` (header back-button tap routing) moved the SDK pin to
+  `87c4493` (keyboard alignment, list separators and checkboxes, atomic SD
+  writes, WebDAV parsers). The fork's list patch conflicted only in formatting
+  of the toggle drawing; upstream's checkbox branch is kept.
 
 ## Recovery and verification
 
@@ -67,13 +70,26 @@ revalidated from source; the r51 image and package remain on the share.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r53-20260928-065705/3199`
-(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r53-20260928-065705\3199`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r54-20260928-221431/firmware-x4pro-r54-5fa5562f.bin`
+(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r54-20260928-221431\firmware-x4pro-r54-5fa5562f.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r53-e6af0c9`.
-SHA-256: `1e983bffc4e94b2cd9c6e113175aad2ccabe48952f7adce6a9d8fc81343dca37`.
-The r52 image stays in `x4pro-r52-20260928-053827`.
+Version: `1.6.5-dev-x4pro-r54-ce9f5c2`.
+SHA-256: `fad60589f95d337077dfc8ee9a4a6465cb3971861747e864efbe153ed5a8542d`.
+Earlier images stay in their dated folders; r53 is
+`x4pro-r53-20260928-065705/firmware-x4pro-r53-f7f0fb5d.bin`.
+
+r54 is r53's firmware on the newer upstream base `ce9f5c2` and SDK `87c4493`
+(header back-button tap routing, keyboard alignment, list separators and
+checkboxes, SDK atomic SD writes). No fork behavior changed; the fork's commits
+are the split series above. Firmware source is commit `5fa5562f`; the handoff
+commit changes only this file.
+
+r54 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
+ASan/UBSan tests pass; SDK UI (243,110 checks), Pro display, UC8279, font and
+input host runners pass. The X4 Pro release build is warning-free: static RAM
+102,352 bytes (+32 from upstream input routing), linked flash 5,686,766 bytes;
+image 5,691,776 bytes, ESP32-S3 image inspection valid.
 
 r53 changes from r52 (items 4 and 2):
 
@@ -103,9 +119,7 @@ r53 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
 ASan/UBSan tests pass, retaining every r51 test name. The X4 Pro release build is
 warning-free: static RAM 102,320 bytes (unchanged), linked flash 5,685,162 bytes;
 image 5,690,176 bytes, ESP32-S3 image inspection valid. Firmware source is
-commit `f7f0fb5d`. After the history split the same firmware source is commit
-`facd0ba5` (byte-identical source; the SDK pin moved to the identical-tree
-`f858630`), so the r53 image needs no rebuild. An independent
+commit `f7f0fb5d`. An independent
 review of the sort-key change found four issues, all fixed with tests: the rename
 UUID array outlived its phase (up to ~54 KB during the sorts), search missed
 shown titles that differ from a curated title sort, size matching could claim a
@@ -166,13 +180,13 @@ TOC lookup. Compare memory and correctness before changing that policy. Broader
 cold-open profiling should include real ZIP/container, CSS and first-page layout;
 the current fixture uses archive/storage doubles.
 
-Official upstream was fetched on 2026-09-28 at `f03d7f4`. Recheck upstream and
+Official upstream was fetched on 2026-09-28 at `ce9f5c2`. Recheck upstream and
 open PRs when starting new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
-unmeasured. On r53 check the Library's first open after flashing (it re-reads
+unmeasured. On r54 check the Library's first open after flashing (it re-reads
 every package document once), title/author order and headings, and that a turn
 pressed during a page update no longer fires after opening the toolbar with the
 home button. Also check Library search (upstream keyboard) and list
@@ -195,7 +209,7 @@ fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3, 5
 and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
 upstream merges it.
 
-1. Device validation of r53 with the real library (unchanged). Nothing has been
+1. Device validation of r54 with the real library (unchanged). Nothing has been
    measured on hardware. Measure first-entry Library reconcile time, free heap
    and largest free block (serial) with the full Calibre export on the card.
    Run `scripts/sync-calibre-library.sh -n` after a real re-export to learn
