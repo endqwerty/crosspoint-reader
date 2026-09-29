@@ -94,9 +94,11 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
   (not from a footnote) marks it Finished. Unmarked books can be classified manually
   or by opening them.
 - State is keyed by the raw complete path. Renames performed through Browse Files
-  on the device carry the state sidecar (with bookmark and cache files) and roll
-  back on failure; external renames or moves on a computer do not migrate state or
-  progress.
+  on the device, and the "Move finished books to /Read" move, carry the state
+  sidecar (with bookmark and cache files) and roll back on failure
+  (`moveBookWithState()` in `src/util/BookStateMove.cpp`). The /Read destination
+  skips names that already have leftover state. External renames or moves on a
+  computer do not migrate state or progress.
 
 ### Browse Files: "Search folders and files"
 
@@ -352,7 +354,8 @@ Code:
 - `src/activities/library/` — `LibraryListActivity`, `LibraryMenuActivity`,
   `LibraryBookDetailsActivity`
 - `lib/FolderSearch/FolderSearch.h`, `src/activities/home/FileBrowserActivity.cpp`
-- `src/activities/reader/EpubReaderActivity.cpp` (Reading/Finished marks)
+- `src/activities/reader/EpubReaderActivity.cpp` (Reading/Finished marks, /Read move)
+- `src/util/BookStateMove.{h,cpp}` (book move with cache, bookmarks and state)
 - SDK TextArea wrapping lives in `freeink-sdk`.
 
 Host tests (`test/`): `library_format`, `library_index_file`, `library_builder`
