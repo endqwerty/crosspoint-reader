@@ -4,7 +4,6 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
-#include <LibraryBookState.h>
 #include <LibraryBuilder.h>
 #include <LibraryText.h>
 #include <Memory.h>
@@ -24,7 +23,7 @@
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
-#include "util/BookmarkUtil.h"
+#include "util/BookStateMove.h"
 
 namespace fui = freeink::ui;
 
@@ -36,87 +35,6 @@ bool isBookFile(const std::string_view name) {
   return FsHelpers::hasEpubExtension(name) || FsHelpers::hasXtcExtension(name) || FsHelpers::hasTxtExtension(name) ||
          FsHelpers::hasMarkdownExtension(name) || FsHelpers::hasBmpExtension(name) || FsHelpers::hasPngExtension(name);
 }
-
-std::string getBookCachePath(const std::string& path) {
-  const char* prefix = nullptr;
-  if (FsHelpers::hasReflowableBookExtension(path)) {
-    prefix = "epub_";
-  } else if (FsHelpers::hasXtcExtension(path)) {
-    prefix = "xtc_";
-  } else {
-    return "";
-  }
-  return std::string("/.crosspoint/") + prefix + std::to_string(std::hash<std::string>{}(path));
-}
-
-// The rename owns a bounded set of paths only while the keyboard result is
-// applied. Keeping this transaction on the heap avoids a large task-stack frame.
-class RenameState {
- public:
-  RenameState(const std::string& oldPath, const std::string& newPath)
-      : oldKey(library::bookStateKey(oldPath)), newKey(library::bookStateKey(newPath)) {
-    oldPaths[0] = getBookCachePath(oldPath);
-    newPaths[0] = getBookCachePath(newPath);
-    if (FsHelpers::hasReflowableBookExtension(std::string_view(oldPath))) {
-      oldPaths[1] = BookmarkUtil::getBookmarkPath(oldPath);
-      newPaths[1] = BookmarkUtil::getBookmarkPath(newPath);
-      oldPaths[2] = oldPaths[1] + ".bak";
-      newPaths[2] = newPaths[1] + ".bak";
-      oldPaths[3] = oldPaths[1] + ".new";
-      newPaths[3] = newPaths[1] + ".new";
-    }
-  }
-  ~RenameState() {
-    if (committed) return;
-    for (int i = PATH_COUNT - 1; i >= 0; --i) {
-      if (moved[i] && !Storage.rename(newPaths[i].c_str(), oldPaths[i].c_str())) {
-        LOG_ERR("FileBrowser", "Failed to roll back rename state: %s", oldPaths[i].c_str());
-      }
-    }
-    if (stateWritten && !library::writeBookState(newKey, previousState)) {
-      LOG_ERR("FileBrowser", "Failed to restore rename target reading state");
-    }
-  }
-  bool prepare() {
-    for (int i = 0; i < PATH_COUNT; ++i) {
-      if (!newPaths[i].empty() && oldPaths[i] != newPaths[i] && Storage.exists(newPaths[i].c_str())) {
-        LOG_ERR("FileBrowser", "Rename state target already exists: %s", newPaths[i].c_str());
-        return false;
-      }
-    }
-    library::BookState state;
-    if (!library::readBookState(oldKey, state) || !library::readBookState(newKey, previousState)) {
-      LOG_ERR("FileBrowser", "Cannot read rename reading state");
-      return false;
-    }
-    if (!library::writeBookState(newKey, state)) {
-      LOG_ERR("FileBrowser", "Cannot preserve rename reading state");
-      return false;
-    }
-    stateWritten = oldKey != newKey;
-    for (int i = 0; i < PATH_COUNT; ++i) {
-      if (oldPaths[i].empty() || oldPaths[i] == newPaths[i] || !Storage.exists(oldPaths[i].c_str())) continue;
-      if (!Storage.rename(oldPaths[i].c_str(), newPaths[i].c_str())) {
-        LOG_ERR("FileBrowser", "Failed to move rename state: %s", oldPaths[i].c_str());
-        return false;
-      }
-      moved[i] = true;
-    }
-    return true;
-  }
-  void commit() { committed = true; }
-  const std::string& oldCachePath() const { return oldPaths[0]; }
-  const std::string& newCachePath() const { return newPaths[0]; }
-
- private:
-  static constexpr int PATH_COUNT = 4;
-  std::string oldPaths[PATH_COUNT], newPaths[PATH_COUNT];
-  bool moved[PATH_COUNT]{};
-  uint64_t oldKey, newKey;
-  library::BookState previousState;
-  bool stateWritten = false;
-  bool committed = false;
-};
 }  // namespace
 
 std::string getFileExtension(const std::string& filename);
@@ -577,19 +495,9 @@ void FileBrowserActivity::renameSelectedFile(const std::string& oldPath, const s
     return;
   }
 
-  auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath);
-  if (!state) {
-    LOG_ERR("FileBrowser", "OOM: rename state");
-    return;
-  }
-  if (!state->prepare()) return;
-  if (!ClippingStore::moveBook(oldPath, newPath)) {
-    LOG_ERR("FileBrowser", "Failed to rename file: %s -> %s", oldPath.c_str(), newPath.c_str());
-    return;
-  }
-  state->commit();
+  if (!moveBookWithState(oldPath, newPath)) return;
   library::markLibraryIndexDirty();
-  RECENT_BOOKS.updatePath(oldPath, newPath, state->oldCachePath(), state->newCachePath());
+  RECENT_BOOKS.updatePath(oldPath, newPath, getBookCachePath(oldPath), getBookCachePath(newPath));
   if (APP_STATE.openEpubPath == oldPath) {
     APP_STATE.openEpubPath = newPath;
     if (!APP_STATE.saveToFile()) LOG_ERR("FileBrowser", "Failed to save renamed open-book path");
