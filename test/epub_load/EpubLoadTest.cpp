@@ -147,7 +147,7 @@ TEST_F(EpubLoadTest, CssLowMemoryKeepsCacheAndBookAvailable) {
   EXPECT_EQ(state.loads, 1);
 }
 
-TEST_F(EpubLoadTest, CssRebuildInvalidatesSectionsOnlyForChangedRules) {
+TEST_F(EpubLoadTest, CssRebuildInvalidatesSectionsWhenRulesChangeOrAreDeleted) {
   for (auto status : {CssParser::CacheStatus::Missing, CssParser::CacheStatus::Invalid, CssParser::CacheStatus::Partial,
                       CssParser::CacheStatus::Complete}) {
     for (auto result :
@@ -158,11 +158,11 @@ TEST_F(EpubLoadTest, CssRebuildInvalidatesSectionsOnlyForChangedRules) {
       CssParser::parseResult = result;
       Epub epub;
       ASSERT_TRUE(epub.load());
+      const bool deleted = status == CssParser::CacheStatus::Invalid || status == CssParser::CacheStatus::Complete;
       const bool changed = result == CssParser::ParseResult::Complete ||
                            (result == CssParser::ParseResult::Partial && status != CssParser::CacheStatus::Partial);
-      EXPECT_EQ(state.sectionDeletes, changed ? 1 : 0);
-      EXPECT_EQ(state.cssDeletes,
-                status == CssParser::CacheStatus::Invalid || status == CssParser::CacheStatus::Complete);
+      EXPECT_EQ(state.sectionDeletes, changed || deleted ? 1 : 0);
+      EXPECT_EQ(state.cssDeletes, deleted);
       EXPECT_EQ(state.loads, 2);
       EXPECT_EQ(state.cssParses, 1);
       const auto beforeCss = std::find(state.events.begin(), state.events.end(), "parseCss");
@@ -298,6 +298,7 @@ TEST_F(EpubLoadTest, TemporaryMetadataCssFailureDoesNotRetainSourceFields) {
     EXPECT_EQ(state.metadataValuesDuringCss, 0);
     EXPECT_EQ(state.metadataValuesDuringReload, 1);
     EXPECT_EQ(state.metadataValuesLive, 1);
-    EXPECT_EQ(state.sectionDeletes, 0);
+    // A rebuilt book.bin drops sections whatever the CSS parse returned.
+    EXPECT_EQ(state.sectionDeletes, cached ? 0 : 1);
   }
 }
