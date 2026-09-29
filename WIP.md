@@ -301,5 +301,6 @@ earlier SMB checkout under `/Volumes/workspace/projects/crosspoint-reader` is
 retired: the macOS SMB client rejects `F_FULLFSYNC`, which T3 Code's checkpoint
 `git add` forces, and worktree creation and submodule checkout took minutes there.
 Exported builds moved to `/Volumes/workspace/builds/crosspoint-reader/`.
-`core.untrackedCache` is enabled. The SDK's nested `libs/assets/Icons/lucide`
+`core.untrackedCache` is enabled. Machine-level setup (T3 Code worktree cleanup job,
+agent instruction files, toolchains) is in `/Volumes/workspace/homelab/workstation.md`. The SDK's nested `libs/assets/Icons/lucide`
 submodule holds only icon-generator source SVGs and is not needed to build.
