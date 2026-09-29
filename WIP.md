@@ -62,11 +62,13 @@ fast-forward/squash integration. No local merge commits.
 
 ## Recovery and verification
 
-Pre-rebase refs are kept locally: reader `backup/reader-develop-3048089c` and, in
-the permanent checkout's SDK module, `backup/sdk-develop-703f269`. The older
-bundles under `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/`
-(with `RESTORE.md`) still cover the pre-cleanup history. The rebased series was
-revalidated from source; the r51 image and package remain on the share.
+No backup branches or extra worktrees are kept; the only branches are reader and
+SDK `develop` plus the active worktree's branch. History removed on 2026-09-28
+(earlier develop tips, the pre-split series, old review/test branches and the
+SDK's single-patch versions) is in verified bundles under
+`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260928/`, with
+`RESTORE.md`. The 2026-09-27 bundles in `branch-cleanup-20260927/` still cover
+the pre-cleanup history.
 
 ## Current flash image
 
