@@ -20,6 +20,26 @@ effort goes; they never justify diverging from upstream's design. If a fork
 preference conflicts with upstream, follow upstream and note the conflict in
 `WIP.md`.
 
+## Shared information
+
+The user works in this repository with several agents (Codex, Claude Code and
+Antigravity, through T3 Code). They share only files, not memory. Agent memory
+(Claude project memory, Codex memories, Antigravity `brain/`) must never be the
+only record of a rule, decision or finding. Record it here instead:
+
+| Information | Location |
+| --- | --- |
+| Durable rules, preferences, standing authorizations | This file |
+| Task state, handoff evidence, release hashes, next steps | `WIP.md` |
+| Design, invariants, limits, attributions of fork features | `docs/fork-*.md` |
+| Upstream conventions | `AGENTS.md` (upstream; only its link here is local) |
+| Current firmware image and build evidence | `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` |
+| Mac, T3 Code worktrees and cleanup, agent tooling, home server | `/Volumes/workspace/homelab/workstation.md` and `README.md` there |
+
+When a user instruction changes how work is done, update this file in the same
+task. When a fact belongs to the machine rather than the repository, update the
+homelab page. If `/Volumes/workspace` is not mounted, say so instead of guessing.
+
 ## Upstream first
 
 Treat the original project as the authoritative, more stable implementation. The
@@ -111,8 +131,18 @@ to check out `develop` there while the permanent checkout owns that branch.
   `WIP.md` before the final commit. Verify local `develop` contains the finished
   work, includes the fetched upstream tip, and has no fork-only merge commits.
 - Finish with clean integrated source state and durable outputs so the user can
-  simply delete the worktree. Leave the active worktree for the user to delete;
-  report any genuine blocker instead of claiming unfinished work is complete.
+  simply delete the worktree. Report any genuine blocker instead of claiming
+  unfinished work is complete. As the last step, after pushing, check and report:
+  - `git status --short` is empty in the worktree and in `freeink-sdk`, and the
+    submodule is at its pinned commit (`git submodule status` shows no `+`).
+  - No temporary files or `platformio.local.ini` remain, and temporary git
+    worktrees or scratch clones created for the task are removed.
+  - Local `develop` and `origin/develop` contain the work.
+- Leave the active worktree in place, still on its own `t3code/*` branch; do
+  not delete or detach that branch. The user deletes the thread, and a launchd
+  job then removes the worktree and branch (T3 Code's own cleanup cannot remove
+  worktrees with a submodule; see the homelab `workstation.md`). Removing other
+  retired worktrees by hand is unnecessary.
 - Complete applicable host tests and firmware builds before integrating source
   changes. Record physical-device checks separately as pending when unavailable;
   do not claim device validation or block authorized local administration solely
@@ -172,6 +202,17 @@ to check out `develop` there while the permanent checkout owns that branch.
   Never store the only output under `workspace/projects/crosspoint-reader`;
   that shared source checkout is disposable. A successful compilation does
   not establish physical-device validation.
+- Local toolchain: `pio`, `cmake` and `ctest` are in
+  `~/.local/share/crosspoint-build/venv/bin/`, not on `PATH`. Host tests:
+  `cmake -S test -B <dir> -DCMAKE_BUILD_TYPE=Release`, build, then
+  `ctest --test-dir <dir> --output-on-failure --timeout 60 -j 8`. Sanitizer runs
+  add `-DCROSSPOINT_TEST_SANITIZERS=ON` with Homebrew
+  `/opt/homebrew/opt/llvm@22/bin/clang` and `clang++`. Keep test build
+  directories under `~/.local/share/crosspoint-build/`. `./bin/clang-format-fix`
+  finds the venv's `clang-format` when that `bin/` is first on `PATH`.
+- Firmware version for a handoff: put `[crosspoint]` `version =
+  1.6.5-dev-x4pro-rNN-<upstream short hash>` in a temporary
+  `platformio.local.ini` (gitignored), build, and delete it afterwards.
 - Review existing upstream changes before choosing a new implementation.
 - Measure parser, storage, allocation and rendering work with meaningful fixtures.
   Report host operation counts separately from physical page-turn latency,
