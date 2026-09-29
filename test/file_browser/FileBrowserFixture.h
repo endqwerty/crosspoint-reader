@@ -10,6 +10,7 @@
 #include <Memory.h>
 #include <Utf8.h>
 #include <components/lists/list.h>
+#include <util/BookStateMove.h>
 #include <util/BookmarkUtil.h>
 
 #include <cassert>
