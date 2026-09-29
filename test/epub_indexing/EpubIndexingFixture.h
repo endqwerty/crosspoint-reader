@@ -13,9 +13,20 @@
 
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include "Archive.h"
+
+// Epub.cpp routes TXT/Markdown through Txt; these tests only load EPUBs.
+class Txt {
+ public:
+  static bool isTxtOrMd(std::string_view) { return false; }
+  static bool validateCache(const std::string&, const std::string&, size_t) { return false; }
+  static bool buildTxtCache(const std::string&, const std::string&, std::unique_ptr<BookMetadataCache>&) {
+    return false;
+  }
+};
 inline uint32_t millis() { return 0; }
 class CssParser {
  public:
@@ -27,6 +38,7 @@ class CssParser {
   CacheLoadResult loadFromCache() { return CacheLoadResult::Complete; }
   void deleteCache() {}
   void clear() {}
+  static bool sectionCacheIsStale(CacheStatus, CacheLoadResult, ParseResult) { return false; }
 };
 // These fixtures open every book as a plain ZIP; no entry is protected.
 namespace freeink::content {
