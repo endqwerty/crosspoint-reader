@@ -93,7 +93,17 @@ void EpubReaderChapterSelectionActivity::activateIndex(const int index) {
   // an unrelated element on the next render.
   app.clearTapFlash();
   nav.selected = index;
-  const auto tocItem = epub->getTocItem(index);
+  auto tocItem = epub->getTocItem(index);
+  // Calibre replaces a book's cover page but keeps its NCX entry. An unresolved
+  // entry ahead of every resolved one opens the start of the book.
+  if (tocItem.spineIndex == -1) {
+    int prior = 0;
+    while (prior < index && epub->getTocItem(prior).spineIndex == -1) prior++;
+    if (prior == index) {
+      tocItem.spineIndex = 0;
+      tocItem.anchor.clear();
+    }
+  }
   if (tocItem.spineIndex < 0 || tocItem.spineIndex >= epub->getSpineItemsCount()) {
     if (tocItem.spineIndex != -1) LOG_ERR("ECS", "Invalid chapter destination: %d", tocItem.spineIndex);
     ActivityResult result;
