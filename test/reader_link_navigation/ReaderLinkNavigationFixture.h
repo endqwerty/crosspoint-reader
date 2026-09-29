@@ -149,7 +149,10 @@ class EpubReaderActivity {
     size_t bookSize = 10000;
     int spineCount = 10;
     ChapterResult tocItem{4, "chapter"};
-    ChapterResult getTocItem(int) const { return tocItem; }
+    std::vector<ChapterResult> tocItems;  // per-index entries; tocItem beyond them
+    ChapterResult getTocItem(int index) const {
+      return index < static_cast<int>(tocItems.size()) ? tocItems[index] : tocItem;
+    }
     size_t getBookSize() const { return bookSize; }
     int getSpineItemsCount() const { return spineCount; }
     size_t getCumulativeSpineItemSize(int spine) const { return (spine + 1) * 1000; }
