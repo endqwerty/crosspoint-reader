@@ -9,7 +9,7 @@ endif()
 add_executable(FileBrowserTest FileBrowserTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/FileBrowserProduction.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryBookState.cpp ${REPO_ROOT}/lib/LibraryIndex/LibraryText.cpp
   ${REPO_ROOT}/lib/FsHelpers/FsHelpers.cpp ${REPO_ROOT}/lib/Utf8/Utf8.cpp
-  ${REPO_ROOT}/src/util/BookmarkUtil.cpp
+  ${REPO_ROOT}/src/util/BookmarkUtil.cpp ${REPO_ROOT}/src/util/BookStateMove.cpp
   ${REPO_ROOT}/freeink-sdk/libs/ui/FreeInkUI/src/FreeInkUI.cpp)
 target_include_directories(FileBrowserTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
   ${REPO_ROOT}/lib/FsHelpers ${REPO_ROOT}/test/fs_helpers/stubs ${REPO_ROOT}/test/library_builder/stubs
