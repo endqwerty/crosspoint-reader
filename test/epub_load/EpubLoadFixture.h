@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace load_test {
@@ -110,6 +111,7 @@ class BookMetadataCache {
     ++load_test::state.cleanupCalls;
     return load_test::state.cleanupOk;
   }
+  uint32_t getCumulativeSize(int) const { return 0; }
 
  private:
   bool opened = false;
@@ -120,6 +122,16 @@ class BookMetadataCache {
   void close() {
     if (opened) --load_test::state.openHandles;
     opened = false;
+  }
+};
+
+// Epub.cpp routes TXT/Markdown through Txt; these tests only load EPUBs.
+class Txt {
+ public:
+  static bool isTxtOrMd(std::string_view) { return false; }
+  static bool validateCache(const std::string&, const std::string&, size_t) { return false; }
+  static bool buildTxtCache(const std::string&, const std::string&, std::unique_ptr<BookMetadataCache>&) {
+    return false;
   }
 };
 
@@ -145,6 +157,8 @@ class CssParser {
   CacheLoadResult loadFromCache() const { return loadResult; }
   void deleteCache() { ++load_test::state.cssDeletes; }
   void clear() { ++load_test::state.cssClears; }
+  // Production predicate, extracted from CssParser.cpp.
+  static bool sectionCacheIsStale(CacheStatus statusBefore, CacheLoadResult loadResult, ParseResult parseResult);
 };
 static_assert(sizeof(CssParser) != sizeof(BookMetadataCache));
 
