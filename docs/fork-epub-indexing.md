@@ -30,14 +30,18 @@ cache.
   reparsed into an empty, scoped metadata object that ends before CSS discovery and
   parsing (`parseContentOpf` overwrites all five output fields, so no cached copy is
   needed). Metadata is released during CSS parsing and reloaded from `book.bin`
-  afterwards. A low-memory CSS cache load keeps the cache for a later retry. A
-  changed CSS cache removes the book's `sections/` directory so pages use the same
-  rule set. The resolved CSS rule map is cleared after load; section building
-  reloads it on demand.
+  afterwards. A low-memory CSS cache load keeps the cache for a later retry.
+  Section files carry no CSS identity, so `CssParser::sectionCacheIsStale()`
+  removes the book's `sections/` directory whenever the rule set they were built
+  from was replaced or deleted (an invalid or unhydratable cache, even when the
+  reparse then fails). A preserved partial cache or a failed parse with nothing
+  deleted keeps them. The resolved CSS rule map is cleared after load; section
+  building reloads it on demand.
 - Fresh-index path: the parsed metadata's scope ends after `book.bin` publication
   and temp-file cleanup, before CSS parsing and the reload, including when external
   CSS is disabled. CSS is parsed before `book.bin` is reloaded to leave heap for
-  rule-table growth. Inline CSS still works when external CSS is disabled.
+  rule-table growth, and `sections/` is removed whatever the parse returns. Inline
+  CSS still works when external CSS is disabled.
 - Temporary-file cleanup is best-effort; its failure is logged and ignored.
 
 These changes shorten existing allocation lifetimes and remove a metadata copy;
@@ -58,6 +62,13 @@ large-book href index before recreating them (same checked allocation and
 unbuffered fallback), and may reread the spine and flush discarded entries.
 The fix applies when metadata is rebuilt; already indexed books keep their caches.
 The unmerged sparse-nav selection heuristic of PR #2603 is not adopted.
+
+A TOC entry whose href matches no spine item keeps spine index -1. Calibre
+replaces a book's cover page with its titlepage but keeps the NCX "Cover" entry
+to the removed file (117 of the 750 books in the library scan). In the chapter
+list, an unresolved entry ahead of every resolved one opens the start of the
+book; later unresolved entries close the list. This is decided at selection
+time, so `book.bin` is unchanged.
 
 ## Bounded first-open indexing
 
@@ -269,6 +280,10 @@ if a rebase renames or reorders them.
 
 ## Attribution
 
+- [PR #3305](https://github.com/crosspoint-reader/crosspoint-reader/pull/3305),
+  head `41d0eb2a`, by Sameh Foulad `<sameh@foulad.com>`: the section-cache
+  invalidation predicate and its tests. Open, not merged upstream; drop the local
+  patch if upstream merges it.
 - [PR #2438](https://github.com/crosspoint-reader/crosspoint-reader/pull/2438),
   head `2635ed6cdaf0e0b8fb18e55af258bb587c9598c9`: `XML_CONTEXT_BYTES=0`. Open
   proposal, not an accepted upstream decision. Original author Erica Jensen
