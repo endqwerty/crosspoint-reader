@@ -1,4 +1,4 @@
-# WIP handoff — develop on upstream ce9f5c2, X4 Pro r54, split patch series
+# WIP handoff — develop on upstream ce9f5c2, X4 Pro r55, split patch series
 
 ## Repository state
 
@@ -18,8 +18,10 @@ patches, each built warning-free for `x4pro-gh_release` on its own:
 9. host-test wiring, user guide, file formats and compatibility notes
 
 Then r51 cold indexing, fork instructions/setup, r52 (pagebreak fix, library
-scan), r53 (queued page-turn fix, Calibre sort keys) and a docs commit that
-folds the 50 `-rNN` revision notes into six `docs/fork-*.md` feature docs.
+scan), r53 (queued page-turn fix, Calibre sort keys), a docs commit that
+folds the 50 `-rNN` revision notes into six `docs/fork-*.md` feature docs, and
+r55's three fixes (CSS/section cache invalidation from #3305, finished-book
+move keeping state, stale leading TOC entry).
 Upstream's own history is intact; there are no local merge commits. When
 rebasing, a conflict now names its topic, and a patch that upstream supersedes
 can be dropped or adapted on its own.
@@ -73,31 +75,44 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r54-20260928-221431/firmware-x4pro-r54-5fa5562f.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r54-20260928-221431\firmware-x4pro-r54-5fa5562f.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r55-20260928-233246/firmware-x4pro-r55-0c194da7.bin`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r55-20260928-233246\firmware-x4pro-r55-0c194da7.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r54-ce9f5c2`.
-SHA-256: `fad60589f95d337077dfc8ee9a4a6465cb3971861747e864efbe153ed5a8542d`.
+Version: `1.6.5-dev-x4pro-r55-ce9f5c2`.
+SHA-256: `2b134747405fc26f699e10afe4656504cf85b75faece81fc8854062094ef18c3`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r54 is r53's firmware on the newer upstream base `ce9f5c2` and SDK `87c4493`
-(header back-button tap routing, keyboard alignment, list separators and
-checkboxes, SDK atomic SD writes). No fork behavior changed; the fork's commits
-are the split series above. Firmware source is commit `5fa5562f`; later commits
-change only `WIP.md`.
+r55 is r54 plus three fixes on the same upstream base `ce9f5c2` and SDK
+`d466732`. Firmware source is commit `0c194da7`; later commits change only
+documentation.
 
-r54 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
-ASan/UBSan tests pass; SDK UI (243,110 checks), Pro display, UC8279, font and
-input host runners pass. The X4 Pro release build is warning-free: static RAM
-102,352 bytes (+32 from upstream input routing), linked flash 5,686,766 bytes;
-image 5,691,776 bytes, ESP32-S3 image inspection valid. Logs and test builds:
-the image folder and `/Users/danielyang/.local/share/crosspoint-build/wip-plan/`.
+r55 validation (2026-09-28): all 1,638 native Release and 1,638 LLVM 22
+ASan/UBSan tests pass (9 new). The clean X4 Pro release build has no warnings:
+static RAM 102,352 bytes (unchanged from r54), linked flash 5,687,178 bytes;
+image 5,692,192 bytes, ESP32-S3 image inspection valid.
 
-Fork changes since r51 that r54 carries (for device testing):
+Fork changes in r55 (for device testing):
+
+- CSS/section cache invalidation (adopted from open upstream #3305). Opening a
+  book whose CSS cache was invalid or failed to hydrate deleted it; if the
+  reparse then failed (for example on low heap), old sections survived beside
+  new chapters laid out without CSS. Sections are now dropped whenever the
+  rule set behind them was replaced or deleted, and always after a `book.bin`
+  rebuild. No cache format change.
+- "Move finished books to /Read" now carries bookmarks, the Library reading
+  state (including the Finished mark) and the reader cache, rolls everything
+  back on failure, skips destination names with leftover state and marks the
+  Library index dirty. It shares `moveBookWithState()`
+  (`src/util/BookStateMove.cpp`) with Browse Files rename.
+- Calibre's stale NCX "Cover" entry (117 books): an unresolved TOC entry ahead
+  of every resolved one opens the start of the book instead of closing the
+  chapter list. Decided at selection time; `book.bin` is unchanged.
+
+Earlier fork changes since r51 that r55 carries (for device testing):
 
 - Queued page turns: a turn pressed during a page update is queued and applied
   when the update ends. Opening the toolbar from the home button, or a pushed
@@ -156,7 +171,9 @@ on the device; the rest of each TOC works. None of #3375, #2987, #2297, #3539,
 ## Remaining work and limits
 
 The 128-chapter cold-open fixture still performs 33,556 HAL reads in its linear
-TOC lookup. Compare memory and correctness before changing that policy. Broader
+TOC lookup (below upstream's 400-spine `LARGE_SPINE_THRESHOLD` for the hashed
+href index). Compare memory, correctness and device cold-open time before
+changing that shared policy; it was left alone in r55 for that reason. Broader
 cold-open profiling should include real ZIP/container, CSS and first-page layout;
 the current fixture uses archive/storage doubles.
 
@@ -166,7 +183,10 @@ cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
 Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
-unmeasured. On r54 check the Library's first open after flashing (it re-reads
+unmeasured. On r55 check that choosing "Cover" in the chapter list of a
+Calibre book opens its first page, and, with "Move finished books to /Read" on,
+that finishing a book keeps its bookmarks, Finished mark and Library entry
+under `/read`. Also check the Library's first open after flashing (it re-reads
 every package document once), title/author order and headings, and that a turn
 pressed during a page update no longer fires after opening the toolbar with the
 home button. Also check Library search (upstream keyboard) and list
@@ -181,15 +201,15 @@ below is optional future scope, not unfinished work blocking deletion.
 ## Proposed next steps
 
 Replanned 2026-09-27 after re-reading `ROADMAP.md` and triaging all 229 open
-upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done) and r53 (items 2
-and 4 done). Priorities follow the
+upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done), r53 (items 2
+and 4 done) and r55 (#3305, the /Read move and item 5's optional follow-up). Priorities follow the
 offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`. Each item needs
 the user's go-ahead. Upstream's roadmap (Phase 1: footprint and heap
 fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3 and
 5 (done) and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
 upstream merges it.
 
-1. Device validation of r54 with the real library (unchanged). Nothing has been
+1. Device validation of r55 with the real library (unchanged). Nothing has been
    measured on hardware. Measure first-entry Library reconcile time, free heap
    and largest free block (serial) with the full Calibre export on the card.
    Run `scripts/sync-calibre-library.sh -n` after a real re-export to learn
@@ -199,10 +219,11 @@ upstream merges it.
    format 5). Optional follow-up, only if item 1 shows Calibre renames are
    common: relink path-keyed reading state (reader cache dir, bookmarks,
    favorites/reading state, recents) from a vanished path to a new path with
-   the same stored UUID. `FileBrowserActivity`'s RenameState already moves all
-   of these with rollback; PR #3354's `moveBookData()` is the right shape. The
-   same helper would also fix the "Move finished books to /Read" move, which
-   today leaves Library state and bookmarks at the old path.
+   the same stored UUID. `moveBookWithState()` (`src/util/BookStateMove.cpp`)
+   already moves the cache, bookmarks and reading state with rollback for an
+   on-device move; a relink would need the same for a file that has already
+   moved, plus recents. Done in r55: the "Move finished books to /Read" move
+   uses that helper and keeps bookmarks and Library state.
 3. Done in r52: pagebreak markers keep wrapped text (adapted #3349). The
    library scan found no pagebreak attributes, so this protects future books
    only. Optional follow-up: #3349's deferred `<br>` handling, which joins
@@ -214,8 +235,8 @@ upstream merges it.
    the device.
 5. Done in r52: `scripts/scan-epub-library.py` (results above). None of
    #3375, #2987, #2297, #3539, #2614 or #2386 reproduces in the library; do
-   not import them for this library. Optional: make the stale NCX "Cover"
-   entry (117 books) fall back to the first spine item or hide it.
+   not import them for this library. Done in r55: the stale NCX "Cover"
+   entry (117 books) opens the first spine item.
 6. Background build at idle CPU speed: PR #3060. The background tick,
    `EpubReaderActivity::advanceSectionBuild()`, runs without `HalPowerManager::Lock`,
    so it can run at `LOW_POWER_FREQ` once power saving engages. That can leave pages unbuilt when the
@@ -250,7 +271,7 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-28:
     #3765, #3766
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
-    #2603
+    #2603, #3305 (r55)
   - #3764: link-return progress (`docs/fork-reader.md`, "Links, footnotes and
     history")
   - #2602: flat CSS rule pools (`CssParser.h`: `SelectorEntry`,
@@ -260,9 +281,6 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-28:
   - #3452: checked `readStringChecked`. The only unchecked callers left
     read the parser's own temp item store (`ContentOpfParser.cpp` spine idref
     lookup, `serialization::readString(self->tempItemStore, …)`).
-- Needs checking against the fork: #3305 (section/CSS cache mismatch window).
-  `Epub::load` also removes `sections/` when the CSS cache changes
-  (`cssCacheChanged`) and after a CSS reparse.
 - Still deferred: #3705 and #3675 (drafts with open regressions).
 - Watch only, import after merge: #3706 (hyphenation manager), #3704
   (TXT/Markdown via the EPUB pipeline) and #3757 as a whole.
