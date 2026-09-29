@@ -457,8 +457,9 @@ TEST_F(ReaderLinkNavigationTest, OutOfRangeChapterDestinationsPreserveReadingSta
 TEST(ChapterSelection, RejectsInvalidSpineAndPreservesSentinelCancellation) {
   for (const int destination : {-2, -1, 10, 32767}) {
     EpubReaderChapterSelectionActivity picker;
+    picker.epub->tocItems = {{0, "first"}};
     picker.epub->tocItem.spineIndex = destination;
-    picker.activateIndex(0);
+    picker.activateIndex(1);
     ASSERT_TRUE(picker.result);
     EXPECT_TRUE(picker.result->isCancelled) << destination;
     EXPECT_EQ(picker.finishes, 1);
@@ -466,6 +467,26 @@ TEST(ChapterSelection, RejectsInvalidSpineAndPreservesSentinelCancellation) {
   EpubReaderChapterSelectionActivity empty;
   empty.epub->spineCount = 0;
   empty.epub->tocItem.spineIndex = 0;
+  empty.activateIndex(0);
+  ASSERT_TRUE(empty.result);
+  EXPECT_TRUE(empty.result->isCancelled);
+}
+
+TEST(ChapterSelection, LeadingUnresolvedEntriesOpenTheBookStart) {
+  // Calibre's stale NCX "Cover" entry names a page it removed from the spine.
+  for (const int index : {0, 1}) {
+    EpubReaderChapterSelectionActivity picker;
+    picker.epub->tocItems = {{-1, "cover"}, {-1, "cover-2"}, {3, "chapter"}};
+    picker.activateIndex(index);
+    ASSERT_TRUE(picker.result);
+    EXPECT_FALSE(picker.result->isCancelled) << index;
+    const auto& chapter = std::get<ChapterResult>(picker.result->data);
+    EXPECT_EQ(chapter.spineIndex, 0);
+    EXPECT_TRUE(chapter.anchor.empty());
+  }
+  EpubReaderChapterSelectionActivity empty;
+  empty.epub->spineCount = 0;
+  empty.epub->tocItem.spineIndex = -1;
   empty.activateIndex(0);
   ASSERT_TRUE(empty.result);
   EXPECT_TRUE(empty.result->isCancelled);
