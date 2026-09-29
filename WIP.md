@@ -62,13 +62,14 @@ fast-forward/squash integration. No local merge commits.
 
 ## Recovery and verification
 
-No backup branches or extra worktrees are kept; the only branches are reader and
-SDK `develop` plus the active worktree's branch. History removed on 2026-09-28
+No backup branches or extra worktrees are kept; reader and SDK each have only
+`develop`. History removed on 2026-09-28
 (earlier develop tips, the pre-split series, old review/test branches and the
 SDK's single-patch versions) is in verified bundles under
 `/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260928/`, with
-`RESTORE.md`. The 2026-09-27 bundles in `branch-cleanup-20260927/` still cover
-the pre-cleanup history.
+`RESTORE.md`. The 2026-09-27 bundles in
+`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/` still
+cover the pre-cleanup history.
 
 ## Current flash image
 
@@ -78,77 +79,54 @@ The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
 Version: `1.6.5-dev-x4pro-r54-ce9f5c2`.
 SHA-256: `fad60589f95d337077dfc8ee9a4a6465cb3971861747e864efbe153ed5a8542d`.
-Earlier images stay in their dated folders; r53 is
-`x4pro-r53-20260928-065705/firmware-x4pro-r53-f7f0fb5d.bin`.
+Earlier images stay in their dated folders under
+`/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
+records its source. Builds before r54 predate the history split, so their
+source commits are not in `develop`.
 
 r54 is r53's firmware on the newer upstream base `ce9f5c2` and SDK `87c4493`
 (header back-button tap routing, keyboard alignment, list separators and
 checkboxes, SDK atomic SD writes). No fork behavior changed; the fork's commits
-are the split series above. Firmware source is commit `5fa5562f`; the handoff
-commit changes only this file.
+are the split series above. Firmware source is commit `5fa5562f`; later commits
+change only `WIP.md`.
 
 r54 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
 ASan/UBSan tests pass; SDK UI (243,110 checks), Pro display, UC8279, font and
 input host runners pass. The X4 Pro release build is warning-free: static RAM
 102,352 bytes (+32 from upstream input routing), linked flash 5,686,766 bytes;
-image 5,691,776 bytes, ESP32-S3 image inspection valid.
+image 5,691,776 bytes, ESP32-S3 image inspection valid. Logs and test builds:
+the image folder and `/Users/danielyang/.local/share/crosspoint-build/wip-plan/`.
 
-r53 changes from r52 (items 4 and 2):
+Fork changes since r51 that r54 carries (for device testing):
 
 - Queued page turns: a turn pressed during a page update is queued and applied
   when the update ends. Opening the toolbar from the home button, or a pushed
-  screen (dictionary, footnote selection, sync), left it queued, so the page
-  flipped with no input after returning. `openOverlay()` and `onSuspend()` now
+  screen (dictionary, footnote selection, sync), used to leave it queued, so the
+  page flipped with no input after returning. `openOverlay()` and `onSuspend()`
   clear it. Compared with upstream #3636, this is the one case the fork's own
-  queued-turn handling missed; the rest of #3636 duplicates fork code and is
-  not imported.
-- Calibre sort keys (Library index format 4 → 5, record still 128 bytes). The
-  parser reads the title sort (title file-as, else `calibre:title_sort`), the
-  first creator's file-as when that creator is an author, and the book UUID
+  queued-turn handling missed; the rest of #3636 duplicates fork code.
+- Calibre sort keys (Library index format 5, record still 128 bytes). The parser
+  reads the title sort (title file-as, else `calibre:title_sort`), the first
+  creator's file-as when that creator is an author, and the book UUID
   (uuid-scheme/`uuid_id` identifier, else `uuid:`; the "calibre" scheme changes
   between conversions). Title order, group letters and search use the title
   sort, so 199 "The …"/"A …" books move to their Calibre place; search also
   matches the shown title. Author order uses the author sort (surname guess as
   fallback) and headings show it unless written in capitals. Renamed books keep
-  their Added position by UUID even when Calibre rewrote them. The first open of
-  the Library after flashing re-reads all 750 package documents once; arrival
-  order is kept. Parsing rules follow upstream #3757 (Nolan Hawkins).
-  Across the real 750-book export the parser finds a title sort in 750, an
+  their Added position by UUID. The first Library open after moving from an
+  index-format-4 build re-reads all package documents once; arrival order is
+  kept. Across the 750-book export the parser finds a title sort in 750, an
   author sort in 749 (the EPUB 3 book lists its illustrator first) and the
-  expected UUID in 747 of 747.
+  expected UUID in 747 of 747. Relinking progress and bookmarks across renames
+  is not included.
+- Pagebreak markers (`role="doc-pagebreak"`/`epub:type="pagebreak"`) no longer
+  drop book text: tagged paragraphs, headings, list items and blockquotes
+  render; other markers drop only their own label or a bare page number and
+  replay anything else at its reading offsets (adapted from #3349). Section
+  cache version 50: each book re-lays out its chapters once on first open.
 
-r53 validation (2026-09-28): all 1,629 native Release and 1,629 LLVM 22
-ASan/UBSan tests pass, retaining every r51 test name. The X4 Pro release build is
-warning-free: static RAM 102,320 bytes (unchanged), linked flash 5,685,162 bytes;
-image 5,690,176 bytes, ESP32-S3 image inspection valid. Firmware source is
-commit `f7f0fb5d`. An independent
-review of the sort-key change found four issues, all fixed with tests: the rename
-UUID array outlived its phase (up to ~54 KB during the sorts), search missed
-shown titles that differ from a curated title sort, size matching could claim a
-UUID-renamed book's entry first, and an author sort from a later creator split
-author groups. Relinking progress and bookmarks across renames is not included.
-
-r52 changes from r51: the upstream rebase above, and pagebreak markers no longer
-drop book text. Elements tagged `role="doc-pagebreak"`/`epub:type="pagebreak"`
-used to be skipped with their subtree. Tagged paragraphs, headings, list items
-and blockquotes now render; other markers capture up to 32 bytes in the parser
-object (no heap) and drop only their own label or, without a label, a page
-number; anything else replays at its original reading offsets. Adapted from
-upstream PR #3349 (Sylve) without its deferred-`<br>` spacing rework. Section
-cache version 49 → 50, so every book re-lays out its chapters once on first
-open; progress, bookmarks and Library data are kept.
-
-Validation (2026-09-28): all 1,614 native Release tests and all 1,614 LLVM 22
-ASan/UBSan tests pass. They retain every r51 test name plus 4 new upstream tests
-and 11 new pagebreak/version tests. SDK UI (242,854 checks), Pro display,
-UC8279, UC8253, font, ligature, GPOS and input host runners pass. The X4 Pro
-release build is warning-free: static RAM 102,320 bytes (unchanged), linked flash
-5,679,002 bytes; image 5,684,016 bytes, ESP32-S3
-image inspection valid. Firmware source is commit `1399c0ce`; the later handoff
-commit changes only this file. An independent review of the parser change found a
-block-style underflow, glued words at a swallowed `<br>`, and words such as "I"
-dropped as page numbers; all three are fixed with tests. Build logs and scan
-evidence: `/Users/danielyang/.local/share/crosspoint-build/wip-plan/`.
+Design details and attributions are in `docs/fork-reader.md`,
+`docs/fork-library.md` and `docs/fork-layout.md`.
 
 ## Library scan (item 5, done 2026-09-28)
 
@@ -207,8 +185,8 @@ upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done) and r53 (items 2
 and 4 done). Priorities follow the
 offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`. Each item needs
 the user's go-ahead. Upstream's roadmap (Phase 1: footprint and heap
-fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3, 5
-and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
+fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3 and
+5 (done) and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
 upstream merges it.
 
 1. Device validation of r54 with the real library (unchanged). Nothing has been
@@ -238,8 +216,8 @@ upstream merges it.
    #3375, #2987, #2297, #3539, #2614 or #2386 reproduces in the library; do
    not import them for this library. Optional: make the stale NCX "Cover"
    entry (117 books) fall back to the first spine item or hide it.
-6. Background build at idle CPU speed: PR #3060. The background tick at
-   `EpubReaderActivity.cpp:366-368` runs without `HalPowerManager::Lock`,
+6. Background build at idle CPU speed: PR #3060. The background tick,
+   `EpubReaderActivity::advanceSectionBuild()`, runs without `HalPowerManager::Lock`,
    so it can run at `LOW_POWER_FREQ` once power saving engages. That can leave pages unbuilt when the
    reader turns to them. A maintainer questioned the battery cost. Import it
    only with a device measurement of page-turn latency into unbuilt pages
@@ -265,21 +243,26 @@ upstream merges it.
     - #2350: whole-book page estimates
     - #3758: estimate marker placement
 
-Upstream PR triage, 2026-09-27 (open, not merged):
+Upstream PR triage, 2026-09-27, rechecked 2026-09-28:
 
 - Already in the fork, or superseded by fork code:
-  - merged upstream and in the base since 2026-09-28: #3754, #3755, #3765, #3766
+  - merged upstream and in the base since 2026-09-28: #3698, #3754, #3755,
+    #3765, #3766
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
     #2603
-  - #3764: link-return progress (`docs/fork-reader.md`)
-  - #3698: `ButtonNavigator` uses `std::initializer_list`
-  - #2602: flat CSS rule pools in `CssParser.h:150-168`
-  - #2343: ordered lists (`ChapterHtmlSlimParser.cpp:1472`)
+  - #3764: link-return progress (`docs/fork-reader.md`, "Links, footnotes and
+    history")
+  - #2602: flat CSS rule pools (`CssParser.h`: `SelectorEntry`,
+    `selectorPool_`, `stylePool_`)
+  - #2343: ordered lists (`ChapterHtmlSlimParser.cpp`: list context
+    `ctx.ordered` for `<ol>`)
   - #3452: checked `readStringChecked`. The only unchecked callers left
-    read the parser's own temp store (`ContentOpfParser.cpp:427-442`).
+    read the parser's own temp item store (`ContentOpfParser.cpp` spine idref
+    lookup, `serialization::readString(self->tempItemStore, …)`).
 - Needs checking against the fork: #3305 (section/CSS cache mismatch window).
-  `Epub.cpp:505-510` also wipes sections conditionally.
+  `Epub::load` also removes `sections/` when the CSS cache changes
+  (`cssCacheChanged`) and after a CSS reparse.
 - Still deferred: #3705 and #3675 (drafts with open regressions).
 - Watch only, import after merge: #3706 (hyphenation manager), #3704
   (TXT/Markdown via the EPUB pipeline) and #3757 as a whole.
@@ -290,7 +273,8 @@ Upstream PR triage, 2026-09-27 (open, not merged):
   plugins, BLE, other boards, keyboards and translations.
 
 Old item 4 (re-export cost) remains open inside item 1. Reconcile reuses
-metadata only when size and mtime match (`LibraryBuilder.cpp:403`), and the
+metadata only when size and mtime match (`reuseMetadata` in
+`LibraryBuilder.cpp`'s `stageRecord()`), and the
 sync script copies by content without source mtimes.
 
 Workspace note: the checkout and its git data live on local disk at
@@ -299,5 +283,5 @@ earlier SMB checkout under `/Volumes/workspace/projects/crosspoint-reader` is
 retired: the macOS SMB client rejects `F_FULLFSYNC`, which T3 Code's checkpoint
 `git add` forces, and worktree creation and submodule checkout took minutes there.
 Exported builds moved to `/Volumes/workspace/builds/crosspoint-reader/`.
-`core.untrackedCache` is enabled. `lucide` holds only icon-generator source SVGs
-and is not needed to build.
+`core.untrackedCache` is enabled. The SDK's nested `libs/assets/Icons/lucide`
+submodule holds only icon-generator source SVGs and is not needed to build.
