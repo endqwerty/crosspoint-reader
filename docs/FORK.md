@@ -175,10 +175,21 @@ to check out `develop` there while the permanent checkout owns that branch.
   unused. Do not remove, hide or compile it out, because that would diverge from
   upstream. Do not invest in it, prioritize upstream PRs that only touch it, or
   use it in validation plans. Local changes must not break it.
+- Purpose and evidence: this is a personal project to improve the user's own
+  reading on the X4 Pro. The goals so far, and reached in ordinary use, are
+  fast and cheap page turns, less ghosting and a fast Library refresh. The user
+  does not take manual device measurements (recorded 2026-09-29): do not ask
+  for them, do not make them a step in a plan, and do not gate work on them.
+  Judge changes by host tests, operation and allocation counts, static RAM and
+  a clean X4 Pro build, and prefer changes whose benefit is deterministic over
+  ones that trade latency against battery or heap. List device checks as
+  unverified, never as validated.
 - Library workflow: the user keeps their full Calibre library on the SD card.
   They export from Calibre ("Save to disk") on a computer and copy the files
   with an SD card reader. USB transfer from the device is much slower, so don't
-  suggest it. The library has about 400-500 books. Prioritize work that makes
+  suggest it. The Calibre export holds about 750 books, one folder per book
+  (`Author/Title/file.epub`), so features that assume sibling files in a folder
+  do not work for this library. Prioritize work that makes
   this dependable: adding, removing or renaming files externally, re-exported
   files, and keeping reading state across re-exports. The supported copy step is
   `scripts/sync-calibre-library.sh`; update it rather than documenting another

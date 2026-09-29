@@ -170,29 +170,38 @@ on the device; the rest of each TOC works. None of #3375, #2987, #2297, #3539,
 
 ## Remaining work and limits
 
-The 128-chapter cold-open fixture still performs 33,556 HAL reads in its linear
-TOC lookup (below upstream's 400-spine `LARGE_SPINE_THRESHOLD` for the hashed
-href index). Compare memory, correctness and device cold-open time before
-changing that shared policy; it was left alone in r55 for that reason. Broader
-cold-open profiling should include real ZIP/container, CSS and first-page layout;
-the current fixture uses archive/storage doubles.
+The user does not take manual device measurements (recorded 2026-09-29). This
+is a personal project for the user's own reading: faster, cheaper page turns,
+less ghosting and a fast Library refresh, all of which are working on the X4
+Pro in ordinary use. Nothing below waits on a hardware measurement. Device
+timing, peak heap, ghosting, BUSY recovery and power-loss behavior stay
+unmeasured, and docs must not claim otherwise. The evidence for a change is host
+tests, operation and allocation counts, static RAM and a clean X4 Pro build;
+the user's normal reading is the only device exercise, and a regression they
+notice is reported back rather than measured. Prefer changes whose benefit is
+deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
+that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-09-28 at `ce9f5c2`. Recheck upstream and
-open PRs when starting new work. #3705 and #3675 remain deferred for
+Official upstream was fetched on 2026-09-29 at `d1509d07`: three commits above
+the fork's base `ce9f5c2` (#3704 TXT/Markdown through the EPUB pipeline, which
+touches `Epub.cpp` and `BookMetadataCache.cpp` and deletes
+`TxtReaderActivity`; #3732 File Transfer Back; #3773 settings checkbox). The
+fork is not yet rebased onto it. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
-Device timing, peak heap, ghosting, BUSY recovery and power-loss behavior remain
-unmeasured. On r55 check that choosing "Cover" in the chapter list of a
-Calibre book opens its first page, and, with "Move finished books to /Read" on,
-that finishing a book keeps its bookmarks, Finished mark and Library entry
-under `/read`. Also check the Library's first open after flashing (it re-reads
-every package document once), title/author order and headings, and that a turn
-pressed during a page update no longer fires after opening the toolbar with the
-home button. Also check Library search (upstream keyboard) and list
-navigation (upstream press navigation), and that a book's first open after
-flashing re-lays out chapters without errors. Check an uncached long EPUB, TOC
-jumps, reopen and sleep/wake with AA off.
+The 128-chapter cold-open fixture still performs 33,556 HAL reads in its linear
+TOC lookup (item 3 below). Broader cold-open profiling would need real
+ZIP/container, CSS and first-page layout; the current fixture uses
+archive/storage doubles.
+
+Unverified on hardware after r55 (informal only; the user will notice if any
+misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
+page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
+Library entry; a page turn pressed during a page update no longer fires after
+opening the toolbar with the home button; Library search (upstream keyboard)
+and list navigation; the first open of each book after flashing re-lays out
+chapters without errors.
 
 No feature implementation is active. Start the next isolated worktree from
 personal `develop` and follow `docs/FORK.md`'s startup procedure. The roadmap
@@ -200,75 +209,86 @@ below is optional future scope, not unfinished work blocking deletion.
 
 ## Proposed next steps
 
-Replanned 2026-09-27 after re-reading `ROADMAP.md` and triaging all 229 open
-upstream PRs; updated 2026-09-28 after r52 (items 3 and 5 done), r53 (items 2
-and 4 done) and r55 (#3305, the /Read move and item 5's optional follow-up). Priorities follow the
-offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`. Each item needs
-the user's go-ahead. Upstream's roadmap (Phase 1: footprint and heap
-fragmentation; Phase 2: SD-loaded hyphenation/themes) aligns with items 3 and
-5 (done) and 7. Its Phase 2 hyphenation downloader is Wi-Fi-first; import it only after
-upstream merges it.
+Replanned 2026-09-29 after the user said they will not measure device
+performance and asked for further performance and UI improvements. Priorities
+follow the offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`.
+Each item needs the user's go-ahead. Order is the recommended order.
 
-1. Device validation of r55 with the real library (unchanged). Nothing has been
-   measured on hardware. Measure first-entry Library reconcile time, free heap
-   and largest free block (serial) with the full Calibre export on the card.
-   Run `scripts/sync-calibre-library.sh -n` after a real re-export to learn
-   how often renames happen and whether unchanged books are byte-identical
-   (see item 2 and old item 4 below).
-2. Done in r53: Calibre title/author sort keys and stored UUIDs (index
-   format 5). Optional follow-up, only if item 1 shows Calibre renames are
-   common: relink path-keyed reading state (reader cache dir, bookmarks,
-   favorites/reading state, recents) from a vanished path to a new path with
-   the same stored UUID. `moveBookWithState()` (`src/util/BookStateMove.cpp`)
-   already moves the cache, bookmarks and reading state with rollback for an
-   on-device move; a relink would need the same for a file that has already
-   moved, plus recents. Done in r55: the "Move finished books to /Read" move
-   uses that helper and keeps bookmarks and Library state.
-3. Done in r52: pagebreak markers keep wrapped text (adapted #3349). The
-   library scan found no pagebreak attributes, so this protects future books
-   only. Optional follow-up: #3349's deferred `<br>` handling, which joins
-   text a converter split with `<br>` + marker into one line. Drop the local
-   patch if upstream merges its own version.
-4. Done in r53: the one #3636 case the fork missed (see above). Optional:
-   #3636 also skips idle prefetch and background build on ticks with input;
-   that only affects latency, so consider it only if page turns feel slow on
-   the device.
-5. Done in r52: `scripts/scan-epub-library.py` (results above). None of
-   #3375, #2987, #2297, #3539, #2614 or #2386 reproduces in the library; do
-   not import them for this library. Done in r55: the stale NCX "Cover"
-   entry (117 books) opens the first spine item.
-6. Background build at idle CPU speed: PR #3060. The background tick,
-   `EpubReaderActivity::advanceSectionBuild()`, runs without `HalPowerManager::Lock`,
-   so it can run at `LOW_POWER_FREQ` once power saving engages. That can leave pages unbuilt when the
-   reader turns to them. A maintainer questioned the battery cost. Import it
-   only with a device measurement of page-turn latency into unbuilt pages
-   and idle drain.
-7. X4 Pro internal heap: PR #3488 (serialx) rebuilds TinyUSB with only
-   MSC/CDC. That recovers most of the 12,248 bytes of S3 internal heap
-   lost with the Arduino upgrade in #3397. It
-   is a build-system change under maintainer test; wait for upstream to
-   merge it, then rebase onto it rather than carrying it.
-8. Done 2026-09-28: the X4 Pro commit is split into nine building topical
-   patches, the SDK patch into two, the revision notes are folded into
-   `docs/fork-*.md`, and superseded code (#3698 ButtonNavigator, #3506 keyboard
-   via upstream #3755) is gone. Remaining hotspots are fork changes to large
-   upstream files: `LibraryListActivity.cpp`, `EpubReaderActivity.cpp`,
-   `Section.cpp`, `BookMetadataCache.cpp`, `ChapterHtmlSlimParser.cpp`. Splitting
-   those by hunk into smaller patches is possible but only worth it if a future
-   rebase conflicts there repeatedly.
-9. Cold-open TOC lookup (unchanged): the 128-chapter fixture still does 33,556
-   HAL reads in its linear TOC lookup. Compare memory and correctness first.
-10. Optional reading features, for the user to pick from; none are required:
-    - #3642: time left in chapter/book (8-sample pace tracker, ~48 bytes)
-    - #3727: paragraph indentation override
-    - #2350: whole-book page estimates
-    - #3758: estimate marker placement
+1. Rebase onto upstream `d1509d07` (housekeeping, first). #3704 rewrites parts
+   of `lib/Epub/Epub.cpp` and `BookMetadataCache.cpp`, which the bounded-indexing
+   patch also changes, so expect conflicts there and in the host tests that
+   extract `Epub::load`/`parseContentOpf` by signature. Keep upstream's design;
+   adapt the fork patch. TXT/Markdown now share the EPUB cache, so check the
+   Library indexer, `BookStateMove` and cache invalidation still cover them.
+   Build `x4pro-gh_release`, run host tests, then export a new r56 image.
+2. End-of-book "next in series" (UI). `EndOfBookOptions`
+   (`src/activities/reader/EndOfBookOptions.cpp`) lists up to a few later files
+   from the same folder via `NextBookFinder::findNextBooks`. The Calibre export
+   puts every book in its own folder (`Author/Title/-Title - Author.epub`), so
+   the menu is always empty for this library. Offer the next volume from the
+   Library index instead (series order, volume numbers and the Reading/Finished
+   marks already exist in `lib/LibraryIndex/`), falling back to the same
+   author's next unfinished book, then the current folder behavior. Bounded
+   index query, no per-book strings kept in RAM, testable in `test/library_ui`.
+3. Cold-open TOC lookup with a cursor hint (performance). For each TOC entry,
+   `BookMetadataCache::createTocEntry` (`BookMetadataCache.cpp`) seeks the spine
+   staging file to 0 and scans it linearly (below `LARGE_SPINE_THRESHOLD`, 400).
+   TOCs are almost always in spine order, so remember the file offset and index
+   after the last match, scan forward from there, then wrap. About 8 bytes of
+   state, no heap, no threshold change. The gain is host-measurable (33,556 HAL
+   reads on the 128-chapter fixture) and lands on each book's first open and
+   after any cache rebuild. Needs tests for duplicate hrefs (keep first-match
+   semantics), unresolved entries and wrap-around.
+4. Optional reading features, for the user to pick; each is small:
+   - #3642: time left in chapter/book (8-sample pace tracker, ~48 bytes)
+   - #3727: paragraph indentation override
+   Skip #2350 (whole-book page estimates) and #3758: they need every chapter laid
+   out or add UI surface for little gain.
+5. Only if the user notices it: chapter-boundary latency. Idle prefetch
+   decodes only the next page of the current section
+   (`docs/fork-layout.md`); turning into a chapter with no section cache waits
+   for the first page of its incremental layout. Pre-building the next section
+   near a chapter's end would remove that wait but adds idle CPU, SD writes and
+   heap fragmentation, the same trade-offs that keep #3705, #3675 and #3060
+   deferred. It cannot be validated without the device, so do not start it
+   unprompted.
+6. Relink reading state across Calibre renames (from the old item 2). Done in
+   r53/r55: sort keys, stored UUIDs, and state-preserving /Read moves. The
+   relink itself (move the cache directory, bookmarks, reading state and
+   recents from a vanished path to a new path with the same UUID, reusing
+   `moveBookWithState()` in `src/util/BookStateMove.cpp`) is worth doing only
+   if the user finds reading state lost after a re-export.
+7. X4 Pro internal heap: PR #3488 (serialx) rebuilds TinyUSB with only MSC/CDC
+   and recovers most of the 12,248 bytes lost with the Arduino upgrade in #3397.
+   It is a build-system change under maintainer test; wait for upstream to merge
+   it, then rebase onto it rather than carrying it.
+8. Hotspot patch splitting (files `LibraryListActivity.cpp`,
+   `EpubReaderActivity.cpp`, `Section.cpp`, `BookMetadataCache.cpp`,
+   `ChapterHtmlSlimParser.cpp`): only worth it if a rebase conflicts there
+   repeatedly. Item 1 will show whether it does.
 
-Upstream PR triage, 2026-09-27, rechecked 2026-09-28:
+Retired on 2026-09-29: the old "device validation of r55" item, and its use as
+the trigger for the relink. Not planned without a device: further anti-ghosting
+work, idle-power tuning (#3060), and prefetch changes that trade latency for
+battery.
+
+Done earlier, for reference: r52 pagebreak markers (#3349) and the library
+scan (`scripts/scan-epub-library.py`, no #3375/#2987/#2297/#3539/#2614/#2386
+patterns in this library); r53 Calibre sort keys and the queued-turn fix; r55
+CSS/section cache invalidation (#3305), the finished-book move and the stale NCX
+"Cover" entry; 2026-09-28 the nine-patch split and the revision notes folded
+into `docs/fork-*.md`. Old item 4 (re-export cost) is closed: reconcile reuses
+metadata only when size and mtime match (`reuseMetadata` in
+`LibraryBuilder.cpp`'s `stageRecord()`); `scripts/sync-calibre-library.sh`
+copies by content without source mtimes.
+
+Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
 
 - Already in the fork, or superseded by fork code:
   - merged upstream and in the base since 2026-09-28: #3698, #3754, #3755,
     #3765, #3766
+  - merged upstream on 2026-09-29, not yet in the fork's base: #3704, #3732,
+    #3773 (item 1)
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
     #2603, #3305 (r55)
@@ -282,18 +302,13 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-28:
     read the parser's own temp item store (`ContentOpfParser.cpp` spine idref
     lookup, `serialization::readString(self->tempItemStore, …)`).
 - Still deferred: #3705 and #3675 (drafts with open regressions).
-- Watch only, import after merge: #3706 (hyphenation manager), #3704
-  (TXT/Markdown via the EPUB pipeline) and #3757 as a whole.
+- Watch only, import after merge: #3706 (hyphenation manager) and #3757 as a
+  whole.
 - Not adopted: large feature PRs outside this focus, such as
   highlights/clippings (#3589, #2617, #1742, #1478), drop caps (#2387), GIF
   (#2299) and table borders (#2954).
 - Skipped by `docs/FORK.md` policy: OPDS, KOReader sync, WebDAV/web server,
   plugins, BLE, other boards, keyboards and translations.
-
-Old item 4 (re-export cost) remains open inside item 1. Reconcile reuses
-metadata only when size and mtime match (`reuseMetadata` in
-`LibraryBuilder.cpp`'s `stageRecord()`), and the
-sync script copies by content without source mtimes.
 
 Workspace note: the checkout and its git data live on local disk at
 `~/workspace/crosspoint-reader`, and `~/.t3/worktrees` is a local folder. The
