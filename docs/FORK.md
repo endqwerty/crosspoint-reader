@@ -232,6 +232,7 @@ to check out `develop` there while the permanent checkout owns that branch.
 
 Keep upstream's `AGENTS.md` changes limited to the reference to this file. Add new
 fork-specific preferences here rather than distributing them through upstream
-instructions or release notes. A duplicate `CLAUDE.md` is unnecessary for the
-verified Claude Code versions with native `AGENTS.md` support; check the installed
-version and instruction-loading settings before assuming that for other setups.
+instructions or release notes. Codex, Claude Code and Antigravity all load the
+repository's `AGENTS.md` (verified 2026-09-29; versions and the global-file
+layout are in the homelab `workstation.md`), so do not add a `CLAUDE.md` or
+`GEMINI.md`. Recheck after a major agent update before relying on that.
