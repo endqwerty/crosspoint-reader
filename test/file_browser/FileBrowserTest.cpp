@@ -233,6 +233,37 @@ TEST_F(FileBrowserTest, RenameRejectsAllocationOrStateWriteFailureBeforeBookMuta
   EXPECT_EQ(library::dirtyCalls, 0u);
 }
 
+TEST_F(FileBrowserTest, MoveIntoFolderCarriesBookmarksCacheAndReadingState) {
+  // The reader's finished-book move to /read uses the same helper as rename.
+  const std::string oldPath = "/Books/Done.epub", newPath = "/read/Done.epub";
+  fake::add(oldPath);
+  fake::add(BookmarkUtil::getBookmarkPath(oldPath), "marks");
+  fake::add(getBookCachePath(oldPath), "cache");
+  ASSERT_TRUE(library::writeBookState(library::bookStateKey(oldPath), {true, library::ReadingState::Finished}));
+  ASSERT_TRUE(isBookPathFree(newPath));
+  ASSERT_TRUE(moveBookWithState(oldPath, newPath));
+  EXPECT_FALSE(Storage.exists(oldPath.c_str()));
+  EXPECT_TRUE(Storage.exists(newPath.c_str()));
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(newPath)), "marks");
+  EXPECT_EQ(bytes(getBookCachePath(newPath)), "cache");
+  expectState(newPath, true, library::ReadingState::Finished);
+  EXPECT_FALSE(isBookPathFree(newPath));
+}
+
+TEST_F(FileBrowserTest, BookPathIsTakenByLeftoverStateWithoutTheBook) {
+  const std::string path = "/read/Done.epub";
+  EXPECT_TRUE(isBookPathFree(path));
+  fake::add(getBookCachePath(path), "stale");
+  EXPECT_FALSE(isBookPathFree(path));
+  fake::reset();
+  fake::add(BookmarkUtil::getBookmarkPath(path) + ".new", "stale");
+  EXPECT_FALSE(isBookPathFree(path));
+  fake::reset();
+  // Only reflowable books keep bookmark files, so an XTC path ignores them.
+  fake::add(BookmarkUtil::getBookmarkPath("/read/Done.xtc"), "unrelated");
+  EXPECT_TRUE(isBookPathFree("/read/Done.xtc"));
+}
+
 TEST_F(FileBrowserTest, NormalizedNoOpAndUnsafeNamesNeverChangeRawPaths) {
   fake::add("/Cafe\xcc\x81.epub");
   FileBrowserActivity ui;
