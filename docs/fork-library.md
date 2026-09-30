@@ -100,6 +100,28 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
   skips names that already have leftover state. External renames or moves on a
   computer do not migrate state or progress.
 
+### End-of-book suggestions
+
+The "Continue with" menu on a book's last page (EPUB and XTC readers) offers up to
+three books from the Library index, so it works when every book sits in its own
+folder (Calibre's `Author/Title/file.epub` layout), where a sibling-file scan
+finds nothing (`lib/LibraryIndex/LibraryFollowOns.cpp`, used by
+`EndOfBookOptions`):
+
+1. The later volumes of the book's series, in series order (fractional positions
+   included).
+2. If none, the same author's later titles in author order. Books with no author
+   identity (initials-only names) get none.
+3. If the index has no answer (not built, book not indexed, nothing follows), the
+   earlier behavior: later files in the same folder, in file-browser order.
+
+Finished books and files no longer on the card are skipped. The menu is built once
+per reader session at the end of the book from the index as last built; it does
+not trigger a rebuild. Series membership needs an index built with book metadata
+on. Cost: one index open, two bounded record scans to locate the book (the second
+only for the author fallback) and at most 16 rows examined after it; nothing
+library-sized stays resident.
+
 ### Browse Files: "Search folders and files"
 
 - The first Browse Files row. Enter prefixes of one or more filename words; the
@@ -348,20 +370,22 @@ Code:
 
 - `lib/LibraryIndex/` — `LibraryFormat.{h,cpp}`, `LibraryBuilder.{h,cpp}`,
   `LibraryIndexFile.{h,cpp}`, `LibraryText.{h,cpp}`, `LibraryBookState.{h,cpp}`,
-  `LibrarySession.h`
+  `LibraryFollowOns.{h,cpp}`, `LibrarySession.h`
 - `lib/Epub/Epub/parsers/ContentOpfParser.{h,cpp}`, `lib/Epub/Epub.cpp` (metadata-only
   parse)
 - `src/activities/library/` — `LibraryListActivity`, `LibraryMenuActivity`,
   `LibraryBookDetailsActivity`
 - `lib/FolderSearch/FolderSearch.h`, `src/activities/home/FileBrowserActivity.cpp`
 - `src/activities/reader/EpubReaderActivity.cpp` (Reading/Finished marks, /Read move)
+- `src/activities/reader/EndOfBookOptions.{h,cpp}` (end-of-book suggestions)
 - `src/util/BookStateMove.{h,cpp}` (book move with cache, bookmarks and state)
 - SDK TextArea wrapping lives in `freeink-sdk`.
 
 Host tests (`test/`): `library_format`, `library_index_file`, `library_builder`
 (including `LibraryStagingTest.cpp`, which compiles the production builder TU to
 reach `stageRecord`), `library_text`, `library_book_state`, `library_ui`,
-`library_details`, `content_opf_parser`, `folder_search`, `file_browser`.
+`library_details`, `library_follow_ons` (real index builds with one folder per book),
+`content_opf_parser`, `folder_search`, `file_browser`.
 
 `test/library_ui` extracts production methods (e.g. `readAuthor`, grouping,
 filtering, refresh capture/restore, `formatAuthorHeading`) through `extract.py`;
