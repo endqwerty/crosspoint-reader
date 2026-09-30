@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream ce9f5c2, X4 Pro r55, split patch series
+# WIP handoff — develop on upstream d1509d0, X4 Pro r56, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`ce9f5c28` (see `git log upstream/develop..develop`).
+`d1509d07` (see `git log upstream/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -43,6 +43,30 @@ Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstrea
 base, adapt or drop patches when upstream supersedes them, and use rebase plus
 fast-forward/squash integration. No local merge commits.
 
+### Upstream conflicts resolved on 2026-09-29
+
+Rebased the 38-patch series onto `d1509d07` (three upstream commits: #3704,
+#3732, #3773; the SDK pin is unchanged). Upstream's design won every conflict.
+
+- #3704 (TXT/Markdown through the EPUB pipeline) deleted `TxtReaderActivity`.
+  The fork's edits to it are dropped, and the reader navigation host tests no
+  longer include a TXT activity (XTC/EPUB remain; the generic input tests now
+  run on XTC).
+- `Epub::load` keeps the fork's scoped ownership cleanup and adds upstream's
+  TXT/MD branches; they set `loaded` so a successful TXT load keeps its owners.
+  `Epub::loadMetadata` keeps upstream's TXT early return before the fork's
+  always-reparse-the-package rule.
+- `BookMetadataCache::buildBookBin` keeps the fork's chunked, bounded sizing;
+  TXT/MD books take their single spine size from the source file (upstream's
+  raw-file branch) and never use batch sizing.
+- Book state moves follow upstream's cache naming: TXT/MD share `epub_` caches
+  and keep bookmarks (`hasReflowableBookExtension`), so `BookStateMove.cpp` no
+  longer looks for `txt_` caches. The stale-`txt_` prefix check in
+  `isBookCacheDirectoryName` is upstream's and stays.
+- Test stubs gained the `Txt`/`FsHelpers` names `Epub.cpp` and
+  `BookMetadataCache.cpp` now use. The Library index still lists `.txt`/`.md`
+  by filename and reads metadata only from EPUBs.
+
 ### Upstream conflicts resolved on 2026-09-28
 
 - Upstream #3755 redesigned the keyboard. The fork's older keyboard sizing
@@ -64,6 +88,11 @@ fast-forward/squash integration. No local merge commits.
 
 ## Recovery and verification
 
+The series before the 2026-09-29 rebase (reader `d9562882` on `ce9f5c28`) is
+in `/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260929/develop-d9562882.bundle`
+(`git bundle` of `upstream/develop..HEAD`; also still on `origin/develop` until
+the rebased branch is pushed).
+
 No backup branches or extra worktrees are kept; reader and SDK each have only
 `develop`. History removed on 2026-09-28
 (earlier develop tips, the pre-split series, old review/test branches and the
@@ -75,27 +104,28 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r55-20260928-233246/firmware-x4pro-r55-0c194da7.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r55-20260928-233246\firmware-x4pro-r55-0c194da7.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r56-20260929-171110/firmware-x4pro-r56-2c02149f.bin`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r56-20260929-171110\firmware-x4pro-r56-2c02149f.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r55-ce9f5c2`.
-SHA-256: `2b134747405fc26f699e10afe4656504cf85b75faece81fc8854062094ef18c3`.
+Version: `1.6.5-dev-x4pro-r56-d1509d0`.
+SHA-256: `d07a4becf2da41c56a4f6c6d58712173b0d4536a6c27611b167fac1d69f38b2e`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r55 is r54 plus three fixes on the same upstream base `ce9f5c2` and SDK
-`d466732`. Firmware source is commit `0c194da7`; later commits change only
-documentation.
+r56 is r55 rebased onto upstream `d1509d0` (SDK `d466732` unchanged). Firmware
+source is commit `2c02149f`; later commits change only documentation.
 
-r55 validation (2026-09-28): all 1,638 native Release and 1,638 LLVM 22
-ASan/UBSan tests pass (9 new). The clean X4 Pro release build has no warnings:
-static RAM 102,352 bytes (unchanged from r54), linked flash 5,687,178 bytes;
-image 5,692,192 bytes, ESP32-S3 image inspection valid.
+r56 validation (2026-09-29): all 1,640 native Release and 1,640 LLVM 22
+ASan/UBSan tests pass. The clean X4 Pro release build has no warnings: static
+RAM 102,352 bytes (unchanged from r55), linked flash 5,680,026 bytes (7,152
+fewer, mostly the deleted TXT reader); image 5,685,040 bytes, ESP32-S3 image
+inspection valid. Upstream's TXT/Markdown reader now runs through the EPUB
+pipeline; the fork does not exercise it beyond host tests.
 
-Fork changes in r55 (for device testing):
+Fork changes in r55, carried by r56 (for device testing):
 
 - CSS/section cache invalidation (adopted from open upstream #3305). Opening a
   book whose CSS cache was invalid or failed to hydrate deleted it; if the
@@ -182,11 +212,9 @@ notice is reported back rather than measured. Prefer changes whose benefit is
 deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
 that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-09-29 at `d1509d07`: three commits above
-the fork's base `ce9f5c2` (#3704 TXT/Markdown through the EPUB pipeline, which
-touches `Epub.cpp` and `BookMetadataCache.cpp` and deletes
-`TxtReaderActivity`; #3732 File Transfer Back; #3773 settings checkbox). The
-fork is not yet rebased onto it. #3705 and #3675 remain deferred for
+Official upstream was fetched on 2026-09-29 at `d1509d07` and the fork is
+rebased onto it (conflicts above). Recheck upstream and open PRs when starting
+new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
@@ -195,7 +223,7 @@ TOC lookup (item 3 below). Broader cold-open profiling would need real
 ZIP/container, CSS and first-page layout; the current fixture uses
 archive/storage doubles.
 
-Unverified on hardware after r55 (informal only; the user will notice if any
+Unverified on hardware after r55/r56 (informal only; the user will notice if any
 misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
 page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
 Library entry; a page turn pressed during a page update no longer fires after
@@ -214,13 +242,10 @@ performance and asked for further performance and UI improvements. Priorities
 follow the offline-EPUB, X4 Pro and Calibre-library focus in `docs/FORK.md`.
 Each item needs the user's go-ahead. Order is the recommended order.
 
-1. Rebase onto upstream `d1509d07` (housekeeping, first). #3704 rewrites parts
-   of `lib/Epub/Epub.cpp` and `BookMetadataCache.cpp`, which the bounded-indexing
-   patch also changes, so expect conflicts there and in the host tests that
-   extract `Epub::load`/`parseContentOpf` by signature. Keep upstream's design;
-   adapt the fork patch. TXT/Markdown now share the EPUB cache, so check the
-   Library indexer, `BookStateMove` and cache invalidation still cover them.
-   Build `x4pro-gh_release`, run host tests, then export a new r56 image.
+1. Done 2026-09-29 (r56): rebased onto upstream `d1509d07`; see the
+   conflict notes above. Rebase conflicts stayed in `Epub.cpp`,
+   `BookMetadataCache.cpp`, `FileBrowserActivity.cpp` and `BookCacheUtils.cpp`,
+   so splitting those hotspot files by hunk (item 8) is still not worth it.
 2. End-of-book "next in series" (UI). `EndOfBookOptions`
    (`src/activities/reader/EndOfBookOptions.cpp`) lists up to a few later files
    from the same folder via `NextBookFinder::findNextBooks`. The Calibre export
@@ -287,8 +312,7 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
 - Already in the fork, or superseded by fork code:
   - merged upstream and in the base since 2026-09-28: #3698, #3754, #3755,
     #3765, #3766
-  - merged upstream on 2026-09-29, not yet in the fork's base: #3704, #3732,
-    #3773 (item 1)
+  - merged upstream and in the base since 2026-09-29: #3704, #3732, #3773
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
     #2603, #3305 (r55)
