@@ -957,3 +957,80 @@ TEST_F(MetadataBuildFault, EverySpineIndexRefillFailureRejectsThePass) {
     cache_test::resetFaults();
   }
 }
+
+class TocLookup : public BookMetadataCacheTest {
+ protected:
+  static std::string chapter(int i) { return "chapter" + std::to_string(i) + ".xhtml"; }
+
+  // Stages `chapters` spine items and one TOC entry per href; returns the spine index each resolved to
+  // and the HAL reads the TOC entries cost.
+  static std::vector<int> resolve(int chapters, const std::vector<std::string>& hrefs, int* tocReads = nullptr) {
+    BookMetadataCache writer("/book");
+    EXPECT_TRUE(writer.beginWrite());
+    EXPECT_TRUE(writer.beginContentOpfPass());
+    for (int i = 0; i < chapters; ++i) writer.createSpineEntry(chapter(i));
+    EXPECT_TRUE(writer.endContentOpfPass());
+    EXPECT_TRUE(writer.beginTocPass());
+    cache_test::resetFaults();
+    for (const auto& href : hrefs) writer.createTocEntry("Title", href, "", 0);
+    if (tocReads) *tocReads = cache_test::reads;
+    EXPECT_TRUE(writer.endTocPass());
+    EXPECT_TRUE(writer.endWrite());
+    EXPECT_TRUE(writer.buildBookBin("/book.epub", {"Title", "Author", "en", "cover.jpg", "chapter0.xhtml"}));
+    BookMetadataCache reader("/book");
+    EXPECT_TRUE(reader.load());
+    std::vector<int> indices;
+    for (int i = 0; i < reader.getTocCount(); ++i) indices.push_back(reader.getTocEntry(i).spineIndex);
+    return indices;
+  }
+};
+
+TEST_F(TocLookup, InOrderEntriesCostAFewSpineReadsEachInsteadOfAFullScan) {
+  constexpr int CHAPTERS = 128;
+  std::vector<std::string> hrefs;
+  std::vector<int> expected;
+  for (int i = 0; i < CHAPTERS; ++i) {
+    hrefs.push_back(chapter(i));
+    expected.push_back(i);
+  }
+  int reads = 0;
+  EXPECT_EQ(resolve(CHAPTERS, hrefs, &reads), expected);
+  // Each lookup rereads at most the previous match and the new one (four reads per staged entry).
+  EXPECT_LE(reads, CHAPTERS * 4 * 2 + 16);
+}
+
+TEST_F(TocLookup, EntriesSharingOneChapterResolveWithoutRescanning) {
+  int reads = 0;
+  const auto indices = resolve(64, {chapter(40), chapter(40), chapter(40), chapter(41), chapter(41)}, &reads);
+  EXPECT_EQ(indices, (std::vector<int>{40, 40, 40, 41, 41}));
+  // The first lookup scans 41 entries; the rest resume at the match.
+  EXPECT_LE(reads, (41 + 1 + 1 + 2 + 1) * 4 + 8);
+}
+
+TEST_F(TocLookup, OutOfOrderEntriesWrapAroundTheSpine) {
+  EXPECT_EQ(resolve(16, {chapter(10), chapter(3), chapter(7), chapter(3), chapter(0), chapter(15), chapter(1)}),
+            (std::vector<int>{10, 3, 7, 3, 0, 15, 1}));
+}
+
+TEST_F(TocLookup, UnresolvedEntriesStayUnresolvedAndDoNotDisturbLaterOnes) {
+  EXPECT_EQ(resolve(8, {chapter(2), "missing.xhtml", chapter(3), "other.xhtml", chapter(1), chapter(7)}),
+            (std::vector<int>{2, -1, 3, -1, 1, 7}));
+}
+
+TEST_F(TocLookup, ReadFailureDuringTheLookupRejectsThePass) {
+  for (int call = 0; call < 40; ++call) {
+    SCOPED_TRACE(call);
+    BookMetadataCache writer("/book");
+    ASSERT_TRUE(writer.beginWrite());
+    ASSERT_TRUE(writer.beginContentOpfPass());
+    for (int i = 0; i < 8; ++i) writer.createSpineEntry(chapter(i));
+    ASSERT_TRUE(writer.endContentOpfPass());
+    ASSERT_TRUE(writer.beginTocPass());
+    cache_test::resetFaults();
+    cache_test::failRead = call;
+    for (int i : {5, 2, 6}) writer.createTocEntry("Title", chapter(i), "", 0);
+    const bool failed = cache_test::reads > call;
+    EXPECT_EQ(failed, !writer.endTocPass() || !writer.endWrite() || !writer.buildBookBin("/book.epub", {}));
+    cache_test::resetFaults();
+  }
+}
