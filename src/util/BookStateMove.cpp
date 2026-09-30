@@ -106,6 +106,42 @@ bool isBookPathFree(const std::string& path) {
   return true;
 }
 
+bool relinkBookState(const std::string& oldPath, const std::string& newPath) {
+  if (oldPath == newPath || Storage.exists(oldPath.c_str()) || !Storage.exists(newPath.c_str())) return false;
+  const bool withBookmarks = FsHelpers::hasReflowableBookExtension(std::string_view(oldPath));
+  std::string oldPaths[STATE_PATH_COUNT], newPaths[STATE_PATH_COUNT];
+  getStatePaths(oldPath, withBookmarks, oldPaths);
+  getStatePaths(newPath, withBookmarks, newPaths);
+  const uint64_t oldKey = library::bookStateKey(oldPath);
+  library::BookState oldState, newState;
+  if (!library::readBookState(oldKey, oldState) || !library::readBookState(library::bookStateKey(newPath), newState)) {
+    return false;
+  }
+  const auto used = [](const library::BookState& state) {
+    return state.favorite || state.reading != library::ReadingState::Unread;
+  };
+  bool hasOldState = used(oldState);
+  bool newHasState = used(newState);
+  for (int i = 0; i < STATE_PATH_COUNT; ++i) {
+    hasOldState = hasOldState || (!oldPaths[i].empty() && Storage.exists(oldPaths[i].c_str()));
+    newHasState = newHasState || (!newPaths[i].empty() && Storage.exists(newPaths[i].c_str()));
+  }
+  if (!hasOldState) return false;
+  if (newHasState) {
+    LOG_DBG("BookMove", "Keeping existing state at %s; not relinking %s", newPath.c_str(), oldPath.c_str());
+    return false;
+  }
+  auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath);
+  if (!state) {
+    LOG_ERR("BookMove", "OOM: relink state");
+    return false;
+  }
+  if (!state->prepare()) return false;
+  state->commit();
+  if (!library::removeBookState(oldKey)) LOG_ERR("BookMove", "Old reading state not removed: %s", oldPath.c_str());
+  return true;
+}
+
 bool moveBookWithState(const std::string& oldPath, const std::string& newPath) {
   auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath);
   if (!state) {
