@@ -305,3 +305,74 @@ TEST_F(FileBrowserTest, RecursiveEnumerationFailureShowsIncompleteResults) {
   EXPECT_TRUE(ui.searchIncomplete);
   EXPECT_EQ(ui.files, (std::vector<std::string>{"a.epub"}));
 }
+
+class RelinkBookStateTest : public FileBrowserTest {
+ protected:
+  const std::string oldPath = "/Author/Old Title/Old.epub";
+  const std::string newPath = "/Author/New Title/New.epub";
+
+  void SetUp() override {
+    FileBrowserTest::SetUp();
+    fake::add(newPath);
+    fake::add(BookmarkUtil::getBookmarkPath(oldPath), "primary");
+    fake::add(BookmarkUtil::getBookmarkPath(oldPath) + ".bak", "backup");
+    fake::add(getBookCachePath(oldPath), "cache");
+    ASSERT_TRUE(library::writeBookState(library::bookStateKey(oldPath), {true, library::ReadingState::Reading}));
+  }
+};
+
+TEST_F(RelinkBookStateTest, MovesCacheBookmarksAndReadingStateAndDropsTheOldState) {
+  ASSERT_TRUE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(getBookCachePath(newPath)), "cache");
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(newPath)), "primary");
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(newPath) + ".bak"), "backup");
+  expectState(newPath, true, library::ReadingState::Reading);
+  EXPECT_FALSE(Storage.exists(getBookCachePath(oldPath).c_str()));
+  EXPECT_FALSE(Storage.exists(BookmarkUtil::getBookmarkPath(oldPath).c_str()));
+  expectState(oldPath, false, library::ReadingState::Unread);
+  EXPECT_TRUE(Storage.exists(newPath.c_str()));
+}
+
+TEST_F(RelinkBookStateTest, NeverOverwritesStateAlreadyBuiltAtTheNewPath) {
+  fake::add(getBookCachePath(newPath), "fresh cache");
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(getBookCachePath(newPath)), "fresh cache");
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  expectState(oldPath, true, library::ReadingState::Reading);
+
+  fake::files.erase(getBookCachePath(newPath));
+  ASSERT_TRUE(library::writeBookState(library::bookStateKey(newPath), {false, library::ReadingState::Finished}));
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  expectState(newPath, false, library::ReadingState::Finished);
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "primary");
+}
+
+TEST_F(RelinkBookStateTest, NeedsTheOldBookGoneAndTheNewBookPresent) {
+  fake::add(oldPath);
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  fake::files.erase(oldPath);
+  fake::files.erase(newPath);
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  EXPECT_FALSE(relinkBookState(oldPath, oldPath));
+}
+
+TEST_F(RelinkBookStateTest, BookWithoutStateChangesNothing) {
+  fake::files.erase(getBookCachePath(oldPath));
+  fake::files.erase(BookmarkUtil::getBookmarkPath(oldPath));
+  fake::files.erase(BookmarkUtil::getBookmarkPath(oldPath) + ".bak");
+  ASSERT_TRUE(library::removeBookState(library::bookStateKey(oldPath)));
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+}
+
+TEST_F(RelinkBookStateTest, FailureRollsEverythingBackAndKeepsTheOldState) {
+  fake::blockedRenames.push_back({BookmarkUtil::getBookmarkPath(oldPath), BookmarkUtil::getBookmarkPath(newPath)});
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "primary");
+  expectState(oldPath, true, library::ReadingState::Reading);
+  expectState(newPath, false, library::ReadingState::Unread);
+}
