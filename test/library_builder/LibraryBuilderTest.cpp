@@ -1488,3 +1488,98 @@ TEST_F(LibraryBuilderTest, SameSizeBookWithADifferentUuidIsNew) {
   EXPECT_EQ(stats.added, 1);
   EXPECT_EQ(stats.removed, 1);
 }
+
+namespace {
+std::vector<std::pair<std::string, std::string>> renameCalls;
+bool renameResult = true;
+bool recordRename(const std::string& oldPath, const std::string& newPath) {
+  renameCalls.emplace_back(oldPath, newPath);
+  return renameResult;
+}
+std::string uuidFor(const char letter) {
+  std::string uuid = "00000000-0000-4000-8000-000000000000";
+  uuid[0] = letter;
+  return uuid;
+}
+constexpr char RENAME_JOURNAL[] = "/.crosspoint/library.stage.r";
+}  // namespace
+
+class LibraryRenameRelinkTest : public LibraryBuilderTest {
+ protected:
+  void SetUp() override {
+    LibraryBuilderTest::SetUp();
+    renameCalls.clear();
+    renameResult = true;
+    for (const char letter : {'a', 'b', 'c', 'd', 'e'}) {
+      const std::string path = std::string("/") + letter + ".epub";
+      fake::add(path, std::string("book ") + letter);
+      bookMetadata[path] = {std::string("Title ") + letter, "Writer", "", "", true, "", "", uuidFor(letter)};
+    }
+  }
+  static void rename(const char from, const std::string& to, const char uuidLetter) {
+    ASSERT_TRUE(Storage.remove((std::string("/") + from + ".epub").c_str()));
+    fake::add(to, std::string("a rewritten book ") + from, 5);
+    bookMetadata[to] = {std::string("Retitled ") + from, "Writer", "", "", true, "", "", uuidFor(uuidLetter)};
+  }
+};
+
+TEST_F(LibraryRenameRelinkTest, UuidRenamesAreReportedWithOldAndNewPathsAfterInstall) {
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  EXPECT_TRUE(renameCalls.empty());
+  rename('a', "/moved/zulu.epub", 'a');
+  rename('c', "/moved/alpha.epub", 'c');
+  ASSERT_TRUE(Storage.remove("/d.epub"));
+  fake::add("/f.epub", "new book");
+  bookMetadata["/f.epub"] = {"Title f", "Writer", "", "", true, "", "", uuidFor('f')};
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  EXPECT_EQ(stats.uuidRenamed, 2);
+  EXPECT_EQ(stats.relinked, 2);
+  EXPECT_EQ(stats.removed, 1);
+  EXPECT_EQ(stats.added, 1);
+  std::sort(renameCalls.begin(), renameCalls.end());
+  ASSERT_EQ(renameCalls.size(), 2u);
+  EXPECT_EQ(renameCalls[0], (std::pair<std::string, std::string>{"/a.epub", "/moved/zulu.epub"}));
+  EXPECT_EQ(renameCalls[1], (std::pair<std::string, std::string>{"/c.epub", "/moved/alpha.epub"}));
+  EXPECT_FALSE(fake::files.contains(RENAME_JOURNAL));
+}
+
+TEST_F(LibraryRenameRelinkTest, RenamesMatchedBySizeAloneAreNeverReported) {
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  for (const char letter : {'a', 'b', 'c', 'd', 'e'}) bookMetadata[std::string("/") + letter + ".epub"].uuid.clear();
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  ASSERT_TRUE(Storage.rename("/a.epub", "/renamed.epub"));
+  bookMetadata["/renamed.epub"] = bookMetadata["/a.epub"];
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  EXPECT_EQ(stats.renamed, 1);
+  EXPECT_EQ(stats.uuidRenamed, 0);
+  EXPECT_TRUE(renameCalls.empty());
+}
+
+TEST_F(LibraryRenameRelinkTest, UnhandledPairsAreNotCountedAsRelinked) {
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  rename('b', "/b renamed.epub", 'b');
+  renameResult = false;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  EXPECT_EQ(renameCalls.size(), 1u);
+  EXPECT_EQ(stats.uuidRenamed, 1);
+  EXPECT_EQ(stats.relinked, 0);
+}
+
+TEST_F(LibraryRenameRelinkTest, WithoutAHandlerNothingIsJournaled) {
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  rename('b', "/b renamed.epub", 'b');
+  fake::writesByPath.clear();
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.renamed, 1);
+  EXPECT_EQ(stats.uuidRenamed, 0);
+  EXPECT_EQ(fake::writesByPath.count(RENAME_JOURNAL), 0u);
+}
+
+TEST_F(LibraryRenameRelinkTest, FailedInstallReportsNothing) {
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, recordRename));
+  rename('b', "/b renamed.epub", 'b');
+  fake::failRename = 0;
+  EXPECT_FALSE(buildLibraryIndex("/", stats, true, recordRename));
+  EXPECT_TRUE(renameCalls.empty());
+  EXPECT_FALSE(fake::files.contains(RENAME_JOURNAL));
+}
