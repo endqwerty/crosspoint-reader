@@ -293,11 +293,11 @@ Each item needs the user's go-ahead. Order is the recommended order.
    the row, or offer the previous unfinished volume.
 3. Done 2026-09-29 (r58): cold-open TOC lookup resumes at the previous match
    (see the r58 notes above and `docs/fork-epub-indexing.md`).
-4. Optional reading features, for the user to pick; each is small:
-   - #3642: time left in chapter/book (8-sample pace tracker, ~48 bytes)
-   - #3727: paragraph indentation override
-   Skip #2350 (whole-book page estimates) and #3758: they need every chapter laid
-   out or add UI surface for little gain.
+4. Declined by the user on 2026-09-29: time left in chapter/book (#3642),
+   paragraph indentation override (#3727), whole-book page estimates (#2350)
+   and estimate marker placement (#3758). Do not propose reading-display
+   features again unless the user asks; they want speed, ghosting and Library
+   handling, not more reader UI.
 5. Only if the user notices it: chapter-boundary latency. Idle prefetch
    decodes only the next page of the current section
    (`docs/fork-layout.md`); turning into a chapter with no section cache waits
