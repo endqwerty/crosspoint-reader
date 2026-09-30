@@ -53,8 +53,10 @@ struct BuildStats {
   uint16_t enriched = 0;   // took its title or author from the book rather than the filename
   uint16_t parsed = 0;     // EPUB metadata reads performed by this build
   uint16_t metadataReused = 0;
-  uint16_t series = 0;    // distinct series across the card
-  uint16_t inSeries = 0;  // books belonging to one; the rest are standalones
+  uint16_t uuidRenamed = 0;  // UUID-verified renames journaled for the rename handler (0 without one)
+  uint16_t relinked = 0;     // of those, how many the rename handler reported as handled
+  uint16_t series = 0;       // distinct series across the card
+  uint16_t inSeries = 0;     // books belonging to one; the rest are standalones
   bool indexReplaced = false;
   bool ranksDegraded = false;
   bool dedupDegraded = false;
@@ -68,7 +70,15 @@ struct BuildStats {
 // book over its filename. Unchanged metadata is reused from the prior index;
 // changed EPUBs are parsed to the end of <metadata>, before the manifest,
 // without building the reader's spine, TOC, CSS, or section caches.
-bool buildLibraryIndex(const char* rootPath, BuildStats& stats, bool readMetadata = false);
+//
+// `onRenamed`, when given, is called after the new index is installed for each
+// book that vanished from one path and appeared at another with the same book
+// UUID, so path-keyed reading state can follow it. Renames matched by size
+// alone are never reported: a wrong match would hand one book another's state.
+// It returns whether it handled the pair.
+using RenameHandler = bool (*)(const std::string& oldPath, const std::string& newPath);
+bool buildLibraryIndex(const char* rootPath, BuildStats& stats, bool readMetadata = false,
+                       RenameHandler onRenamed = nullptr);
 
 // Live index path, shared by the builder and activity.
 const char* libraryIndexPath();
