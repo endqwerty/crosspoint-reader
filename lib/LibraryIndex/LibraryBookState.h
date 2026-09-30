@@ -13,6 +13,8 @@ struct BookState {
 uint64_t bookStateKey(std::string_view path);
 bool readBookState(uint64_t key, BookState& out);
 bool writeBookState(uint64_t key, const BookState& state);
+// Deletes the state record and its backup/staging files; true when none remain.
+bool removeBookState(uint64_t key);
 bool markBookReading(std::string_view path);
 constexpr bool matchesShelfFilter(const BookState& state, const ShelfFilter filter) {
   switch (filter) {
