@@ -80,6 +80,11 @@ class BookMetadataCache {
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
 
+  // Linear TOC-to-spine search below the threshold: the spine entry matched last,
+  // so the next search resumes there instead of rereading the staged spine from its start.
+  int tocScanIndex = 0;
+  uint32_t tocScanOffset = 0;
+
   // FNV-1a 64-bit hash function
   static uint64_t fnvHash64(const std::string& s) {
     uint64_t hash = 14695981039346656037ull;
