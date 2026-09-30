@@ -83,10 +83,18 @@ time, so `book.bin` is unchanged.
   reported free heap in reserve. These are admission checks, not a guarantee of
   device peak heap; fragmentation can still force a clean refusal.
 - The TOC href index is used at 400 or more spine items
-  (`LARGE_SPINE_THRESHOLD`). Smaller books use a linear TOC-to-spine search, which
-  is a known remaining cold-open bottleneck (a 128-chapter fixture performs more
-  reads than an indexed 512-chapter one); changing that threshold needs its own
-  memory/correctness comparison.
+  (`LARGE_SPINE_THRESHOLD`). Smaller books use a linear TOC-to-spine search that
+  resumes where the previous match ended (`tocScanIndex`/`tocScanOffset`, eight
+  bytes of state, no heap): TOC entries mostly follow spine order and several
+  often share one chapter, so a lookup typically reads the previous match and
+  the next entry instead of the staged spine from its start. It scans to the end
+  from the cursor, then wraps to the start, so out-of-order entries still
+  resolve and an unresolved entry costs one full pass, as before. Only a spine
+  that lists the same href twice (invalid) can resolve differently: to the
+  occurrence at or after the previous match rather than the first. The
+  threshold is unchanged. Host cold-open reads: 128 chapters 33,556 to 1,552
+  (bytes 230,899 to 31,594), 32 chapters 2,255 to 395; seeks and writes are
+  unchanged. These are storage-double read counts, not device timings.
 - Building the href index reads the staged spine through a transient 512-byte
   `BufferedFileReader`, freed before TOC parsing. On allocation failure it falls back
   to checked unbuffered reads. A 512-byte stack buffer would exceed the 256-byte
@@ -246,7 +254,6 @@ match firmware configuration. A host-only target also builds the same source wit
 - Device peak heap/stack, SD latency and power-loss behavior of indexing and
   publication are unmeasured; host operation and allocation counts are not device
   timings.
-- Linear TOC search below 400 spine items (see above).
 - Full ZIP/container discovery, CSS parsing and initial page layout are outside
   the indexing I/O fixtures.
 - The SdFat FAT-cache proposal (PR #3685) is deferred until a real-SdFat
