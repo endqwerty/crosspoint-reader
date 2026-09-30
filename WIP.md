@@ -1,4 +1,4 @@
-# WIP handoff — develop on upstream d1509d0, X4 Pro r56, split patch series
+# WIP handoff — develop on upstream d1509d0, X4 Pro r57, split patch series
 
 ## Repository state
 
@@ -104,19 +104,27 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r56-20260929-171110/firmware-x4pro-r56-2c02149f.bin`
-(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r56-20260929-171110\firmware-x4pro-r56-2c02149f.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r57-20260929-181116/firmware-x4pro-r57-12e591c3.bin`
+(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r57-20260929-181116\firmware-x4pro-r57-12e591c3.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r56-d1509d0`.
-SHA-256: `d07a4becf2da41c56a4f6c6d58712173b0d4536a6c27611b167fac1d69f38b2e`.
+Version: `1.6.5-dev-x4pro-r57-d1509d0`.
+SHA-256: `e448a1e808bb566c0b8d6130dab657405d58e31367eb24f689d5d06311364917`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r56 is r55 rebased onto upstream `d1509d0` (SDK `d466732` unchanged). Firmware
-source is commit `2c02149f`; later commits change only documentation.
+r57 is r56 plus end-of-book suggestions from the Library index (below). Firmware
+source is commit `12e591c3`; later commits change only documentation. r56
+(`x4pro-r56-20260929-171110`, source `2c02149f`) is r55 rebased onto upstream
+`d1509d0` (SDK `d466732` unchanged).
+
+r57 validation (2026-09-29): all 1,650 native Release and 1,650 LLVM 22
+ASan/UBSan tests pass (10 new, `test/library_follow_ons`). The clean X4 Pro
+release build has no warnings: static RAM 102,352 bytes (unchanged), linked
+flash 5,681,118 bytes (+1,092 over r56); image 5,686,128 bytes, ESP32-S3 image
+inspection valid.
 
 r56 validation (2026-09-29): all 1,640 native Release and 1,640 LLVM 22
 ASan/UBSan tests pass. The clean X4 Pro release build has no warnings: static
@@ -125,7 +133,20 @@ fewer, mostly the deleted TXT reader); image 5,685,040 bytes, ESP32-S3 image
 inspection valid. Upstream's TXT/Markdown reader now runs through the EPUB
 pipeline; the fork does not exercise it beyond host tests.
 
-Fork changes in r55, carried by r56 (for device testing):
+Fork change in r57 (for device testing):
+
+- End-of-book "Continue with" menu. It used to list later files from the book's
+  own folder, which is always empty for the Calibre export (one folder per
+  book). It now asks the Library index first: the later volumes of the book's
+  series in series order, else the same author's later titles (never for
+  books without an author identity), skipping Finished books and missing
+  files; the folder scan is the last fallback. Up to three entries, built once
+  per reader session, no index rebuild. Details in `docs/fork-library.md`
+  ("End-of-book suggestions"); code `lib/LibraryIndex/LibraryFollowOns.cpp`
+  and `EndOfBookOptions`. The index must have been built with metadata on for
+  series to appear, and reflects the card as of the last Library refresh.
+
+Fork changes in r55, carried by r56 and r57 (for device testing):
 
 - CSS/section cache invalidation (adopted from open upstream #3305). Opening a
   book whose CSS cache was invalid or failed to hydrate deleted it; if the
@@ -223,13 +244,14 @@ TOC lookup (item 3 below). Broader cold-open profiling would need real
 ZIP/container, CSS and first-page layout; the current fixture uses
 archive/storage doubles.
 
-Unverified on hardware after r55/r56 (informal only; the user will notice if any
+Unverified on hardware after r55/r56/r57 (informal only; the user will notice if any
 misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
 page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
 Library entry; a page turn pressed during a page update no longer fires after
 opening the toolbar with the home button; Library search (upstream keyboard)
 and list navigation; the first open of each book after flashing re-lays out
-chapters without errors.
+chapters without errors; the end-of-book menu shows the next volume (or the
+author's next title) of a Calibre book and opens it.
 
 No feature implementation is active. Start the next isolated worktree from
 personal `develop` and follow `docs/FORK.md`'s startup procedure. The roadmap
@@ -246,15 +268,10 @@ Each item needs the user's go-ahead. Order is the recommended order.
    conflict notes above. Rebase conflicts stayed in `Epub.cpp`,
    `BookMetadataCache.cpp`, `FileBrowserActivity.cpp` and `BookCacheUtils.cpp`,
    so splitting those hotspot files by hunk (item 8) is still not worth it.
-2. End-of-book "next in series" (UI). `EndOfBookOptions`
-   (`src/activities/reader/EndOfBookOptions.cpp`) lists up to a few later files
-   from the same folder via `NextBookFinder::findNextBooks`. The Calibre export
-   puts every book in its own folder (`Author/Title/-Title - Author.epub`), so
-   the menu is always empty for this library. Offer the next volume from the
-   Library index instead (series order, volume numbers and the Reading/Finished
-   marks already exist in `lib/LibraryIndex/`), falling back to the same
-   author's next unfinished book, then the current folder behavior. Bounded
-   index query, no per-book strings kept in RAM, testable in `test/library_ui`.
+2. Done 2026-09-29 (r57): end-of-book "next in series" menu from the Library
+   index (see the r57 notes above and `docs/fork-library.md`). Possible
+   follow-up only if it feels wrong in use: show the series name or volume in
+   the row, or offer the previous unfinished volume.
 3. Cold-open TOC lookup with a cursor hint (performance). For each TOC entry,
    `BookMetadataCache::createTocEntry` (`BookMetadataCache.cpp`) seeks the spine
    staging file to 0 and scans it linearly (below `LARGE_SPINE_THRESHOLD`, 400).
