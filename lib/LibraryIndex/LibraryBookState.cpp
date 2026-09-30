@@ -118,6 +118,16 @@ bool writeBookState(const uint64_t key, const BookState& state) {
   return true;
 }
 
+bool removeBookState(const uint64_t key) {
+  bool removed = true;
+  for (const char* extension : {"bin", "new", "bak"}) {
+    char path[PATH_BYTES];
+    statePath(path, sizeof(path), key, extension);
+    if (Storage.exists(path) && !Storage.remove(path)) removed = false;
+  }
+  return removed;
+}
+
 bool markBookReading(const std::string_view path) {
   const uint64_t key = bookStateKey(path);
   BookState state;

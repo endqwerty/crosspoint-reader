@@ -6,6 +6,17 @@
 
 #include "HalStorage.h"
 
+template <typename F>
+struct ScopedCleanup final {
+  const F fn;
+  explicit ScopedCleanup(F f) : fn{std::move(f)} {}
+  ScopedCleanup(const ScopedCleanup&) = delete;
+  ScopedCleanup& operator=(const ScopedCleanup&) = delete;
+  ~ScopedCleanup() { fn(); }
+};
+template <typename F>
+ScopedCleanup(F) -> ScopedCleanup<F>;
+
 template <typename T, typename... Args>
   requires(!std::is_array_v<T>)
 std::unique_ptr<T> makeUniqueNoThrow(Args&&... args) {
