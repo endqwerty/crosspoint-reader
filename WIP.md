@@ -1,4 +1,4 @@
-# WIP handoff — develop on upstream d1509d0, X4 Pro r58, split patch series
+# WIP handoff — develop on upstream d1509d0, X4 Pro r59, split patch series
 
 ## Repository state
 
@@ -104,23 +104,31 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r58-20260929-181751/firmware-x4pro-r58-45c37c9d.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r58-20260929-181751\firmware-x4pro-r58-45c37c9d.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r59-20260929-184820/firmware-x4pro-r59-d3463ee0.bin`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r59-20260929-184820\firmware-x4pro-r59-d3463ee0.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r58-d1509d0`.
-SHA-256: `d7ae716d012e2aa48662246c882f40f7d8e7bcad07b7717ba81d061900f9ac10`.
+Version: `1.6.5-dev-x4pro-r59-d1509d0`.
+SHA-256: `c73122d3d674c69589c890732a22349452539a3829f3a4e43d1bf6c50f59dbc9`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r58 is r57 plus a cheaper first open for books under 400 chapters (below).
-Firmware source is commit `45c37c9d`; later commits change only documentation.
+r59 is r58 plus reading-state relinking after Calibre renames (below). Firmware
+source is commit `d3463ee0`; later commits change only documentation. r58
+(`x4pro-r58-20260929-181751`, source `45c37c9d`) added the cheaper first open for
+books under 400 chapters (below).
 r57 (`x4pro-r57-20260929-181116`, source `12e591c3`) added the end-of-book
 suggestions from the Library index (below). r56
 (`x4pro-r56-20260929-171110`, source `2c02149f`) is r55 rebased onto upstream
 `d1509d0` (SDK `d466732` unchanged).
+
+r59 validation (2026-09-29): all 1,666 native Release and 1,666 LLVM 22
+ASan/UBSan tests pass (11 new: `LibraryRenameRelinkTest` 5, `RelinkBookStateTest`
+5, `removeBookState` 1). The clean X4 Pro release build has no warnings: static
+RAM 102,352 bytes (unchanged), linked flash 5,683,658 bytes (+2,296 over r58);
+image 5,688,672 bytes, ESP32-S3 image inspection valid.
 
 r58 validation (2026-09-29): all 1,655 native Release and 1,655 LLVM 22
 ASan/UBSan tests pass (5 new `TocLookup` tests plus a cold-open read gate). The
@@ -140,6 +148,27 @@ RAM 102,352 bytes (unchanged from r55), linked flash 5,680,026 bytes (7,152
 fewer, mostly the deleted TXT reader); image 5,685,040 bytes, ESP32-S3 image
 inspection valid. Upstream's TXT/Markdown reader now runs through the EPUB
 pipeline; the fork does not exercise it beyond host tests.
+
+Fork change in r59 (for device testing):
+
+- Reading state follows a book that Calibre renamed. A re-export that edits a
+  title or author moves the book to a new path, which used to strand its reader
+  cache, bookmarks, reading state and Recent entry under the old path. The
+  Library refresh already paired such books by UUID; it now journals the
+  UUID-verified pairs and, after the new index is installed, calls
+  `relinkRenamedBook()` (`src/util/LibraryRelink.cpp`), which moves the cache,
+  bookmark files and reading state to the new path with rollback
+  (`relinkBookState()` in `src/util/BookStateMove.cpp`), removes the old
+  reading state and repoints the Recent entry and open-book path. Size-only
+  matches are never relinked (a wrong pairing would give a book another's
+  progress), and state already built at the new path is never overwritten (the
+  old state stays orphaned). The Library entry now runs the refresh before
+  pruning missing Recent entries so renamed books stay in Recent. Details in
+  `docs/fork-library.md` ("Relinking after external renames"). Check on the
+  device: after re-exporting a book whose title changed, the new entry keeps
+  its Reading/Finished mark, bookmarks and place, and the Recent tab still
+  lists it. Unmeasured: relink time for many renames (a few existence checks per
+  renamed book, more if it has state).
 
 Fork change in r58 (for device testing):
 
@@ -166,7 +195,7 @@ Fork change in r57 (for device testing):
   and `EndOfBookOptions`. The index must have been built with metadata on for
   series to appear, and reflects the card as of the last Library refresh.
 
-Fork changes in r55, carried by r56 to r58 (for device testing):
+Fork changes in r55, carried by r56 to r59 (for device testing):
 
 - CSS/section cache invalidation (adopted from open upstream #3305). Opening a
   book whose CSS cache was invalid or failed to hydrate deleted it; if the
@@ -203,8 +232,8 @@ Earlier fork changes since r51 that r55 carries (for device testing):
   index-format-4 build re-reads all package documents once; arrival order is
   kept. Across the 750-book export the parser finds a title sort in 750, an
   author sort in 749 (the EPUB 3 book lists its illustrator first) and the
-  expected UUID in 747 of 747. Relinking progress and bookmarks across renames
-  is not included.
+  expected UUID in 747 of 747. (Relinking progress and bookmarks across
+  renames followed in r59.)
 - Pagebreak markers (`role="doc-pagebreak"`/`epub:type="pagebreak"`) no longer
   drop book text: tagged paragraphs, headings, list items and blockquotes
   render; other markers drop only their own label or a bare page number and
@@ -263,7 +292,7 @@ Cold-open profiling is host-only: it uses archive/storage doubles, so it lacks
 real ZIP/container, CSS and first-page layout costs. The 128-chapter fixture
 now reads 1,552 times in its cold open (was 33,556 before r58).
 
-Unverified on hardware after r55 to r58 (informal only; the user will notice if any
+Unverified on hardware after r55 to r59 (informal only; the user will notice if any
 misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
 page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
 Library entry; a page turn pressed during a page update no longer fires after
@@ -306,12 +335,10 @@ Each item needs the user's go-ahead. Order is the recommended order.
    heap fragmentation, the same trade-offs that keep #3705, #3675 and #3060
    deferred. It cannot be validated without the device, so do not start it
    unprompted.
-6. Relink reading state across Calibre renames (from the old item 2). Done in
-   r53/r55: sort keys, stored UUIDs, and state-preserving /Read moves. The
-   relink itself (move the cache directory, bookmarks, reading state and
-   recents from a vanished path to a new path with the same UUID, reusing
-   `moveBookWithState()` in `src/util/BookStateMove.cpp`) is worth doing only
-   if the user finds reading state lost after a re-export.
+6. Done 2026-09-29 (r59): relink reading state across Calibre renames (see the r59
+   notes above and `docs/fork-library.md`). Possible follow-up only if the
+   device shows a gap: relinking books that lack a UUID (needs a safe identity
+   other than size), or relinking a rename plus a same-UUID copy.
 7. X4 Pro internal heap: PR #3488 (serialx) rebuilds TinyUSB with only MSC/CDC
    and recovers most of the 12,248 bytes lost with the Arduino upgrade in #3397.
    It is a build-system change under maintainer test; wait for upstream to merge
@@ -321,8 +348,7 @@ Each item needs the user's go-ahead. Order is the recommended order.
    `ChapterHtmlSlimParser.cpp`): only worth it if a rebase conflicts there
    repeatedly. Item 1 will show whether it does.
 
-Retired on 2026-09-29: the old "device validation of r55" item, and its use as
-the trigger for the relink. Not planned without a device: further anti-ghosting
+Retired on 2026-09-29: the old "device validation of r55" item. Not planned without a device: further anti-ghosting
 work, idle-power tuning (#3060), and prefetch changes that trade latency for
 battery.
 
