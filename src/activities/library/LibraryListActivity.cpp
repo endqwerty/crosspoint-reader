@@ -27,6 +27,7 @@
 #include "components/icons/search32.h"
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
+#include "util/LibraryRelink.h"
 
 namespace fui = freeink::ui;
 
@@ -93,10 +94,6 @@ void LibraryListActivity::onEnter() {
   app.on(ACTION_REBUILD, &LibraryListActivity::rebuildActionTrampoline, this);
   app.on(ACTION_BACK, &LibraryListActivity::backActionTrampoline, this);
 
-  // Recent is backed by the resident store. Prune before opening the index so
-  // its persistence write never overlaps the long-lived index reader.
-  if (RECENT_BOOKS.pruneMissing()) RECENT_BOOKS.saveToFile();
-
   const bool validIndex = index.open(library::libraryIndexPath());
   const bool matchingMetadata = validIndex && index.header().metadataEnabled == (SETTINGS.libraryUseMetadata != 0);
   if (library::isLibraryIndexDirty() || library::librarySession.needsRefresh(validIndex, matchingMetadata)) {
@@ -107,6 +104,18 @@ void LibraryListActivity::onEnter() {
     library::librarySession.reconciled(!refreshFailed, refreshToken);
     if (!index.open(library::libraryIndexPath())) {
       LOG_ERR("LIB", "cannot open library index");
+      refreshFailed = true;
+      library::librarySession.invalidate();
+    }
+  }
+  // Recent is backed by the resident store. A refresh above relinks renamed
+  // books, so it runs first and only the entries still missing are pruned. The
+  // index is released around the store's persistence write.
+  if (RECENT_BOOKS.pruneMissing()) {
+    index.close();
+    RECENT_BOOKS.saveToFile();
+    if (!index.open(library::libraryIndexPath())) {
+      LOG_ERR("LIB", "cannot reopen library index");
       refreshFailed = true;
       library::librarySession.invalidate();
     }
@@ -146,16 +155,18 @@ void LibraryListActivity::onExit() {
 
 bool LibraryListActivity::rebuildIndex() {
   library::BuildStats stats;
-  const bool ok = library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0);
+  const bool ok = library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0, relinkRenamedBook);
   if (!ok) {
     LOG_ERR("LIB", "index build failed");
     return false;
   }
-  LOG_INF("LIB", "reconciled: %u unchanged, %u added, %u renamed, %u removed, %u enriched (%u dup, %u unreadable)",
+  LOG_INF("LIB",
+          "reconciled: %u unchanged, %u added, %u renamed (%u kept reading state), %u removed, %u enriched (%u dup, %u "
+          "unreadable)",
           static_cast<unsigned>(stats.unchanged), static_cast<unsigned>(stats.added),
-          static_cast<unsigned>(stats.renamed), static_cast<unsigned>(stats.removed),
-          static_cast<unsigned>(stats.enriched), static_cast<unsigned>(stats.duplicatesDropped),
-          static_cast<unsigned>(stats.unreadableSkipped));
+          static_cast<unsigned>(stats.renamed), static_cast<unsigned>(stats.relinked),
+          static_cast<unsigned>(stats.removed), static_cast<unsigned>(stats.enriched),
+          static_cast<unsigned>(stats.duplicatesDropped), static_cast<unsigned>(stats.unreadableSkipped));
   if (stats.dedupDegraded) LOG_ERR("LIB", "rebuild completed without duplicate detection");
   return true;
 }
