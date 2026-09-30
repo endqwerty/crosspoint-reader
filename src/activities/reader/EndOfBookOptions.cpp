@@ -4,6 +4,9 @@
 #include <GfxRenderer.h>
 #include <HalGPIO.h>
 #include <I18n.h>
+#include <LibraryBuilder.h>
+#include <Logging.h>
+#include <Memory.h>
 
 #include "CrossPointSettings.h"
 #include "ReaderUtils.h"
@@ -30,14 +33,37 @@ std::string displayName(const std::string& filename) {
 
 EndOfBookOptions::EndOfBookOptions(GfxRenderer& renderer) : UiAppHost(renderer), renderer(renderer) {}
 
+size_t EndOfBookOptions::findLibraryFollowOns(const std::string& currentBookPath) {
+  auto index = makeUniqueNoThrow<library::LibraryIndexFile>();
+  if (!index) {
+    LOG_ERR("EOB", "OOM: library index reader");
+    return 0;
+  }
+  if (!index->open(library::libraryIndexPath())) return 0;
+  return library::findFollowOns(*index, currentBookPath, followOns, MAX_SUGGESTIONS);
+}
+
+size_t EndOfBookOptions::findFolderSiblings(const std::string& currentBookPath) {
+  const std::string folder = FsHelpers::extractFolderPath(currentBookPath);
+  const auto names = NextBookFinder::findNextBooks(currentBookPath, MAX_SUGGESTIONS);
+  size_t count = 0;
+  for (const auto& name : names) {
+    if (count >= MAX_SUGGESTIONS) break;
+    followOns[count].path = folder == "/" ? "/" + name : folder + "/" + name;
+    followOns[count].title = displayName(name);
+    ++count;
+  }
+  return count;
+}
+
 void EndOfBookOptions::loadOnce(const std::string& currentBookPath) {
   if (isLoaded.load(std::memory_order_acquire)) {
     return;
   }
-  folder = FsHelpers::extractFolderPath(currentBookPath);
-  names = NextBookFinder::findNextBooks(currentBookPath, MAX_SUGGESTIONS);
+  followOnCount = findLibraryFollowOns(currentBookPath);
+  if (followOnCount == 0) followOnCount = findFolderSiblings(currentBookPath);
   selector.store(0, std::memory_order_relaxed);
-  if (!names.empty()) {
+  if (followOnCount > 0) {
     // One-time app setup on the render task, before the first render/route.
     resetUi();
     app.on(ACTION_ROW, &EndOfBookOptions::onRowEvent, this);
@@ -49,13 +75,13 @@ void EndOfBookOptions::loadOnce(const std::string& currentBookPath) {
   isLoaded.store(true, std::memory_order_release);
 }
 
-// Populates rowLabels/rowItems from names + the trailing "Home" row. Called
-// once here since names never changes after loadOnce() completes.
+// Populates rowLabels/rowItems from followOns + the trailing "Home" row. Called
+// once here since followOns never changes after loadOnce() completes.
 void EndOfBookOptions::buildRowItems() {
   rowCount = 0;
-  for (const auto& name : names) {
+  for (size_t i = 0; i < followOnCount; ++i) {
     if (rowCount >= MAX_ROWS) break;
-    rowLabels[rowCount] = displayName(name);
+    rowLabels[rowCount] = followOns[i].title;
     fui::ListItem item;
     item.label = rowLabels[rowCount].c_str();
     item.actionValue = static_cast<int16_t>(rowCount);
@@ -72,18 +98,11 @@ void EndOfBookOptions::buildRowItems() {
   }
 }
 
-bool EndOfBookOptions::menuActive() const { return isLoaded.load(std::memory_order_acquire) && !names.empty(); }
-
-std::string EndOfBookOptions::fullPath(const size_t index) const {
-  if (index >= names.size()) {
-    return {};
-  }
-  return folder == "/" ? "/" + names[index] : folder + "/" + names[index];
-}
+bool EndOfBookOptions::menuActive() const { return isLoaded.load(std::memory_order_acquire) && followOnCount > 0; }
 
 void EndOfBookOptions::onRowEvent(const fui::ActionEvent& event, void* user) {
   auto* self = static_cast<EndOfBookOptions*>(user);
-  if (event.value < 0 || event.value > static_cast<int16_t>(self->names.size())) return;
+  if (event.value < 0 || event.value > static_cast<int16_t>(self->followOnCount)) return;
   self->selector.store(event.value, std::memory_order_relaxed);
   // The tapped row leaves this screen (open book or home); a lingering flash
   // would gray an unrelated element on the next render.
@@ -100,9 +119,9 @@ EndOfBookOptions::Action EndOfBookOptions::handleMenuInput(const MappedInputMana
   // app.on(ACTION_ROW, ...)), which sets tappedRow, so it flags this as always false.
   // cppcheck-suppress knownConditionTrueFalse
   if (route && tappedRow >= 0) {
-    if (tappedRow < static_cast<int>(names.size())) {
+    if (tappedRow < static_cast<int>(followOnCount)) {
       if (openPath) {
-        *openPath = fullPath(tappedRow);
+        *openPath = followOns[tappedRow].path;
       }
       return Action::OpenBook;
     }
@@ -114,9 +133,9 @@ EndOfBookOptions::Action EndOfBookOptions::handleMenuInput(const MappedInputMana
 
   const int selectedIndex = selector.load(std::memory_order_relaxed);
   if (input.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (selectedIndex < static_cast<int>(names.size())) {
+    if (selectedIndex < static_cast<int>(followOnCount)) {
       if (openPath) {
-        *openPath = fullPath(selectedIndex);
+        *openPath = followOns[selectedIndex].path;
       }
       return Action::OpenBook;
     }
@@ -139,7 +158,7 @@ EndOfBookOptions::Action EndOfBookOptions::handleMenuInput(const MappedInputMana
   const auto triggered = [&](const MappedInputManager::Button button) {
     return usePress ? input.wasPressed(button) : input.wasReleased(button);
   };
-  const int itemCount = static_cast<int>(names.size()) + 1;  // + "Home" entry
+  const int itemCount = static_cast<int>(followOnCount) + 1;  // + "Home" entry
   if (triggered(MappedInputManager::Button::NavPrevious)) {
     selector.store(ButtonNavigator::previousIndex(selectedIndex, itemCount), std::memory_order_relaxed);
     return Action::Redraw;
