@@ -220,3 +220,16 @@ TEST(LibrarySessionTest, InvalidationDuringBuildSurvivesSuccessfulCompletion) {
   session.reconciled(true, retry);
   EXPECT_FALSE(session.needsRefresh(true, true));
 }
+
+TEST_F(LibraryBookStateTest, RemovingStateDeletesRecordBackupAndStagingFiles) {
+  ASSERT_TRUE(writeBookState(KEY, FAVORITE));
+  ASSERT_TRUE(writeBookState(KEY, FINISHED));
+  fake::add(TEMP, "staged");
+  fake::add(BACKUP, "backup");
+  EXPECT_TRUE(removeBookState(KEY));
+  EXPECT_FALSE(Storage.exists(MAIN));
+  EXPECT_FALSE(Storage.exists(TEMP));
+  EXPECT_FALSE(Storage.exists(BACKUP));
+  expectState({});
+  EXPECT_TRUE(removeBookState(KEY));
+}
