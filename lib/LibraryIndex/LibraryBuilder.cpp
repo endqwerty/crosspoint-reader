@@ -1479,7 +1479,51 @@ bool markLibraryIndexDirty() {
 
 bool isLibraryIndexDirty() { return dirtyInMemory || Storage.exists(DIRTY_PATH); }
 
-bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readMetadata) {
+namespace {
+// Renames matched by book UUID, journaled during reconciliation: the UUID, the
+// staged record index, then the previous path. A record index is unchanged
+// through the sorts; `order` maps it to the installed record.
+struct RenameJournalHeader {
+  uint8_t uuid[CLIX_UUID_BYTES];
+  uint16_t stagedIndex;
+  uint16_t pathLen;
+};
+
+// Reads the journal back once the new index is installed and reports each pair,
+// with the new path taken from the installed record, which must carry the same UUID.
+void applyRenames(const std::string& journalPath, const uint16_t* order, const uint16_t books,
+                  const RenameHandler onRenamed, BuildStats& stats) {
+  auto index = makeUniqueNoThrow<LibraryIndexFile>();
+  HalFile journal;
+  if (!index || !index->open(libraryIndexPath()) || !Storage.openFileForRead("LIBIDX", journalPath.c_str(), journal)) {
+    LOG_ERR("LIBIDX", "cannot apply renames; reading state stays with the old paths");
+    return;
+  }
+  RenameJournalHeader header{};
+  std::string oldPath, newPath, uuid;
+  ClixRecord record{};
+  while (journal.read(&header, sizeof(header)) == static_cast<int>(sizeof(header))) {
+    oldPath.resize(header.pathLen);
+    if (header.pathLen && journal.read(oldPath.data(), header.pathLen) != static_cast<int>(header.pathLen)) return;
+    uint16_t ordinal = books;
+    for (uint16_t k = 0; k < books; ++k) {
+      if (order[k] == header.stagedIndex) {
+        ordinal = k;
+        break;
+      }
+    }
+    if (ordinal >= books || !index->readRecord(ordinal, record) || !index->readUuid(record, uuid) ||
+        uuid.size() != CLIX_UUID_BYTES || memcmp(uuid.data(), header.uuid, CLIX_UUID_BYTES) != 0 ||
+        !index->readPath(record, newPath) || newPath == oldPath) {
+      continue;
+    }
+    if (onRenamed(oldPath, newPath)) stats.relinked++;
+  }
+}
+}  // namespace
+
+bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readMetadata,
+                       const RenameHandler onRenamed) {
   const uint32_t refreshToken = librarySession.refreshToken();
   const uint32_t startMs = millis();
   uint32_t serviceUnits = 0;
@@ -1490,6 +1534,9 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
   Storage.remove(STAGE_PATH);
   const std::string folderStagePath = std::string(STAGE_PATH) + ".f";
   Storage.remove(folderStagePath.c_str());
+  const std::string journalPath = std::string(STAGE_PATH) + ".r";
+  Storage.remove(journalPath.c_str());
+  ScopedCleanup removeJournal{[&journalPath] { Storage.remove(journalPath.c_str()); }};
 
   auto nameBuf = makeUniqueNoThrow<char[]>(NAME_BUF_SIZE);
   if (!nameBuf) {
@@ -1751,6 +1798,31 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
       }
     };
 
+    // UUID-verified renames are journaled with their previous path, still
+    // readable from the previous index only until it is released below.
+    HalFile journal;
+    bool journaling = onRenamed && priorUuidCount > 0 && Storage.openFileForWrite("LIBIDX", journalPath, journal);
+    std::string previousPath;
+    const auto journalRename = [&](const uint16_t priorOrdinalIndex, const uint16_t stagedIndex,
+                                   const uint8_t* uuidBytes) {
+      ClixRecord prior{};
+      if (!previous.readRecord(priorOrdinalIndex, prior) || !previous.readPath(prior, previousPath) ||
+          previousPath.size() > UINT16_MAX) {
+        return;
+      }
+      RenameJournalHeader entry{};
+      memcpy(entry.uuid, uuidBytes, CLIX_UUID_BYTES);
+      entry.stagedIndex = stagedIndex;
+      entry.pathLen = static_cast<uint16_t>(previousPath.size());
+      if (journal.write(&entry, sizeof(entry)) != sizeof(entry) ||
+          journal.write(previousPath.data(), previousPath.size()) != previousPath.size()) {
+        LOG_ERR("LIBIDX", "rename journal write failed; skipping state relink");
+        journaling = false;
+        return;
+      }
+      stats.uuidRenamed++;
+    };
+
     // Pass 1 settles path matches and UUID renames. With UUIDs to match, size
     // matching waits for pass 2, so an unrelated book of the same size cannot
     // take a renamed book's arrival first.
@@ -1778,9 +1850,12 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
         markPriorMatched(priorList[it->prior]);
         resolvedFirstSeen[i] = priorList[it->prior].firstSeen;
         stats.renamed++;
+        if (journaling) journalRename(priorOrdinal(priorList[it->prior]), i, staged.bytes);
         break;
       }
     }
+    if (journal.isOpen() && !journal.close()) journaling = false;
+    if (!journaling) stats.uuidRenamed = 0;
 
     // Pass 2, only when UUIDs were matched: the rest by size, or new.
     for (uint16_t i = 0; priorUuidCount > 0 && i < st.books; i++) {
@@ -1892,6 +1967,7 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
   const bool ok =
       emitIndex(folderStagePath.c_str(), st, order.get(), resolvedFirstSeen.get(), coreSortsAvailable, stats);
   LOG_DBG("LIBIDX", "phase author/orders/emit: %ums", static_cast<unsigned>(millis() - emitStartMs));
+  if (ok && onRenamed && stats.uuidRenamed > 0) applyRenames(journalPath, order.get(), st.books, onRenamed, stats);
   Storage.remove(STAGE_PATH);
   Storage.remove(folderStagePath.c_str());
 
