@@ -11,7 +11,7 @@ Main code:
   navigation, incremental build, progress), `ReaderNavigationHistory.h`,
   `ReaderProgressState.h`, `ReaderGrayscalePlan.h`, `ReaderRefreshTransaction.h`,
   `ReaderToolbarUi.{h,cpp}`, `EpubReaderFootnoteSelectActivity`,
-  `EpubReaderBookmarksActivity`, `EpubSearchActivity`, `TxtReaderActivity`,
+  `EpubReaderBookmarksActivity`, `EpubSearchActivity`,
   `XtcReaderActivity`
 - `lib/Epub/Epub/Section.cpp`, `PrefetchedPageCache.h`, `PagePrefetchPolicy.h`
 - `lib/EpubSearch/` (search engine), `src/activities/RenderLock.h`,
@@ -68,7 +68,7 @@ Kindle-parity or speed claim rests on them.
   this was the one case the fork's queued-turn handling had missed. Covered by
   `test/reader_overlay`.
 - Rejected page/chapter navigation (queued EPUB turns, toolbar chapter scrubbing,
-  TXT/XTC page boundaries) requests no repaint, consumes no refresh-cycle count
+  XTC page boundaries) requests no repaint, consumes no refresh-cycle count
   and activates no panel. Successful navigation, end-of-book transitions,
   unfinished chapter builds and explicit refresh behave normally.
 
@@ -155,13 +155,13 @@ traversals do not mean proportionally less bitmap work.
 ### Skipping unnecessary grayscale
 
 - Night mode: the SDK reports grayscale unsupported while inverted.
-  `ReaderGrayscalePlan` (no allocation) lets EPUB and TXT check that before
+  `ReaderGrayscalePlan` (no allocation) lets EPUB check that before
   choosing a grayscale path, avoiding the 48,000-byte temporary B/W backup and
   two gray passes whose uploads would be discarded. B/W drawing, the user AA
   preference, images and scheduled cleanup are unchanged; supported day-mode
   paths keep their capability selection, including the low-memory strip
   fallback.
-- Monochrome text: EPUB/TXT skip text AA when the body draw uses only black
+- Monochrome text: EPUB (including TXT/Markdown) skips text AA when the body draw uses only black
   1-bit text (or no text) and there are no images. GfxRenderer conservatively
   tracks the resolved family/style; any 2-bit font, white text or unknown font
   data keeps the AA pass. This covers fallback, rotated and scaled text without
