@@ -15,7 +15,8 @@ The byte layouts of `library.idx` (CLX1) and the book-state records are defined 
 
 - Four tabs: **Recent** (reading history), **Added**, **Title**, and a last tab that
   is **Author** or **Series** (`SETTINGS.libraryGroupBySeries`). Recent entries whose
-  files have disappeared are pruned on entry, before the index is opened.
+  files have disappeared are pruned on entry, after the refresh, so renamed books
+  are relinked first.
 - Library Options opens from the header icon or by holding Confirm while the tab
   strip has focus ("Hold: Options"): Grouping (Title, Author, Series, Added, Recent),
   Filter (All, Favorites, Unread, Reading, Finished), Reverse sort, Refresh library.
@@ -97,8 +98,36 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
   on the device, and the "Move finished books to /Read" move, carry the state
   sidecar (with bookmark and cache files) and roll back on failure
   (`moveBookWithState()` in `src/util/BookStateMove.cpp`). The /Read destination
-  skips names that already have leftover state. External renames or moves on a
-  computer do not migrate state or progress.
+  skips names that already have leftover state.
+- Books renamed or moved outside the device (a Calibre re-export after a title or
+  author edit) keep their state when the book names a UUID (see "Relinking after
+  external renames" below); a file without a UUID does not.
+
+### Relinking after external renames
+
+The Library refresh already pairs a vanished entry with a new one by book UUID (a
+size match is the fallback and only keeps the "Added" position). For each pair
+matched by UUID, `buildLibraryIndex` journals the old path during reconciliation
+(`/.crosspoint/library.stage.r`, removed on every exit), and once the new index is
+installed calls the caller's `RenameHandler` with the old path and the new path
+read back from the installed record, which must carry the same UUID. Size-only
+matches are never reported: a wrong pairing would give one book another's
+bookmarks and progress.
+
+The handler used by the Library and Home refreshes (`relinkRenamedBook`,
+`src/util/LibraryRelink.cpp`) calls `relinkBookState()`
+(`src/util/BookStateMove.cpp`), which moves the reader cache, the bookmark files
+and the reading state to the new path with rollback on failure, deletes the old
+reading state, repoints the Recent entry and the open-book path. It relinks only
+when the old book is gone, the new book exists, the old path has state and the
+new path has none: state already built at the new path is left alone and the old
+state stays orphaned. The Library entry runs the refresh before pruning missing
+Recent entries, so a renamed book stays in Recent.
+
+Cost: one journal record per UUID rename (about 20 bytes plus the old path) on SD,
+nothing kept in RAM, and a handful of existence checks per renamed book. Not
+covered: books without a UUID, and a rename plus a same-UUID copy elsewhere (the
+first match wins).
 
 ### End-of-book suggestions
 
@@ -353,7 +382,7 @@ destroyed to open a book.
   longer to open.
 - A same-size replacement that preserves its FAT timestamp reuses stale metadata
   until the index is reset.
-- State and progress follow raw paths; external renames/moves lose them.
+- State and progress follow raw paths; external renames and moves keep them only for books that name a UUID.
 - Series and author digests are probabilistic identities.
 - The HAL does not distinguish end-of-directory from an entry read failure, so that
   SD error is invisible to the Browse Files walker. Unreadable directories, skipped
@@ -378,13 +407,14 @@ Code:
 - `lib/FolderSearch/FolderSearch.h`, `src/activities/home/FileBrowserActivity.cpp`
 - `src/activities/reader/EpubReaderActivity.cpp` (Reading/Finished marks, /Read move)
 - `src/activities/reader/EndOfBookOptions.{h,cpp}` (end-of-book suggestions)
-- `src/util/BookStateMove.{h,cpp}` (book move with cache, bookmarks and state)
+- `src/util/BookStateMove.{h,cpp}` (book move with cache, bookmarks and state; relink after an external rename)
+- `src/util/LibraryRelink.{h,cpp}` (rename handler for the Library refresh)
 - SDK TextArea wrapping lives in `freeink-sdk`.
 
 Host tests (`test/`): `library_format`, `library_index_file`, `library_builder`
 (including `LibraryStagingTest.cpp`, which compiles the production builder TU to
 reach `stageRecord`), `library_text`, `library_book_state`, `library_ui`,
-`library_details`, `library_follow_ons` (real index builds with one folder per book),
+`library_details`, `library_follow_ons` (real index builds with one folder per book), the `LibraryRenameRelinkTest` cases in `library_builder`, the `RelinkBookStateTest` cases in `file_browser`,
 `content_opf_parser`, `folder_search`, `file_browser`.
 
 `test/library_ui` extracts production methods (e.g. `readAuthor`, grouping,
