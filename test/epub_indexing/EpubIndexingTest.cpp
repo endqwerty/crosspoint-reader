@@ -266,6 +266,8 @@ TEST(EpubColdOpen, ProfilesColdIndexAndWarmMetadataLoads) {
     ASSERT_TRUE(loaded);
     ASSERT_EQ(aborts, 0u);
     if (chapters >= 400) EXPECT_LT(cold.reads, static_cast<size_t>(chapters) * 5);
+    // Below 400 spine items the TOC lookup is linear but resumes at the previous match.
+    if (chapters < 400) EXPECT_LT(cold.reads, static_cast<size_t>(chapters) * 20);
     expectToc(book, "NAV", chapters);
     expectNoXmlLeaks();
     storageMetrics = {};
