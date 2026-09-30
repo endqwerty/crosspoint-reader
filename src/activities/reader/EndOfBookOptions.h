@@ -1,8 +1,9 @@
 #pragma once
 
+#include <LibraryFollowOns.h>
+
 #include <atomic>
 #include <string>
-#include <vector>
 
 #include "components/UiAppHost.h"
 
@@ -10,9 +11,11 @@ class GfxRenderer;
 class MappedInputManager;
 
 // Shared End-of-Book next-book menu for the EPUB and XTC readers. Collects up to
-// MAX_SUGGESTIONS sibling books once per reader session, handles the menu input, and
-// draws the end screen. With no suggestions the end screen keeps its historical
-// plain-title look and behavior.
+// MAX_SUGGESTIONS follow-on books once per reader session, handles the menu input, and
+// draws the end screen. Suggestions are the next volumes of the book's series, else the
+// same author's later titles (both from the Library index), else sibling files in its
+// folder. With no suggestions the end screen keeps its historical plain-title look and
+// behavior.
 class EndOfBookOptions : private UiAppHost {
  public:
   enum class Action { None, Redraw, OpenBook, GoHome, LastPage };
@@ -21,7 +24,7 @@ class EndOfBookOptions : private UiAppHost {
 
   explicit EndOfBookOptions(GfxRenderer& renderer);
 
-  // Scans the book's folder for suggestions; no-op when already loaded. Call ONLY from
+  // Finds the suggestions; no-op when already loaded. Call ONLY from
   // the reader's render() (the render task, serialized by RenderLock) — the loaded flag
   // is the release/acquire publication point that lets the main task read the finished
   // list safely.
@@ -49,17 +52,18 @@ class EndOfBookOptions : private UiAppHost {
   void buildListScreen(UiScreen& screen);
 
   GfxRenderer& renderer;
-  std::string folder;
   // Written by the render task in loadOnce(), immutable afterwards; the main task only
-  // reads it after isLoaded is observed true (acquire), so no further locking is needed.
-  std::vector<std::string> names;
+  // reads them after isLoaded is observed true (acquire), so no further locking is needed.
+  // Fixed capacity: at most MAX_SUGGESTIONS entries are ever filled.
+  library::FollowOn followOns[MAX_SUGGESTIONS];
+  size_t followOnCount = 0;
   // Main-task selection updates may overlap a repaint on the render task.
   std::atomic<int> selector{0};
   std::atomic<bool> isLoaded{false};
 
   // Row storage, built once in loadOnce() (same acquire/release publication
-  // point as names — see isLoaded above) rather than per-render in
-  // buildListScreen(): names.size() is capped at MAX_SUGGESTIONS and never
+  // point as followOns — see isLoaded above) rather than per-render in
+  // buildListScreen(): followOnCount is capped at MAX_SUGGESTIONS and never
   // changes afterward, so a fixed-capacity array avoids any heap allocation
   // for the row list, both at load time and every subsequent repaint.
   static constexpr size_t MAX_ROWS = MAX_SUGGESTIONS + 1;  // + the trailing "Home" row
@@ -67,9 +71,9 @@ class EndOfBookOptions : private UiAppHost {
   freeink::ui::ListItem rowItems[MAX_ROWS]{};
   size_t rowCount = 0;
   void buildRowItems();
+  size_t findLibraryFollowOns(const std::string& currentBookPath);
+  size_t findFolderSiblings(const std::string& currentBookPath);
 
   // Row index dispatched by onRowEvent during the current route() call; -1 otherwise.
   int tappedRow = -1;
-
-  std::string fullPath(size_t index) const;
 };
