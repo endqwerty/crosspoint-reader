@@ -187,6 +187,8 @@ bool BookMetadataCache::endContentOpfPass() {
 bool BookMetadataCache::beginTocPass() {
   LOG_DBG("BMC", "Beginning toc pass");
   tocCount = 0;
+  tocScanIndex = 0;
+  tocScanOffset = 0;
   spineHrefIndex.reset();
   useSpineHrefIndex = false;
   const auto failPass = [this]() {
@@ -593,21 +595,32 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
     }
   } else {
     const auto spineBytes = spineFile.fileSize64();
-    if (spineBytes > UINT32_MAX || !spineFile.seek(0)) {
+    if (spineBytes > UINT32_MAX) {
       LOG_ERR("BMC", "Cannot seek spine staging file");
       passFailed = true;
       return;
     }
+    // TOC entries almost always follow spine order, and several often share one
+    // file. Search from the previous match to the end, then wrap to the start.
     SpineEntry spineEntry;
-    for (int i = 0; i < spineCount; i++) {
-      if (!readSpineEntryFrom(spineFile, spineEntry, spineBytes)) {
-        passFailed = true;
-        return;
+    const auto scan = [&](const int first, const int last, const uint32_t offset) {
+      if (!spineFile.seek(offset)) return false;
+      for (int i = first; i < last && spineIndex < 0; i++) {
+        const auto entryOffset = static_cast<uint32_t>(spineFile.position());
+        if (!readSpineEntryFrom(spineFile, spineEntry, spineBytes)) return false;
+        if (spineEntry.href == href) {
+          spineIndex = static_cast<int16_t>(i);
+          tocScanIndex = i;
+          tocScanOffset = entryOffset;
+        }
       }
-      if (spineEntry.href == href) {
-        spineIndex = static_cast<int16_t>(i);
-        break;
-      }
+      return true;
+    };
+    const int resume = tocScanIndex;
+    if (!scan(resume, spineCount, tocScanOffset) || (spineIndex < 0 && resume > 0 && !scan(0, resume, 0))) {
+      LOG_ERR("BMC", "Cannot scan spine staging file");
+      passFailed = true;
+      return;
     }
     if (spineIndex == -1) {
       LOG_DBG("BMC", "createTocEntry: Could not find spine item for TOC href %s", href.c_str());
