@@ -1,4 +1,4 @@
-# WIP handoff — develop on upstream d1509d0, X4 Pro r57, split patch series
+# WIP handoff — develop on upstream d1509d0, X4 Pro r58, split patch series
 
 ## Repository state
 
@@ -104,21 +104,29 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r57-20260929-181116/firmware-x4pro-r57-12e591c3.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r57-20260929-181116\firmware-x4pro-r57-12e591c3.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r58-20260929-181751/firmware-x4pro-r58-45c37c9d.bin`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r58-20260929-181751\firmware-x4pro-r58-45c37c9d.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r57-d1509d0`.
-SHA-256: `e448a1e808bb566c0b8d6130dab657405d58e31367eb24f689d5d06311364917`.
+Version: `1.6.5-dev-x4pro-r58-d1509d0`.
+SHA-256: `d7ae716d012e2aa48662246c882f40f7d8e7bcad07b7717ba81d061900f9ac10`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r57 is r56 plus end-of-book suggestions from the Library index (below). Firmware
-source is commit `12e591c3`; later commits change only documentation. r56
+r58 is r57 plus a cheaper first open for books under 400 chapters (below).
+Firmware source is commit `45c37c9d`; later commits change only documentation.
+r57 (`x4pro-r57-20260929-181116`, source `12e591c3`) added the end-of-book
+suggestions from the Library index (below). r56
 (`x4pro-r56-20260929-171110`, source `2c02149f`) is r55 rebased onto upstream
 `d1509d0` (SDK `d466732` unchanged).
+
+r58 validation (2026-09-29): all 1,655 native Release and 1,655 LLVM 22
+ASan/UBSan tests pass (5 new `TocLookup` tests plus a cold-open read gate). The
+clean X4 Pro release build has no warnings: static RAM 102,352 bytes
+(unchanged), linked flash 5,681,362 bytes (+244 over r57); image 5,686,384
+bytes, ESP32-S3 image inspection valid.
 
 r57 validation (2026-09-29): all 1,650 native Release and 1,650 LLVM 22
 ASan/UBSan tests pass (10 new, `test/library_follow_ons`). The clean X4 Pro
@@ -133,6 +141,18 @@ fewer, mostly the deleted TXT reader); image 5,685,040 bytes, ESP32-S3 image
 inspection valid. Upstream's TXT/Markdown reader now runs through the EPUB
 pipeline; the fork does not exercise it beyond host tests.
 
+Fork change in r58 (for device testing):
+
+- TOC-to-spine lookup resumes at the previous match. Below 400 spine items each
+  TOC entry used to reread the staged spine from its start while building
+  `book.bin`; it now scans from the last matched entry to the end and wraps
+  (8 bytes of state, no heap, no threshold or cache-format change). Host
+  cold-open reads on the 128-chapter fixture: 33,556 to 1,552 (32 chapters:
+  2,255 to 395); seeks and writes unchanged. Only a spine listing the same href
+  twice (invalid) can resolve to a different occurrence. Details in
+  `docs/fork-epub-indexing.md`. It affects each book's first open and any cache
+  rebuild; device time is unmeasured.
+
 Fork change in r57 (for device testing):
 
 - End-of-book "Continue with" menu. It used to list later files from the book's
@@ -146,7 +166,7 @@ Fork change in r57 (for device testing):
   and `EndOfBookOptions`. The index must have been built with metadata on for
   series to appear, and reflects the card as of the last Library refresh.
 
-Fork changes in r55, carried by r56 and r57 (for device testing):
+Fork changes in r55, carried by r56 to r58 (for device testing):
 
 - CSS/section cache invalidation (adopted from open upstream #3305). Opening a
   book whose CSS cache was invalid or failed to hydrate deleted it; if the
@@ -239,12 +259,11 @@ new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
 `/Volumes/workspace/builds/crosspoint-reader/upstream-review-r50/REVIEW.md`.
 
-The 128-chapter cold-open fixture still performs 33,556 HAL reads in its linear
-TOC lookup (item 3 below). Broader cold-open profiling would need real
-ZIP/container, CSS and first-page layout; the current fixture uses
-archive/storage doubles.
+Cold-open profiling is host-only: it uses archive/storage doubles, so it lacks
+real ZIP/container, CSS and first-page layout costs. The 128-chapter fixture
+now reads 1,552 times in its cold open (was 33,556 before r58).
 
-Unverified on hardware after r55/r56/r57 (informal only; the user will notice if any
+Unverified on hardware after r55 to r58 (informal only; the user will notice if any
 misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
 page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
 Library entry; a page turn pressed during a page update no longer fires after
@@ -272,15 +291,8 @@ Each item needs the user's go-ahead. Order is the recommended order.
    index (see the r57 notes above and `docs/fork-library.md`). Possible
    follow-up only if it feels wrong in use: show the series name or volume in
    the row, or offer the previous unfinished volume.
-3. Cold-open TOC lookup with a cursor hint (performance). For each TOC entry,
-   `BookMetadataCache::createTocEntry` (`BookMetadataCache.cpp`) seeks the spine
-   staging file to 0 and scans it linearly (below `LARGE_SPINE_THRESHOLD`, 400).
-   TOCs are almost always in spine order, so remember the file offset and index
-   after the last match, scan forward from there, then wrap. About 8 bytes of
-   state, no heap, no threshold change. The gain is host-measurable (33,556 HAL
-   reads on the 128-chapter fixture) and lands on each book's first open and
-   after any cache rebuild. Needs tests for duplicate hrefs (keep first-match
-   semantics), unresolved entries and wrap-around.
+3. Done 2026-09-29 (r58): cold-open TOC lookup resumes at the previous match
+   (see the r58 notes above and `docs/fork-epub-indexing.md`).
 4. Optional reading features, for the user to pick; each is small:
    - #3642: time left in chapter/book (8-sample pace tracker, ~48 bytes)
    - #3727: paragraph indentation override
