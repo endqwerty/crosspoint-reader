@@ -136,8 +136,12 @@ origin/develop            downstream integration branch
   request, or an upstream sync.
 - Every task happens on a short-lived branch created from `origin/develop`. A
   T3 Code thread already has one: its worktree under `~/.t3/worktrees` is on
-  `t3code/<slug>`, created from `origin/develop`. Keep that branch and its name
-  for the whole thread (T3 Code tracks the thread by it). Branches made by hand
+  `t3code/<slug>`, created from `origin/develop`. T3 Code renames it once, right
+  after the thread's first message (`t3code/b3eaa40d` became
+  `t3code/next-wip-pr-handling`, 2026-10-01), so read the name with `git branch
+  --show-current` instead of remembering the one from the start. After that,
+  keep the branch and its name for the whole thread (T3 Code tracks the thread
+  by it). Branches made by hand
   use `feature/`, `fix/`, `docs/`, `refactor/` or `codex/`. The permanent
   checkout stays on `develop`; do not check out `develop` in a worktree.
 - Standing authorization: commit completed, validated work on the task branch,

@@ -432,6 +432,13 @@ No feature implementation is active. Start the next thread from personal
 `develop` and follow `docs/FORK.md` ("Starting a task"). The roadmap below is
 optional future scope, not unfinished work blocking deletion.
 
+Checked on 2026-10-01, when asked for "the next WIP item": official `develop` is
+still `664528b2` and #3488, #3795, #3799, #3800, #3706, #3757, #3814, #3705 and
+#3675 are all still open, so items 5, 7 and 8 and the "take when merged" PRs
+stay gated. Item 10 is the only one that could start. Its scope is 22 test
+harnesses that read production sources with `file(READ ...)` (`test/*/CMakeLists.txt`);
+it does nothing for reading, so it waits for the user's go-ahead.
+
 ## Proposed next steps
 
 Replanned 2026-09-29 after the user said they will not measure device
