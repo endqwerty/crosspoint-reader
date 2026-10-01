@@ -49,9 +49,9 @@ fork is a linear series of local patches on top of upstream `develop`.
 - Keep upstream history intact as the base. All fork-only commits must follow
   that base; never interleave upstream updates with local changes through merge
   commits. Upstream's own historical merges remain untouched.
-- Fetch the official upstream remote and rebase the local patch series onto its
-  updated `develop`. Verify remote URLs rather than assuming a remote's role
-  from its name. Never merge upstream into the customized branch.
+- Fetch the official project (remote `official`) and rebase the local patch
+  series onto its updated `develop`. Verify remote URLs rather than assuming a
+  remote's role from its name. Never merge upstream into the customized branch.
 - Task branches reach `develop` only as squash (or rebase) merges of pull
   requests on the personal fork; see "Branches and pull requests". Do not
   introduce local merge commits or use `--rebase-merges` to preserve an
@@ -80,36 +80,47 @@ Both personal forks use a single long-lived `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
-The maintained checkout (`~/workspace/crosspoint-reader`) uses GitHub's fork
-layout in both repos: `origin` is the personal fork and `upstream` the official
-project, with local `develop` tracking `origin/develop`. `origin/HEAD` points to
-`origin/develop`, so T3 Code starts each thread's worktree from the fork's
-`develop`. Where `AGENTS.md` says to push to `fork`, use `origin`. Fresh clones
-may name remotes differently; always verify their URLs. `.gitmodules` points to
+The fork is the project. In the maintained checkout
+(`~/workspace/crosspoint-reader`) `origin` is the personal fork, local `develop`
+tracks `origin/develop`, and `origin/HEAD` points to `origin/develop`, so T3
+Code starts each thread's worktree from the fork's `develop`. The official
+project is the remote `official`, fetch only (its push URL is disabled). It is
+deliberately not called `upstream`: T3 Code treats a remote of that name as the
+project's own repository and then looks for, opens and merges pull requests
+there. "Upstream" in this file means the official project, not a remote name.
+Where `AGENTS.md` says to push to `fork`, use `origin`. The SDK submodule's
+checkout still names its official remote `upstream`. `.gitmodules` points to
 the SDK fork so the pinned local SDK commit is available to a recursive checkout:
 
 ```sh
 git clone --recurse-submodules --branch develop https://github.com/endqwerty/crosspoint-reader.git
-git remote add upstream https://github.com/crosspoint-reader/crosspoint-reader.git
+git remote add official https://github.com/crosspoint-reader/crosspoint-reader.git
 scripts/fork-workflow.sh setup
 ```
 
 `setup` is needed once per clone (worktrees share it). It makes the fork `gh`'s
-default repository, which matters because `gh`, and T3 Code's own "create pull
-request" action, otherwise resolve a fork to its parent and would open the pull
-request against the official project. It also enables `rerere`, pruning fetches
-and `origin` as the push default.
+default repository, because `gh`, and T3 Code's own "create pull request"
+action, otherwise resolve a fork to its parent. It also disables pushing to
+`official` and enables `rerere`, pruning fetches and `origin` as the push
+default.
 
-The fork's GitHub settings (set 2026-09-30): merge commits disabled, squash and
-rebase merges allowed, squash commits take the pull request's title and body,
-and head branches are deleted on merge.
+The fork's GitHub settings (set 2026-09-30 and 2026-10-01): merge commits
+disabled, squash and rebase merges allowed, squash commits take the pull
+request's title and body, head branches are deleted on merge, and GitHub
+Actions is disabled. The user does not want to spend CI minutes; this machine
+is the CI (see "Local checks").
+
+`t3.json` at the repository root is T3 Code's project file. It makes new threads
+use worktrees and leaves the SDK submodule unpopulated in them
+(`worktreeSubmodules: "none"`), because git cannot remove a worktree that has a
+submodule checked out (see "Worktree lifecycle").
 
 Keep backup history in verified bundles before removing obsolete branches.
 
 ## Branches and pull requests
 
 ```text
-upstream/develop          official project, fetch only
+official/develop          official project (upstream), fetch only
       |  periodic rebase, force-push with lease, no pull request
       v
 origin/develop            downstream integration branch
@@ -144,31 +155,69 @@ origin/develop            downstream integration branch
   commit message, ending with any `Co-Authored-By` lines for adapted work. Do
   not add assistant attribution or a generated-by line.
 - When T3 Code's `link_pull_request` tool is available, link every pull request
-  to the thread. T3 Code only discovers pull requests in the official
-  repository by itself, so a fork pull request that is not linked never settles
-  its thread on merge.
+  to the thread; T3 Code then shows it beside the thread and settles the thread
+  when it merges.
 - The user merges pull requests (T3 Code or GitHub), with squash. Do not merge
   one unless the user says so in that thread. A pull request whose commits
   should stay separate can be rebase-merged instead.
-- After the merge the branch and worktree are disposable. GitHub deletes the
-  remote branch. The thread settles (automatically when its linked pull request
-  merged, otherwise by hand) and the user archives it; the launchd job described
-  in the homelab `workstation.md` then removes the worktree and local branch,
-  once the worktree is clean and its HEAD is the merged pull request's head.
-  Leave the worktree on its branch with nothing uncommitted or unpushed, and do
-  not remove it by hand. Follow-up work after a merge belongs in a new thread.
-- GitHub Actions has not run on the fork's pull requests (checked 2026-09-30:
-  workflows are listed as active, yet pull request #1 started none; a fork's
-  owner has to enable them once in the repository's Actions tab). Until it
-  does, the local test and build results in the pull request are the only
-  evidence. Two things to fix when it is enabled: the host-test step in
-  `ci.yml` uses `--timeout 60`, too short for `GlyphRasterParity` under the
-  sanitizers, and the `gh` token cannot push workflow-file changes without the
-  `workflow` scope (`gh auth refresh -s workflow`).
+- After the merge GitHub deletes the remote branch, the thread settles and the
+  user archives it. The worktree is T3 Code's to remove; see "Worktree
+  lifecycle". Never delete a thread's local branch: T3 Code recreates the
+  worktree from it when the thread is resumed.
 - SDK changes are not reviewed through pull requests. Commit them on the SDK
   fork's `develop`, push that (with a lease after an SDK rebase), and let the
   reader pull request carry the new submodule commit, which must already be on
   the SDK fork so CI and other checkouts can fetch it.
+
+### Local checks
+
+GitHub Actions is off for the fork, so the checks upstream's CI would run are
+run here before a pull request is opened or updated:
+
+- `scripts/fork-workflow.sh check`: formatting (the whole tree through
+  `bin/clang-format-fix`, then no diff), host tests in Release and under the
+  sanitizers, and the `x4pro-gh_release` firmware build. Use it for every change
+  to source, tests or build files.
+- `check --full` adds `pio check` (cppcheck) and the five firmware targets CI
+  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`). Use it after an
+  upstream sync that changed source, and for changes to shared code that other
+  boards compile.
+- `check --fast` is formatting and Release host tests only.
+- Documentation-only changes need review and a diff check, not `check`.
+
+It keeps its build directories and logs outside the worktree, under
+`~/.local/share/crosspoint-build/ci/<worktree>/`, and reports each step as ok
+or FAILED with the log to read. Put the result (commit checked, which mode,
+test counts, RAM and flash lines) in the pull request body: it is the only
+record of the checks. The pull request title is the squash commit's subject, so
+it must follow the `AGENTS.md` commit format; nothing checks that automatically.
+
+### Worktree lifecycle
+
+T3 Code owns the worktrees. It removes one by itself when its thread is
+deleted, when the thread has been idle for the configured number of days, or
+when the worktree's HEAD is already contained in `origin/develop`; it recreates
+the worktree from the thread's branch when the thread is used again. There is
+no other cleanup job. T3 Code only removes a worktree that is on its thread's
+branch, has no uncommitted or untracked files, has no ignored files (build
+output) and has no submodule checked out, so:
+
+- Run `scripts/fork-workflow.sh prepare` before building or testing. It checks
+  out the pinned SDK, borrowing objects from the permanent checkout.
+- Run `scripts/fork-workflow.sh release` as the last step of every handoff,
+  after everything is committed and pushed. It refuses to drop SDK work that is
+  not pushed, then removes the SDK checkout, all ignored files
+  (`.pio`, generated headers, `platformio.local.ini`) and the worktree's check
+  directories, and says whether T3 Code can now remove the worktree. Copy any
+  firmware image to the share first. The next `prepare` and `check` rebuild
+  what was dropped.
+- Do not remove a worktree or its branch by hand, and do not leave the worktree
+  on another branch.
+
+After a squash merge the branch tip is not contained in `origin/develop`, so
+the merged thread's worktree goes when the thread is deleted or has been idle
+for the configured days, not at the moment of the merge. T3 Code's settings and
+their limits are in the homelab `workstation.md`.
 
 ### Syncing with upstream
 
@@ -177,17 +226,19 @@ start of a task, and again before opening or updating a pull request if upstream
 moved meanwhile. `scripts/fork-workflow.sh status` shows whether upstream is
 ahead.
 
-1. In the task worktree, `git fetch upstream` and `git rebase upstream/develop`.
+1. In the task worktree, `git fetch official` and `git rebase official/develop`.
    Before the task has commits of its own, the branch is `develop`, so this
    rebases the downstream series; with task commits, they ride on top of it.
    Resolve conflicts by the "Upstream first" rules.
-2. Validate the rebased series (host tests, sanitizers, the X4 Pro build) when
-   upstream changed source the series touches or the rebase needed any edit.
+2. Validate the rebased series with `scripts/fork-workflow.sh check` (`--full`
+   when upstream changed source), unless upstream changed only files the build
+   and tests do not read.
 3. Publish it with `scripts/fork-workflow.sh sync-publish <commit>`, where
    `<commit>` is the rebased series without the task's own commits (`HEAD` when
    the task has none yet). The script checks that the commit contains the
-   upstream tip and no merge commits, that local `develop` is clean and equals
-   `origin/develop`, keeps the old tip under `refs/fork-backup/`, force-pushes
+   upstream tip and no merge commits, that local `develop` is clean and (after
+   a fast-forward) equals `origin/develop`, keeps the old tip under
+   `refs/fork-backup/`, force-pushes
    with a lease on the inspected remote tip, moves local `develop`, and lists
    the open pull requests.
 4. Each open pull request is now based on the old `develop`. In its worktree run
@@ -196,7 +247,7 @@ ahead.
    and updates the pull request.
 
 With no conflicts and nothing to revalidate this is the plain sequence in the
-permanent checkout (`git fetch upstream`, `git rebase upstream/develop`, `git
+permanent checkout (`git fetch official`, `git rebase official/develop`, `git
 push --force-with-lease origin develop`); `sync-publish` is the same thing with
 the checks and the backup ref. The standing authorization covers this force
 push of the personal `develop`, verified by URL
@@ -213,9 +264,10 @@ alone does not enforce linear history.
 - A new thread's worktree starts from the fork's `develop`. Read this file and
   `WIP.md`, inspect `git worktree list`, status and remote URLs, then run
   `scripts/fork-workflow.sh status` and sync with upstream first if it is ahead.
-- Initialize the reader-pinned SDK with `git submodule update --init` if needed.
-  Do not substitute the SDK's newest branch tip. Recursive icon submodules are
-  needed only for icon generation, not ordinary firmware builds.
+- The worktree starts without the SDK. `scripts/fork-workflow.sh prepare` checks
+  out the reader-pinned revision; do not substitute the SDK's newest branch tip.
+  Recursive icon submodules are needed only for icon generation, not ordinary
+  firmware builds.
 - Do the work in the thread's worktree. A shared local build mirror is usable
   only after verifying its source matches the intended worktree; never reuse
   another feature's outputs without checking.
@@ -224,7 +276,7 @@ alone does not enforce linear history.
 
 ## Finishing a task
 
-- Complete applicable host tests and firmware builds before opening the pull
+- Run the local checks ("Local checks") before opening or updating the pull
   request for source changes. Record physical-device checks separately as
   pending when unavailable; do not claim device validation or hold the pull
   request back solely on that absence. Documentation-only changes require review
@@ -237,12 +289,12 @@ alone does not enforce linear history.
   `develop` did not move in between.
 - Report any genuine blocker instead of claiming unfinished work is complete. As
   the last step, check and report:
-  - the pull request URL, its checks, and that it is linked to the thread;
-  - `git status --short` is empty in the worktree and in `freeink-sdk`, and the
-    submodule is at its pinned commit (`git submodule status` shows no `+`);
-  - no temporary files or `platformio.local.ini` remain, and temporary git
-    worktrees or scratch clones created for the task are removed;
-  - the branch is pushed, and `origin/develop` contains the upstream tip.
+  - the pull request URL, the local check results, and that the pull request is
+    linked to the thread;
+  - the branch is pushed, and `origin/develop` contains the upstream tip;
+  - temporary git worktrees or scratch clones created for the task are removed;
+  - `scripts/fork-workflow.sh release` ran last and reported that T3 Code can
+    remove the worktree.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
 
