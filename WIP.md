@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream 099e89b, X4 Pro r60, split patch series
+# WIP handoff — develop on upstream e2dfdea, X4 Pro r61, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`099e89bc` (see `git log upstream/develop..develop`).
+`e2dfdeaf` (see `git log upstream/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -97,6 +97,9 @@ layouts, resumable fetch). Upstream's design won every conflict.
 Only the tip of the rebased series was built and tested; the nine topical
 patches were not rebuilt one by one this time.
 
+Later on 2026-09-30 the series was rebased again onto `e2dfdeaf` (#3809, an
+X3-only battery change in `HalGPIO.cpp`) without conflicts.
+
 ### Upstream conflicts resolved on 2026-09-29
 
 Rebased the 38-patch series onto `d1509d07` (three upstream commits: #3704,
@@ -161,20 +164,22 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r60-20260930-222847/firmware-x4pro-r60-8b8c7f73.bin`
-(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r60-20260930-222847\firmware-x4pro-r60-8b8c7f73.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r61-20260930-230301/firmware-x4pro-r61-be48870b.bin`
+(Windows: `\\<server>\workspace\builds\crosspoint-reader\x4pro-r61-20260930-230301\firmware-x4pro-r61-be48870b.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r60-099e89b`.
-SHA-256: `839a96a29a2f623f462393d4c61a72753e77b9f9859dfdf217781fa068c3c8fe`.
+Version: `1.6.5-dev-x4pro-r61-e2dfdea`.
+SHA-256: `252070069d9e730f26995f1e501c252744b88427927b1ce2a01af4610d5689df`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r60 is r59 rebased onto upstream `099e89b` and SDK `eb74866` (on the new pin
-`2339226`); it adds no fork feature (conflict notes above). Firmware source is
-commit `8b8c7f73`; later commits change only documentation. r59
+r61 is r60 rebased onto upstream `e2dfdea` plus the line-break gap window
+(below). Firmware source is commit `be48870b`; later commits change only
+documentation. r60 (`x4pro-r60-20260930-222847`, source `8b8c7f73` before the
+second rebase) is r59 rebased onto upstream `099e89b` and SDK `eb74866` (on the
+new pin `2339226`); it added no fork feature (conflict notes above). r59
 (`x4pro-r59-20260929-184820`, source `d3463ee0`) added reading-state relinking
 after Calibre renames (below). r58
 (`x4pro-r58-20260929-181751`, source `45c37c9d`) added the cheaper first open for
@@ -183,6 +188,24 @@ r57 (`x4pro-r57-20260929-181116`, source `12e591c3`) added the end-of-book
 suggestions from the Library index (below). r56
 (`x4pro-r56-20260929-171110`, source `2c02149f`) is r55 rebased onto upstream
 `d1509d0` (SDK `d466732` unchanged).
+
+r61 validation (2026-09-30): all 1,708 native Release and 1,708 LLVM 22
+ASan/UBSan tests pass (2 new, `LineBreakCost`). The X4 Pro release build has no
+warnings in fork or upstream sources (the wolfSSL redefinition below remains):
+static RAM 103,240 bytes (unchanged), linked flash 5,829,818 bytes (-144);
+image 5,834,896 bytes, ESP32-S3 image inspection valid. It was a rebuild in the
+r60 worktree (554 objects), not a build from an empty `.pio`.
+
+Fork change in r61 (for device testing):
+
+- The line-break search measures the gap before each word once (adapted from
+  open upstream PR #3814). It used to measure it again for every line start
+  that reached it, about one line of words per gap. The gaps go into a
+  64-entry stack window (128 bytes, no heap allocation); breaks, pages and the
+  section cache are unchanged. Host count for 400 four-letter words at 480 px:
+  5,847 space-advance lookups before, 1,137 after. It applies whenever a
+  chapter is laid out, not to turning cached pages; device time is unmeasured.
+  Details in `docs/fork-layout.md` ("Line-break gap measurement").
 
 r60 validation (2026-09-30): all 1,706 native Release and 1,706 LLVM 22
 ASan/UBSan tests pass (40 more than r59: upstream's new tests plus five fork
@@ -367,7 +390,7 @@ notice is reported back rather than measured. Prefer changes whose benefit is
 deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
 that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-09-30 at `099e89bc` and the fork is
+Official upstream was fetched on 2026-09-30 at `e2dfdeaf` and the fork is
 rebased onto it (conflicts above). Recheck upstream and open PRs when starting
 new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
@@ -432,8 +455,22 @@ Each item needs the user's go-ahead. Order is the recommended order.
    it, then rebase onto it rather than carrying it.
 8. Hotspot patch splitting (files `LibraryListActivity.cpp`,
    `EpubReaderActivity.cpp`, `Section.cpp`, `BookMetadataCache.cpp`,
-   `ChapterHtmlSlimParser.cpp`): only worth it if a rebase conflicts there
-   repeatedly. Item 1 will show whether it does.
+   `ChapterHtmlSlimParser.cpp`): still not worth it. The 2026-09-30 rebase
+   conflicted in `EpubReaderActivity.cpp`, `Section.cpp` and `Epub.cpp`, each
+   time because upstream changed the same logic the fork changes, which
+   splitting by hunk would not avoid.
+9. Done 2026-09-30 (r61): line-break gap window adapted from #3814 (see the
+   r61 notes above and `docs/fork-layout.md`).
+10. Only if it keeps recurring: host-test harness upkeep. Tests that compile
+   code extracted between text markers from upstream-owned files
+   (`EpubReaderActivity.cpp`, `ReaderActivity.cpp`, `Epub.cpp`) break when
+   upstream moves a marker or adds a collaborator; seven needed new seams on
+   2026-09-30 and several did on 2026-09-29. Reducing that coupling makes
+   rebases cheaper but does not improve reading.
+
+Watch on later rebases: the X4 Pro app partition is 89% full (5.83 MB of
+6.55 MB). The 2026-09-30 upstream update (plugins, content protection) took
+146 KB; about 720 KB remains.
 
 Retired on 2026-09-29: the old "device validation of r55" item. Not planned without a device: further anti-ghosting
 work, idle-power tuning (#3060), and prefetch changes that trade latency for
@@ -449,7 +486,8 @@ metadata only when size and mtime match (`reuseMetadata` in
 `LibraryBuilder.cpp`'s `stageRecord()`); `scripts/sync-calibre-library.sh`
 copies by content without source mtimes.
 
-Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
+Upstream PR triage, 2026-09-27, rechecked 2026-09-30 (open PRs created since
+2026-09-20):
 
 - Already in the fork, or superseded by fork code:
   - merged upstream and in the base since 2026-09-28: #3698, #3754, #3755,
@@ -460,7 +498,10 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
     #3114, #3805
   - adapted in r52: #3349
   - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #2438, #3113,
-    #2603, #3305 (r55)
+    #2603, #3305 (r55), #3814 (r61, still an open draft upstream)
+  - #3813 (zero the `PageLink` href buffer): `Page::serialize` already writes
+    fixed strings with zero padding (`writeFixedString`), so section files
+    hold no stale bytes
   - #2602: flat CSS rule pools (`CssParser.h`: `SelectorEntry`,
     `selectorPool_`, `stylePool_`)
   - #2343: ordered lists (`ChapterHtmlSlimParser.cpp`: list context
@@ -468,7 +509,17 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
   - #3452: checked `readStringChecked`. The only unchecked callers left
     read the parser's own temp item store (`ContentOpfParser.cpp` spine idref
     lookup, `serialization::readString(self->tempItemStore, …)`).
-- Still deferred: #3705 and #3675 (drafts with open regressions).
+- Still deferred: #3705 and #3675 (drafts with open regressions). #3488 is
+  still open (item 7).
+- Looked at and left on 2026-09-30:
+  - #3784 (cumulative spine sizes read from `book.bin` instead of RAM): saves
+    4 bytes per chapter of heap (about 1.2 KB for a 300-chapter book) and adds
+    SD reads plus a mutex on lookups, a trade that is not a clear gain here
+  - #3802 (lend the framebuffer to the image-dimension probe): fixes blank
+    image pages on a tight X3 heap; it reworks the reader's background build
+    path and is not a problem seen on the X4 Pro
+  - #3795 and #3800 (TTF kerning correctness) and #3799 (EPUB fragment
+    targets, 1,133 lines): take them when they merge
 - Watch only, import after merge: #3706 (hyphenation manager) and #3757 as a
   whole.
 - Not adopted: large feature PRs outside this focus, such as
