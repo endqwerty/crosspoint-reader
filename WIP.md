@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream d1509d0, X4 Pro r59, split patch series
+# WIP handoff — develop on upstream 099e89b, X4 Pro r60, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`d1509d07` (see `git log upstream/develop..develop`).
+`099e89bc` (see `git log upstream/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -26,9 +26,9 @@ Upstream's own history is intact; there are no local merge commits. When
 rebasing, a conflict now names its topic, and a patch that upstream supersedes
 can be dropped or adapted on its own.
 
-SDK `develop` is `d466732a9a10002e23e5c05eda53430cd2490101`: two local patches
+SDK `develop` is `eb74866d43acd9a771a5c75b4c998fbd01769ff0`: two local patches
 (display transactions/refresh, then list and text-area components) above
-`87c4493a6a5aa0c7c0e61aacc4a24e2c273e6895`, the revision official reader pins.
+`233922603467699775f5a61fd12ae7366cf1fbda`, the revision official reader pins.
 `.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
@@ -42,6 +42,60 @@ explicit approval.
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
 base, adapt or drop patches when upstream supersedes them, and use rebase plus
 fast-forward/squash integration. No local merge commits.
+
+### Upstream conflicts resolved on 2026-09-30
+
+Rebased the 46-patch series onto `099e89bc` (five upstream commits: #3685,
+#3727, #3805, #3114, #3764) and the SDK's two patches onto the new pin
+`2339226` (24 SDK commits: Metalio E-Ink 4 board, haptics, BLE host, keyboard
+layouts, resumable fetch). Upstream's design won every conflict.
+
+- #3764 (reopen on the viewed page after following a link) replaces the fork's
+  "closing the book inside a footnote restores its origin". Leaving the reader
+  no longer rewrites progress; the Back destinations are saved to upstream's
+  `links.bin` and restored on the next open. The fork keeps
+  `ReaderNavigationHistory` as the in-memory form (page count and text offset
+  for returns within a session); `saveFootnoteOrigin()` is gone and the link
+  navigation and page recovery host tests assert the upstream behavior. Because
+  `links.bin` holds only spine and page, a restored entry is a plain link
+  return (`docs/fork-reader.md`, "Links, footnotes and history").
+- #3685 (separate SdFat FAT cache) merged, so patch 2 no longer carries the
+  build flag, the two cache patches or the hook. What remains local: the
+  directory-pointer guard (`0003`), `GIT_OPTIONAL_LOCKS=0` in the hook and the
+  `test/sdfat_cache` host tests.
+- #3727 (configurable paragraph indentation) adds `paragraphIndentSpaces` to
+  the section header and changes the `ParsedText` constructor. The fork's
+  checked header read/write and `SectionPageReader::HEADER_SIZE` (now 44
+  bytes) carry the field. The user declined this as a fork feature on
+  2026-09-29; it is now simply upstream's setting, migrated by upstream's
+  `migrateParagraphIndentSpaces()`.
+- Section cache version is 51. Upstream took 50 for the indentation header
+  while r52 to r59 used 50 for the pagebreak fix in a 43-byte header, so the
+  fork's pagebreak patch moves to 51 and every book re-lays out its chapters
+  once (`docs/file-formats.md`).
+- #3114 (SD card plugin system, content protection, reading-session events)
+  touches the reader: `Epub::load` opens upstream's encrypted-entry accessor
+  before the fork's scoped ownership cleanup; page turns report to
+  `ReaderSession` through `notePageTurn()` (including the fork's queued turn);
+  "Move finished books to /Read" moves upstream's `.rights` sidecar after
+  `moveBookWithState()` and moves the book back if that fails. Chapter and
+  search reads still go through `readItemContentsToStream`, so upstream's
+  decrypt-on-read path is intact. The fork does not use plugins or protected
+  books; none of this is exercised beyond host tests and the build.
+- #3805 (dead code) removed `ButtonNavigator::onNextRelease`; the Library
+  details page calls `onRelease(getNextButtons(), …)` instead.
+- A Czech and a Turkish string the fork had added (`STR_NO_RECENT_BOOKS`) now
+  come from upstream; the fork's duplicates are dropped.
+- SDK: upstream's Metalio black-pulse refresh and grayscale fallback paths in
+  `Ssd1677Driver` gained the fork's bus-failure checks (`checkBus`, checked
+  `refresh()`); `_pendingFrameSync` is cleared when the bus has failed. The
+  display (`run_pro.py`, UC8253, UC8279) and FreeInkUI host tests pass.
+- Seven fork test harnesses that compile extracted production code needed new
+  seams for upstream's hooks (content protection, plugin events, reader
+  session, load-failure popup, `esp_heap_caps.h`, `replaceFile`/`truncate`).
+
+Only the tip of the rebased series was built and tested; the nine topical
+patches were not rebuilt one by one this time.
 
 ### Upstream conflicts resolved on 2026-09-29
 
@@ -88,10 +142,13 @@ Rebased the 38-patch series onto `d1509d07` (three upstream commits: #3704,
 
 ## Recovery and verification
 
-The series before the 2026-09-29 rebase (reader `d9562882` on `ce9f5c28`) is
-in `/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260929/develop-d9562882.bundle`
-(`git bundle` of `upstream/develop..HEAD`; also still on `origin/develop` until
-the rebased branch is pushed).
+The series before the 2026-09-30 rebase (reader `e09fdec2` on `d1509d07`, SDK
+`d466732a` on `87c4493a`) is in
+`/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260930/`
+(`develop-e09fdec2.bundle` and `sdk-develop-d466732a.bundle`, verified `git
+bundle` files of the local patches). The series before the 2026-09-29 rebase
+(reader `d9562882` on `ce9f5c28`) is in
+`/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260929/develop-d9562882.bundle`.
 
 No backup branches or extra worktrees are kept; reader and SDK each have only
 `develop`. History removed on 2026-09-28
@@ -104,25 +161,52 @@ cover the pre-cleanup history.
 
 ## Current flash image
 
-Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r59-20260929-184820/firmware-x4pro-r59-d3463ee0.bin`
-(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r59-20260929-184820\firmware-x4pro-r59-d3463ee0.bin`).
+Use `/Volumes/workspace/builds/crosspoint-reader/x4pro-r60-20260930-222847/firmware-x4pro-r60-8b8c7f73.bin`
+(Windows: `\\10.10.0.214\workspace\builds\crosspoint-reader\x4pro-r60-20260930-222847\firmware-x4pro-r60-8b8c7f73.bin`).
 The authoritative pointer is `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md`.
 Web flasher → Xteink X4 Pro → Custom .bin. Start with AA off.
-Version: `1.6.5-dev-x4pro-r59-d1509d0`.
-SHA-256: `c73122d3d674c69589c890732a22349452539a3829f3a4e43d1bf6c50f59dbc9`.
+Version: `1.6.5-dev-x4pro-r60-099e89b`.
+SHA-256: `839a96a29a2f623f462393d4c61a72753e77b9f9859dfdf217781fa068c3c8fe`.
 Earlier images stay in their dated folders under
 `/Volumes/workspace/builds/crosspoint-reader/`; each folder's `build-info.json`
 records its source. Builds before r54 predate the history split, so their
 source commits are not in `develop`.
 
-r59 is r58 plus reading-state relinking after Calibre renames (below). Firmware
-source is commit `d3463ee0`; later commits change only documentation. r58
+r60 is r59 rebased onto upstream `099e89b` and SDK `eb74866` (on the new pin
+`2339226`); it adds no fork feature (conflict notes above). Firmware source is
+commit `8b8c7f73`; later commits change only documentation. r59
+(`x4pro-r59-20260929-184820`, source `d3463ee0`) added reading-state relinking
+after Calibre renames (below). r58
 (`x4pro-r58-20260929-181751`, source `45c37c9d`) added the cheaper first open for
 books under 400 chapters (below).
 r57 (`x4pro-r57-20260929-181116`, source `12e591c3`) added the end-of-book
 suggestions from the Library index (below). r56
 (`x4pro-r56-20260929-171110`, source `2c02149f`) is r55 rebased onto upstream
 `d1509d0` (SDK `d466732` unchanged).
+
+r60 validation (2026-09-30): all 1,706 native Release and 1,706 LLVM 22
+ASan/UBSan tests pass (40 more than r59: upstream's new tests plus five fork
+tests for the `links.bin` back-stack and upstream's reader hooks). The sanitizer run needs
+`--timeout 180`: `GlyphRasterParity` takes about 70 s there, as in earlier runs.
+The X4 Pro release build from a fresh worktree has no warnings in fork or
+upstream sources; wolfSSL reports `NO_WOLFSSL_ESP32_CRYPT_RSA_PRI` redefined 132
+times because upstream's new build flag repeats a define in the library's
+`user_settings.h`. Static RAM 103,240 bytes (+888 over r59), linked flash
+5,829,962 bytes (+146,304, upstream's plugin and content-protection code);
+image 5,835,040 bytes, ESP32-S3 image inspection valid. SDK display and
+FreeInkUI host tests pass.
+
+Upstream changes in r60 the user may notice (for device testing):
+
+- Every book re-lays out its chapters once on first open (section cache
+  version 51).
+- Closing a book while inside a footnote or after following a link reopens on
+  that page, and Back still returns to where the link was followed. The fork
+  used to reopen at the footnote's origin.
+- Text settings gain upstream's paragraph indentation width; Settings gains a
+  Plugins entry (unused here).
+- FAT sectors use the separate SdFat cache through upstream's own patch set
+  (same behavior as the fork's earlier copy).
 
 r59 validation (2026-09-29): all 1,666 native Release and 1,666 LLVM 22
 ASan/UBSan tests pass (11 new: `LibraryRenameRelinkTest` 5, `RelinkBookStateTest`
@@ -195,7 +279,7 @@ Fork change in r57 (for device testing):
   and `EndOfBookOptions`. The index must have been built with metadata on for
   series to appear, and reflects the card as of the last Library refresh.
 
-Fork changes in r55, carried by r56 to r59 (for device testing):
+Fork changes in r55, carried by r56 to r60 (for device testing):
 
 - CSS/section cache invalidation (adopted from open upstream #3305). Opening a
   book whose CSS cache was invalid or failed to hydrate deleted it; if the
@@ -238,7 +322,8 @@ Earlier fork changes since r51 that r55 carries (for device testing):
   drop book text: tagged paragraphs, headings, list items and blockquotes
   render; other markers drop only their own label or a bare page number and
   replay anything else at its reading offsets (adapted from #3349). Section
-  cache version 50: each book re-lays out its chapters once on first open.
+  cache version 50 then, 51 since r60 (upstream took 50): each book re-lays out
+  its chapters once on first open.
 
 Design details and attributions are in `docs/fork-reader.md`,
 `docs/fork-library.md` and `docs/fork-layout.md`.
@@ -282,7 +367,7 @@ notice is reported back rather than measured. Prefer changes whose benefit is
 deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
 that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-09-29 at `d1509d07` and the fork is
+Official upstream was fetched on 2026-09-30 at `099e89bc` and the fork is
 rebased onto it (conflicts above). Recheck upstream and open PRs when starting
 new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
@@ -292,8 +377,10 @@ Cold-open profiling is host-only: it uses archive/storage doubles, so it lacks
 real ZIP/container, CSS and first-page layout costs. The 128-chapter fixture
 now reads 1,552 times in its cold open (was 33,556 before r58).
 
-Unverified on hardware after r55 to r59 (informal only; the user will notice if any
-misbehaves): choosing "Cover" in a Calibre book's chapter list opens its first
+Unverified on hardware after r55 to r60 (informal only; the user will notice if any
+misbehaves): after r60, closing a book inside a footnote reopens on the note and
+Back returns to the link's page, and books open normally after the one-time
+re-layout; choosing "Cover" in a Calibre book's chapter list opens its first
 page; "Move finished books to /Read" keeps bookmarks, the Finished mark and the
 Library entry; a page turn pressed during a page update no longer fires after
 opening the toolbar with the home button; Library search (upstream keyboard)
@@ -368,11 +455,12 @@ Upstream PR triage, 2026-09-27, rechecked 2026-09-29:
   - merged upstream and in the base since 2026-09-28: #3698, #3754, #3755,
     #3765, #3766
   - merged upstream and in the base since 2026-09-29: #3704, #3732, #3773
+  - merged upstream and in the base since 2026-09-30: #3685 (the fork's copy
+    dropped out), #3764 (upstream's behavior replaces the fork's), #3727,
+    #3114, #3805
   - adapted in r52: #3349
-  - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #3685, #2438, #3113,
+  - adopted: #3441, #3495, #3733, #3027, #3605, #3419, #2438, #3113,
     #2603, #3305 (r55)
-  - #3764: link-return progress (`docs/fork-reader.md`, "Links, footnotes and
-    history")
   - #2602: flat CSS rule pools (`CssParser.h`: `SelectorEntry`,
     `selectorPool_`, `stylePool_`)
   - #2343: ordered lists (`ChapterHtmlSlimParser.cpp`: list context
