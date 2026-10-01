@@ -140,7 +140,7 @@ origin/develop            downstream integration branch
   the base repository. Never open a pull request against the official project
   without explicit approval.
 - The squash commit is the pull request's title and body. Write the title as
-  the commit subject (`AGENTS.md` format; CI checks it) and the body as the
+  the commit subject (`AGENTS.md` format) and the body as the
   commit message, ending with any `Co-Authored-By` lines for adapted work. Do
   not add assistant attribution or a generated-by line.
 - When T3 Code's `link_pull_request` tool is available, link every pull request
@@ -157,6 +157,14 @@ origin/develop            downstream integration branch
   once the worktree is clean and its HEAD is the merged pull request's head.
   Leave the worktree on its branch with nothing uncommitted or unpushed, and do
   not remove it by hand. Follow-up work after a merge belongs in a new thread.
+- GitHub Actions has not run on the fork's pull requests (checked 2026-09-30:
+  workflows are listed as active, yet pull request #1 started none; a fork's
+  owner has to enable them once in the repository's Actions tab). Until it
+  does, the local test and build results in the pull request are the only
+  evidence. Two things to fix when it is enabled: the host-test step in
+  `ci.yml` uses `--timeout 60`, too short for `GlyphRasterParity` under the
+  sanitizers, and the `gh` token cannot push workflow-file changes without the
+  `workflow` scope (`gh auth refresh -s workflow`).
 - SDK changes are not reviewed through pull requests. Commit them on the SDK
   fork's `develop`, push that (with a lease after an SDK rebase), and let the
   reader pull request carry the new submodule commit, which must already be on
