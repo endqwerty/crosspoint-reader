@@ -167,7 +167,7 @@ The logic is in `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp`:
 
 Known gap: the upstream deferred-`<br>` spacing rework is not included. Restored
 text still follows the converter's line break. This behavior defines
-`section.bin` version 50 (layout unchanged from 49, partial sentinel 232). See
+`section.bin` version 51 (layout unchanged from 50, partial sentinel 231). See
 [file-formats.md](file-formats.md).
 
 ## Limits and known gaps
