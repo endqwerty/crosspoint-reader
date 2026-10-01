@@ -40,7 +40,7 @@ None of these change a cache, settings, bookmark, Library index or reading-posit
 
 1. `0001` (`FsCache.cpp`): a failed `readSector()` invalidates the cache. Without this, a partial transfer can leave another sector's bytes under the old sector's identity. A later write-back could then corrupt both FAT copies. Dirty data has already been synced before the read, so nothing is lost. Dirty write-back failures keep the buffer so the write can be retried.
 2. `0002` (`SdFatConfig.h`): adds an `#ifndef` guard. Without it, the architecture default (1 on ARM, 0 elsewhere) overrides the `-D` flag.
-3. `0003` (`FatFile.cpp`): `readDirCache` passes a null output pointer, and advancing that pointer is undefined behaviour. The guard leaves it alone. This is local work and is not part of PR #3685.
+3. `0003` (`FatFile.cpp`): `readDirCache` passes a null output pointer, and advancing that pointer is undefined behaviour. The guard leaves it alone. This is local work and is not part of upstream's patch set.
 
 Hook invariants:
 
@@ -161,7 +161,7 @@ Keep these `Co-Authored-By` lines when this work is committed or rebased.
 
 - **Storage failure handling** adapts [CrossPoint PR #3419](https://github.com/crosspoint-reader/crosspoint-reader/pull/3419) at `f2faf88b77b0a3e4b5154b5090b1f6a059347d5c`. It was an open proposal when adopted, not an accepted upstream decision. Daviex (`david.iuffri94@hotmail.it`), verified from the PR commit records:
   `Co-Authored-By: Daviex <david.iuffri94@hotmail.it>`
-- **SdFat cache:** the cache override, the failed-fill invalidation and the original patch hook are adapted from [CrossPoint PR #3685](https://github.com/crosspoint-reader/crosspoint-reader/pull/3685) by Sung-jin Brian Hong (`serialx`), revision `be6543fd379d14670977b80cf996e3aabc20b623`. The directory-pointer guard is local work.
+- **SdFat cache:** the build flag, the cache override, the failed-fill invalidation and the patch hook are upstream's since [CrossPoint PR #3685](https://github.com/crosspoint-reader/crosspoint-reader/pull/3685) by Sung-jin Brian Hong (`serialx`) merged as `e9245489`. The fork carries only the directory-pointer guard (`0003`), `GIT_OPTIONAL_LOCKS=0` for the hook's `git apply`, the patch README and the host tests in `test/sdfat_cache`.
 - **Display:**
   - [SDK #97](https://github.com/Free-Ink/freeink-sdk/pull/97): Eszter `<hello@eszter.xyz>`, commit `6644bf2fbf7525c36d5f86b7d0e880bd3a009b23`.
   - [SDK #98](https://github.com/Free-Ink/freeink-sdk/pull/98): Justin Mitchell `<justin@jmitch.com>`, commit `5916724f23f9392a1d75bc2f632780f54b0735fa`.

@@ -218,7 +218,8 @@ to check out `develop` there while the permanent checkout owns that branch.
   `cmake -S test -B <dir> -DCMAKE_BUILD_TYPE=Release`, build, then
   `ctest --test-dir <dir> --output-on-failure --timeout 60 -j 8`. Sanitizer runs
   add `-DCROSSPOINT_TEST_SANITIZERS=ON` with Homebrew
-  `/opt/homebrew/opt/llvm@22/bin/clang` and `clang++`. Keep test build
+  `/opt/homebrew/opt/llvm@22/bin/clang` and `clang++`, and need `--timeout 180`
+  (`GlyphRasterParity` takes about 70 s under the sanitizers). Keep test build
   directories under `~/.local/share/crosspoint-build/`. `./bin/clang-format-fix`
   finds the venv's `clang-format` when that `bin/` is first on `PATH`.
 - Firmware version for a handoff: put `[crosspoint]` `version =
