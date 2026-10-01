@@ -7,7 +7,8 @@ names, release hashes and outstanding work in `WIP.md`.
 ## Precedence
 
 1. The user's current instructions and explicit standing authorizations recorded
-   below (automatic commits, local integration and personal `develop` pushes).
+   below (automatic commits, task-branch pushes and pull requests on the personal
+   fork, and upstream syncs of the personal `develop`).
 2. The official project: upstream `AGENTS.md`, its architecture, interfaces,
    conventions and maintainer decisions.
 3. This file.
@@ -51,9 +52,10 @@ fork is a linear series of local patches on top of upstream `develop`.
 - Fetch the official upstream remote and rebase the local patch series onto its
   updated `develop`. Verify remote URLs rather than assuming a remote's role
   from its name. Never merge upstream into the customized branch.
-- Integrate local feature branches with fast-forward or squash. Rebase diverged
-  features first; do not introduce local merge commits or use `--rebase-merges`
-  to preserve an interwoven fork history.
+- Task branches reach `develop` only as squash (or rebase) merges of pull
+  requests on the personal fork; see "Branches and pull requests". Do not
+  introduce local merge commits or use `--rebase-merges` to preserve an
+  interwoven fork history.
 - Preserve upstream architecture, public interfaces, and behavior when resolving
   conflicts. Adapt or drop local changes that conflict with upstream's design;
   remove patches that upstream has superseded. Do not retain an older local
@@ -62,13 +64,13 @@ fork is a linear series of local patches on top of upstream `develop`.
   local merges into a reviewed patch series above the upstream base, preserving
   intended changes and human authorship. Revalidate the resulting source using
   the relevant tests and firmware target when source changes.
-- Rebasing published commits rewrites their IDs. Existing push-approval rules
-  still apply; when an authorized update requires a force push, use
-  `--force-with-lease`, never an unconditional force push.
+- Rebasing published commits rewrites their IDs. When an authorized update
+  requires a force push, use `--force-with-lease`, never an unconditional force
+  push.
 
 ## Repository setup
 
-Both personal forks use a single `develop` branch:
+Both personal forks use a single long-lived `develop` branch:
 
 - Reader fork: `https://github.com/endqwerty/crosspoint-reader.git`.
   Its upstream base is `develop` in
@@ -78,92 +80,163 @@ Both personal forks use a single `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
-The maintained checkout uses GitHub's fork layout in both repos: `origin` is the
-personal fork and `upstream` the official project, with local `develop` tracking
-`origin/develop`. `origin/HEAD` points to `origin/develop`, so tools that start
-from the default branch, such as T3 Code worktrees, begin at the fork. Where
-`AGENTS.md` says to push to `fork`, use `origin`. Fresh clones may name remotes
-differently; always verify their URLs. `.gitmodules` points to the
-SDK fork so the pinned local SDK commit is available to a recursive checkout:
+The maintained checkout (`~/workspace/crosspoint-reader`) uses GitHub's fork
+layout in both repos: `origin` is the personal fork and `upstream` the official
+project, with local `develop` tracking `origin/develop`. `origin/HEAD` points to
+`origin/develop`, so T3 Code starts each thread's worktree from the fork's
+`develop`. Where `AGENTS.md` says to push to `fork`, use `origin`. Fresh clones
+may name remotes differently; always verify their URLs. `.gitmodules` points to
+the SDK fork so the pinned local SDK commit is available to a recursive checkout:
 
 ```sh
 git clone --recurse-submodules --branch develop https://github.com/endqwerty/crosspoint-reader.git
+git remote add upstream https://github.com/crosspoint-reader/crosspoint-reader.git
+scripts/fork-workflow.sh setup
 ```
 
-Keep backup history in verified bundles before removing obsolete branches. After
-finishing a feature, integrate it into the maintained `develop` branch. Keep the
-active worktree on its feature branch until the user deletes it; do not attempt
-to check out `develop` there while the permanent checkout owns that branch.
+`setup` is needed once per clone (worktrees share it). It makes the fork `gh`'s
+default repository, which matters because `gh`, and T3 Code's own "create pull
+request" action, otherwise resolve a fork to its parent and would open the pull
+request against the official project. It also enables `rerere`, pruning fetches
+and `origin` as the push default.
 
-## Starting a new worktree
+The fork's GitHub settings (set 2026-09-30): merge commits disabled, squash and
+rebase merges allowed, squash commits take the pull request's title and body,
+and head branches are deleted on merge.
 
-- Start from the latest personal `develop`, never a retired worktree branch.
-  Read this file and `WIP.md`, inspect `git worktree list`, status and remote
-  URLs, then fetch personal and official `develop`. Resolve remote advances
-  and update the linear upstream base before implementing the requested feature.
+Keep backup history in verified bundles before removing obsolete branches.
+
+## Branches and pull requests
+
+```text
+upstream/develop          official project, fetch only
+      |  periodic rebase, force-push with lease, no pull request
+      v
+origin/develop            downstream integration branch
+      ^
+      |  pull requests, squash-merged
+      +-- t3code/<slug>   one per T3 Code thread, in its own worktree
+      +-- feature/<x>, fix/<x>, docs/<x>, refactor/<x>, codex/<x>
+```
+
+- `develop` is the integration branch, not a place to work. Never commit task
+  work on it, never push task commits to `origin/develop`, and never move local
+  `develop` to a task branch. It changes in exactly two ways: a merged pull
+  request, or an upstream sync.
+- Every task happens on a short-lived branch created from `origin/develop`. A
+  T3 Code thread already has one: its worktree under `~/.t3/worktrees` is on
+  `t3code/<slug>`, created from `origin/develop`. Keep that branch and its name
+  for the whole thread (T3 Code tracks the thread by it). Branches made by hand
+  use `feature/`, `fix/`, `docs/`, `refactor/` or `codex/`. The permanent
+  checkout stays on `develop`; do not check out `develop` in a worktree.
+- Standing authorization: commit completed, validated work on the task branch,
+  push that branch to `origin` and open a pull request against the fork's
+  `develop`, without asking each time. Do not leave completed work only in a
+  disposable worktree.
+- Open the pull request with `scripts/fork-workflow.sh pr --title "<type>:
+  <summary>" --body-file <file>`. It refuses to run on `develop`, with
+  uncommitted changes, on a branch that is not based on the current
+  `origin/develop` or contains merge commits, and it always names the fork as
+  the base repository. Never open a pull request against the official project
+  without explicit approval.
+- The squash commit is the pull request's title and body. Write the title as
+  the commit subject (`AGENTS.md` format; CI checks it) and the body as the
+  commit message, ending with any `Co-Authored-By` lines for adapted work. Do
+  not add assistant attribution or a generated-by line.
+- When T3 Code's `link_pull_request` tool is available, link every pull request
+  to the thread. T3 Code only discovers pull requests in the official
+  repository by itself, so a fork pull request that is not linked never settles
+  its thread on merge.
+- The user merges pull requests (T3 Code or GitHub), with squash. Do not merge
+  one unless the user says so in that thread. A pull request whose commits
+  should stay separate can be rebase-merged instead.
+- After the merge the branch and worktree are disposable. GitHub deletes the
+  remote branch. The thread settles (automatically when its linked pull request
+  merged, otherwise by hand) and the user archives it; the launchd job described
+  in the homelab `workstation.md` then removes the worktree and local branch,
+  once the worktree is clean and its HEAD is the merged pull request's head.
+  Leave the worktree on its branch with nothing uncommitted or unpushed, and do
+  not remove it by hand. Follow-up work after a merge belongs in a new thread.
+- SDK changes are not reviewed through pull requests. Commit them on the SDK
+  fork's `develop`, push that (with a lease after an SDK rebase), and let the
+  reader pull request carry the new submodule commit, which must already be on
+  the SDK fork so CI and other checkouts can fetch it.
+
+### Syncing with upstream
+
+The agent does this as part of resolving work, without a pull request: at the
+start of a task, and again before opening or updating a pull request if upstream
+moved meanwhile. `scripts/fork-workflow.sh status` shows whether upstream is
+ahead.
+
+1. In the task worktree, `git fetch upstream` and `git rebase upstream/develop`.
+   Before the task has commits of its own, the branch is `develop`, so this
+   rebases the downstream series; with task commits, they ride on top of it.
+   Resolve conflicts by the "Upstream first" rules.
+2. Validate the rebased series (host tests, sanitizers, the X4 Pro build) when
+   upstream changed source the series touches or the rebase needed any edit.
+3. Publish it with `scripts/fork-workflow.sh sync-publish <commit>`, where
+   `<commit>` is the rebased series without the task's own commits (`HEAD` when
+   the task has none yet). The script checks that the commit contains the
+   upstream tip and no merge commits, that local `develop` is clean and equals
+   `origin/develop`, keeps the old tip under `refs/fork-backup/`, force-pushes
+   with a lease on the inspected remote tip, moves local `develop`, and lists
+   the open pull requests.
+4. Each open pull request is now based on the old `develop`. In its worktree run
+   `scripts/fork-workflow.sh restack`, which finds the old base in
+   `origin/develop`'s reflog, rebases the task commits onto the new `develop`
+   and updates the pull request.
+
+With no conflicts and nothing to revalidate this is the plain sequence in the
+permanent checkout (`git fetch upstream`, `git rebase upstream/develop`, `git
+push --force-with-lease origin develop`); `sync-publish` is the same thing with
+the checks and the backup ref. The standing authorization covers this force
+push of the personal `develop`, verified by URL
+(`https://github.com/endqwerty/crosspoint-reader.git` or its SSH equivalent). It
+does not cover pushes to the official project, release publication, or closing
+or merging pull requests.
+
+After an upstream update, confirm `AGENTS.md` still directs agents here and
+review this file for rules or patches superseded by upstream. File placement
+alone does not enforce linear history.
+
+## Starting a task
+
+- A new thread's worktree starts from the fork's `develop`. Read this file and
+  `WIP.md`, inspect `git worktree list`, status and remote URLs, then run
+  `scripts/fork-workflow.sh status` and sync with upstream first if it is ahead.
 - Initialize the reader-pinned SDK with `git submodule update --init` if needed.
   Do not substitute the SDK's newest branch tip. Recursive icon submodules are
   needed only for icon generation, not ordinary firmware builds.
-- Perform feature work in the isolated local worktree. Use the permanent
-  checkout for final integration into `develop`, preserving unrelated changes.
-  A shared local build mirror is usable only after verifying its source matches
-  the intended worktree; never reuse another feature's outputs without checking.
+- Do the work in the thread's worktree. A shared local build mirror is usable
+  only after verifying its source matches the intended worktree; never reuse
+  another feature's outputs without checking.
 - `WIP.md` separates completed handoff evidence from possible future work.
   Its roadmap is context, not an instruction to begin unrequested features.
 
-## Local work and publication
+## Finishing a task
 
-- The user's standing instruction authorizes automatic local administration:
-  commit completed, validated work, rebase as needed, and integrate it into
-  local `develop` without asking again. This is explicit ongoing authorization
-  for commits and local integration, including where generic agent guidance
-  otherwise asks for a per-task commit request. Do not leave completed work
-  only on a disposable worktree branch.
-- Before integration, fetch official upstream `develop` and bring local
-  `develop` up to date by rebasing the fork-only patch series above it. Keep
-  upstream commits and their trees unchanged; all customizations must remain
-  later commits. Never amend/squash upstream commits, interleave upstream with
-  local patches, or create merge commits to update the fork. Follow the backup,
-  conflict-resolution and validation rules above when rebasing.
-- Integrate the completed worktree branch using fast-forward or squash after
-  rebasing it onto the updated local `develop`. Preserve concurrent/unrelated
-  work. Run relevant checks, export requested firmware/evidence, and update
-  `WIP.md` before the final commit. Verify local `develop` contains the finished
-  work, includes the fetched upstream tip, and has no fork-only merge commits.
-- Finish with clean integrated source state and durable outputs so the user can
-  simply delete the worktree. Report any genuine blocker instead of claiming
-  unfinished work is complete. As the last step, after pushing, check and report:
+- Complete applicable host tests and firmware builds before opening the pull
+  request for source changes. Record physical-device checks separately as
+  pending when unavailable; do not claim device validation or hold the pull
+  request back solely on that absence. Documentation-only changes require review
+  and diff checks, not a firmware rebuild or device test.
+- Update `WIP.md` and the affected `docs/fork-*.md` in the same pull request.
+- A firmware handoff is built from the pull request's head. Record the pull
+  request number and head commit in `build-info.json` and `WIP.md`: after a
+  squash merge that commit is no longer on `develop`, but GitHub keeps it at
+  `refs/pull/<number>/head`, and the squash commit has the same tree as long as
+  `develop` did not move in between.
+- Report any genuine blocker instead of claiming unfinished work is complete. As
+  the last step, check and report:
+  - the pull request URL, its checks, and that it is linked to the thread;
   - `git status --short` is empty in the worktree and in `freeink-sdk`, and the
-    submodule is at its pinned commit (`git submodule status` shows no `+`).
-  - No temporary files or `platformio.local.ini` remain, and temporary git
-    worktrees or scratch clones created for the task are removed.
-  - Local `develop` and `origin/develop` contain the work.
-- Leave the active worktree in place, still on its own `t3code/*` branch; do
-  not delete or detach that branch. The user deletes the thread, and a launchd
-  job then removes the worktree and branch (T3 Code's own cleanup cannot remove
-  worktrees with a submodule; see the homelab `workstation.md`). Removing other
-  retired worktrees by hand is unnecessary.
-- Complete applicable host tests and firmware builds before integrating source
-  changes. Record physical-device checks separately as pending when unavailable;
-  do not claim device validation or block authorized local administration solely
-  on that absence. Documentation-only changes require review and diff checks,
-  not a firmware rebuild or device test.
-- The user's standing authorization includes pushing completed `develop` to
-  their personal fork. Verify remote URLs before every push; for this reader
-  repository, push `develop` to `origin` only when it resolves to
-  `https://github.com/endqwerty/crosspoint-reader.git` (or its SSH equivalent).
-  Fetch the personal remote first and preserve concurrent remote work. Prefer
-  a normal push; after a required upstream rebase, use an explicit
-  `--force-with-lease` tied to the inspected remote tip, never unconditional
-  force. Verify the remote `develop` tip matches local `develop` before handoff.
-- This standing authorization does not cover pushes to official upstream,
-  other branches, PR creation/closure, or release publication; those still
-  require explicit user approval.
+    submodule is at its pinned commit (`git submodule status` shows no `+`);
+  - no temporary files or `platformio.local.ini` remain, and temporary git
+    worktrees or scratch clones created for the task are removed;
+  - the branch is pushed, and `origin/develop` contains the upstream tip.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
-- After an upstream update, confirm `AGENTS.md` still directs agents here and
-  review this file for rules or patches superseded by upstream. File placement
-  alone does not enforce linear history.
 
 ## Development and validation preferences
 
