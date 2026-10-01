@@ -222,28 +222,37 @@ storage and display reliability document.
 
 ### Links, footnotes and history
 
-- Ordinary content-link taps record a Back destination without replacing saved
-  progress on exit. Opening the Footnotes action starts a temporary excursion:
-  closing the book inside it restores the outermost origin. Links followed from a
-  note stay in the excursion; Back unwinds each destination.
+- Following a link or a footnote records a Back destination and never replaces
+  saved progress: the book reopens on the page that was showing, as upstream
+  #3764 defines. Opening the Footnotes action starts an excursion. Links followed
+  from a note stay in the excursion; Back unwinds each destination.
+- The Back destinations outlive the reader (sleep, home, KOReader sync) in the
+  book cache's `links.bin`, in upstream's format: a depth byte, then spine and
+  page as two little-endian `uint16` per entry. The file is written on exit only
+  when history exists and is consumed (read, then removed) on the next open, so
+  an unclean shutdown cannot resurrect a stale stack. Restored entries are plain
+  link returns: the file has no jump kind, page count or text offset, so after a
+  reopen the Footnotes shortcut opens the list instead of returning, and a
+  return across a re-pagination lands on the saved page number.
 - The parser collects internal links for the Footnotes list without retaining
   `epub:type=noteref`, so the reader distinguishes the user's action (link tap vs
   Footnotes action), not a meaning guessed from link text or filenames.
 - `ReaderNavigationHistory` has `CAPACITY = 3` fixed entries and no dynamic
   allocation. Each entry holds spine, page, page count, jump kind and an optional
-  exact visible-text offset, so returning from a footnote or leaving the reader
+  exact visible-text offset, so returning from a footnote within a session
   preserves the origin across reflow. When full, the oldest entry is dropped,
   except that an outermost footnote origin in slot 0 is kept and the next-oldest
   is dropped. Invalid href resolution does not modify history.
-- An explicit chapter, bookmark, percentage, search or toolbar jump retires the
-  temporary origin so exit cannot overwrite the new position.
+- An explicit chapter, bookmark, percentage, search or toolbar jump clears the
+  history, so Back cannot return across it.
 - The Footnotes menu entry comes first when a page has links. One item opens
   directly (no picker allocation); several use the picker, whose allocation is
   fallible and checked. The power-button shortcut and menu share this behavior;
   pressing it inside a footnote excursion returns to the origin. Cancelling the
   picker returns to the menu or page. The existing translated Footnotes label is
   used for both entry points.
-- No persistent file format changes.
+- `links.bin` is upstream's file; the fork adds no persistent format of its own
+  here.
 
 ### Resume and percentage jumps
 
