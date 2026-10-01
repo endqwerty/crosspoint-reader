@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream e2dfdea, X4 Pro r61, split patch series
+# WIP handoff — develop on upstream 664528b, X4 Pro r61, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`e2dfdeaf` (see `git log upstream/develop..develop`).
+`664528b2` (see `git log official/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -33,18 +33,32 @@ SDK `develop` is `eb74866d43acd9a771a5c75b4c998fbd01769ff0`: two local patches
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
 `endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
-personal fork and `upstream` for official upstream, and tracks `origin/develop`
+personal fork and `official` for official upstream (renamed from `upstream` on
+2026-10-01 so T3 Code treats the fork as the project), and tracks `origin/develop`
 in both repos. Since 2026-09-30 `develop` is the integration branch only: task
 work is committed on the thread's own branch and reaches `develop` through a
 pull request on the personal fork, which the user squash-merges; `develop` is
 otherwise moved only by rebasing onto upstream and force-pushing with a lease
 (`docs/FORK.md`, "Branches and pull requests"; helper
 `scripts/fork-workflow.sh`). Everything up to r61 was integrated directly,
-before this change. Other publication requires explicit approval.
+before this change; pull request #1 introduced the workflow. GitHub Actions is
+off for the fork, so checks run locally (`scripts/fork-workflow.sh check`), and
+T3 Code alone removes worktrees (`release` at every handoff makes that
+possible). Other publication requires explicit approval.
 
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
 base, adapt or drop patches when upstream supersedes them, and integrate only
 by squash or rebase merges of pull requests. No local merge commits.
+
+### Upstream sync on 2026-10-01
+
+Rebased onto `664528b2` (#3808, the "Footnotes" label becomes "Links and
+footnotes" in every translation and the user guide). One conflict: upstream
+appended two strings to `finnish.yaml` where the fork appends
+`STR_NO_RECENT_BOOKS`; all three lines are kept. No source changed, so the r61
+image still stands except for that label. Validated with
+`scripts/fork-workflow.sh check`: format, 1,708 host tests in Release and under
+the sanitizers, and the `x4pro-gh_release` build.
 
 ### Upstream conflicts resolved on 2026-09-30
 
@@ -393,7 +407,7 @@ notice is reported back rather than measured. Prefer changes whose benefit is
 deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
 that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-09-30 at `e2dfdeaf` and the fork is
+Official upstream was fetched on 2026-10-01 at `664528b2` and the fork is
 rebased onto it (conflicts above). Recheck upstream and open PRs when starting
 new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
