@@ -33,6 +33,21 @@ adds no heap allocation, resident cache, public API or cache-format change. The
 existing word arena and HAL locking are unchanged. A page that was already
 prefetched (see below) is acquired with zero reads.
 
+## Line-break gap measurement
+
+`ParsedText::computeLineBreaks` reaches the gap before word `j` (kerning for a
+continuation, character spacing for a no-space boundary, else the scaled space
+advance) from every line start within a line of it. The gap depends on `j`
+alone, so each is measured once into a 64-entry `int16_t` window on the stack
+(128 bytes, no heap allocation). Line start `i` fills the slot of word `i + 1`;
+because `i` only decreases, the slots of the next 64 words always hold their own
+gaps. A line longer than the window measures the remaining gaps directly. Breaks
+are unchanged, so the section cache version is too.
+
+Host count on the stub renderer, 400 four-letter words at 480 px: 5,847
+space-advance lookups before, 1,137 after. It applies whenever a chapter is laid
+out, not to turning cached pages. Device time is unmeasured.
+
 ## Word direction probe
 
 `BidiUtils::detectParagraphLevel` (`lib/MiniBidi/BidiUtils.cpp`) finds the first
@@ -200,6 +215,8 @@ text still follows the converter's line break. This behavior defines
   block and the shared policy with platform doubles. It covers lock, UI,
   debounce and heap gates, active builds, end of section, memory pressure, and
   the post-decode recheck.
+- `test/korean_line_breaking/` (`LineBreakCost`): the lookup bound and equal
+  breaks on lines longer than the gap window.
 - `test/chapter_html_slim_parser/` (`PagebreakMarkerTest`) and
   `test/section_parser_integration/`
   (`CalibrePagebreakMarkersKeepWrappedTextAndDropLabels`).
@@ -213,5 +230,8 @@ text still follows the converter's line break. This behavior defines
   (https://github.com/crosspoint-reader/crosspoint-reader/pull/3675). Its
   additional image prefetch work and window-paused font preparation are not
   imported and remain deferred.
+- The line-break gap window is adapted from open upstream PR #3814 by SeungBeom
+  Choi <puritysb@gmail.com> at `2e53b6f4` (Co-Authored-By on the fork commit).
+  If it merges, the fork's copy should drop out on the next rebase.
 - Draft PR #3705 is deferred: its own evidence shows a cold-layout regression
   with varying-width fonts. The sources do not name its author.
