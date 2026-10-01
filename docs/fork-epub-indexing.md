@@ -256,8 +256,8 @@ match firmware configuration. A host-only target also builds the same source wit
   timings.
 - Full ZIP/container discovery, CSS parsing and initial page layout are outside
   the indexing I/O fixtures.
-- The SdFat FAT-cache proposal (PR #3685) is deferred until a real-SdFat
-  fault/operation-count harness exists.
+- The SdFat FAT cache (PR #3685) is part of upstream; its effect on indexing
+  reads is unmeasured on the device.
 
 ## Code and tests
 
@@ -316,7 +316,7 @@ if a rebase renames or reorders them.
 - [PR #3573](https://github.com/crosspoint-reader/crosspoint-reader/pull/3573),
   merged upstream as `ef08c3ad`: `truncatedText` binary search, used verbatim.
 - PR #3685 (SdFat FAT cache), by Sung-jin Brian Hong `<serialx@serialx.net>`:
-  reviewed and deferred here; the storage fork adapts its separate FAT cache
-  (see `fork-storage-display.md`).
+  merged upstream as `e9245489`; the fork's remaining additions are in
+  `fork-storage-display.md`.
 - ZIP record layouts: [PKWARE APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
   sections 4.3.12-4.3.16.
