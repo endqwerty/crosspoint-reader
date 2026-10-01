@@ -34,14 +34,17 @@ SDK `develop` is `eb74866d43acd9a771a5c75b4c998fbd01769ff0`: two local patches
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
 `endqwerty/freeink-sdk`. The maintained checkout uses `origin` for the
 personal fork and `upstream` for official upstream, and tracks `origin/develop`
-in both repos. No PR was opened. Completed work is automatically committed,
-integrated into local `develop` and pushed to personal `origin/develop` under
-the standing authorization in `docs/FORK.md`. Other publication requires
-explicit approval.
+in both repos. Since 2026-09-30 `develop` is the integration branch only: task
+work is committed on the thread's own branch and reaches `develop` through a
+pull request on the personal fork, which the user squash-merges; `develop` is
+otherwise moved only by rebasing onto upstream and force-pushing with a lease
+(`docs/FORK.md`, "Branches and pull requests"; helper
+`scripts/fork-workflow.sh`). Everything up to r61 was integrated directly,
+before this change. Other publication requires explicit approval.
 
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
-base, adapt or drop patches when upstream supersedes them, and use rebase plus
-fast-forward/squash integration. No local merge commits.
+base, adapt or drop patches when upstream supersedes them, and integrate only
+by squash or rebase merges of pull requests. No local merge commits.
 
 ### Upstream conflicts resolved on 2026-09-30
 
@@ -411,9 +414,9 @@ and list navigation; the first open of each book after flashing re-lays out
 chapters without errors; the end-of-book menu shows the next volume (or the
 author's next title) of a Calibre book and opens it.
 
-No feature implementation is active. Start the next isolated worktree from
-personal `develop` and follow `docs/FORK.md`'s startup procedure. The roadmap
-below is optional future scope, not unfinished work blocking deletion.
+No feature implementation is active. Start the next thread from personal
+`develop` and follow `docs/FORK.md` ("Starting a task"). The roadmap below is
+optional future scope, not unfinished work blocking deletion.
 
 ## Proposed next steps
 
