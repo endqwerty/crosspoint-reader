@@ -6,7 +6,9 @@
 #include <Logging.h>
 #include <Memory.h>
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <string_view>
 
 #include "BookmarkUtil.h"
@@ -100,10 +102,9 @@ bool isBookPathFree(const std::string& path) {
   if (Storage.exists(path.c_str())) return false;
   std::string paths[STATE_PATH_COUNT];
   getStatePaths(path, FsHelpers::hasReflowableBookExtension(std::string_view(path)), paths);
-  for (const std::string& statePath : paths) {
-    if (!statePath.empty() && Storage.exists(statePath.c_str())) return false;
-  }
-  return true;
+  return std::none_of(std::begin(paths), std::end(paths), [](const std::string& statePath) {
+    return !statePath.empty() && Storage.exists(statePath.c_str());
+  });
 }
 
 bool relinkBookState(const std::string& oldPath, const std::string& newPath) {

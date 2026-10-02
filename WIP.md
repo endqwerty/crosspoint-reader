@@ -1,9 +1,9 @@
-# WIP handoff — develop on upstream 664528b, X4 Pro r61, split patch series
+# WIP handoff — develop on upstream 5b1f060, X4 Pro r61, split patch series
 
 ## Repository state
 
 The reader's local changes form a linear series above official reader `develop`
-`664528b2` (see `git log official/develop..develop`).
+`5b1f0605` (see `git log official/develop..develop`).
 Since 2026-09-28 the former single 42,767-line X4 Pro commit is nine topical
 patches, each built warning-free for `x4pro-gh_release` on its own:
 
@@ -26,9 +26,9 @@ Upstream's own history is intact; there are no local merge commits. When
 rebasing, a conflict now names its topic, and a patch that upstream supersedes
 can be dropped or adapted on its own.
 
-SDK `develop` is `eb74866d43acd9a771a5c75b4c998fbd01769ff0`: two local patches
+SDK `develop` is `434b0c4d537f70a438380e377c05841eaa73dceb`: two local patches
 (display transactions/refresh, then list and text-area components) above
-`233922603467699775f5a61fd12ae7366cf1fbda`, the revision official reader pins.
+`bbd528ceb136696e009305377bba5bb1b079c1cf`, the revision official reader pins.
 `.gitmodules` resolves the SDK through the personal fork.
 
 The reader fork is `endqwerty/crosspoint-reader`; the SDK fork is
@@ -49,6 +49,34 @@ possible). Other publication requires explicit approval.
 Persistent policy: read `docs/FORK.md`. Keep every local patch above the upstream
 base, adapt or drop patches when upstream supersedes them, and integrate only
 by squash or rebase merges of pull requests. No local merge commits.
+
+### Second upstream sync on 2026-10-01
+
+Rebased onto `5b1f0605` (#3824, per-book content keys and plugin isolation)
+and the SDK's two patches onto the new pin `bbd528c` (three SDK commits:
+content-rights split, OPDS pagination; no conflict). Upstream's design won:
+
+- "Move finished books to /Read" uses upstream's loop over the `.key` and
+  `.rights` sidecars. The fork keeps only its rollback: a failed sidecar move
+  returns the book with `moveBookWithState()` so its state goes back with it.
+- `Epub::load` calls upstream's new `Epub::openProtection()`. The `epub_load`
+  and `epub_indexing` fixtures provide that method instead of stubbing
+  `openProtectedBook()` (the series' last commit; item 10's kind of break).
+- Validated with `scripts/fork-workflow.sh check --full` plus a default
+  `check` on the published tip `d1644dae`: format, 1,715 host tests in Release
+  and under the sanitizers (7 new, upstream's), `x4pro-gh_release` and the five
+  CI targets. X4 Pro static RAM 103,288 bytes (+48 over r61), linked flash
+  5,828,426 bytes. SDK display and FreeInkUI host tests pass.
+- cppcheck (`pio check`, which fails on low severity) reported six style
+  findings in fork code, none from this sync. Pull request #5 clears them
+  (redundant conditions in `FileBrowserActivity.cpp` and
+  `LibraryListActivity.cpp`, a variable scope, `explicit ChapterSearch`,
+  `std::none_of` in `isBookPathFree`); cppcheck is clean after it and flash is
+  5,828,474 bytes.
+- No new image: nothing in #3824 or the cppcheck fixes changes offline reading
+  on the X4 Pro, so r61 stays the image to flash.
+- Upstream draft #3814 (adapted in r61) now uses a 32-entry window where the
+  fork has 64. It is still changing; take upstream's form when it merges.
 
 ### Upstream sync on 2026-10-01
 
@@ -396,7 +424,7 @@ notice is reported back rather than measured. Prefer changes whose benefit is
 deterministic (fewer SD reads, fewer refresh activations, less RAM) over ones
 that trade latency against battery or heap in ways only a device can settle.
 
-Official upstream was fetched on 2026-10-01 at `664528b2` and the fork is
+Official upstream was fetched on 2026-10-01 at `5b1f0605` and the fork is
 rebased onto it (conflicts above). Recheck upstream and open PRs when starting
 new work. #3705 and #3675 remain deferred for
 cold-layout/input-responsiveness concerns; earlier evidence is in
@@ -424,9 +452,8 @@ optional future scope, not unfinished work blocking deletion.
 Checked on 2026-10-01, when asked for "the next WIP item": official `develop` is
 still `664528b2` and #3488, #3795, #3799, #3800, #3706, #3757, #3814, #3705 and
 #3675 are all still open, so items 5, 7 and 8 and the "take when merged" PRs
-stay gated. Item 10 is the only one that could start. Its scope is 22 test
-harnesses that read production sources with `file(READ ...)` (`test/*/CMakeLists.txt`);
-it does nothing for reading, so it waits for the user's go-ahead.
+stay gated. Item 10 was the only one that could start; the user asked for it
+later that day (see item 10).
 
 ## Proposed next steps
 
@@ -474,12 +501,20 @@ Each item needs the user's go-ahead. Order is the recommended order.
    splitting by hunk would not avoid.
 9. Done 2026-09-30 (r61): line-break gap window adapted from #3814 (see the
    r61 notes above and `docs/fork-layout.md`).
-10. Only if it keeps recurring: host-test harness upkeep. Tests that compile
-   code extracted between text markers from upstream-owned files
-   (`EpubReaderActivity.cpp`, `ReaderActivity.cpp`, `Epub.cpp`) break when
-   upstream moves a marker or adds a collaborator; seven needed new seams on
-   2026-09-30 and several did on 2026-09-29. Reducing that coupling makes
-   rebases cheaper but does not improve reading.
+10. Started 2026-10-01 after #3824 broke two harnesses again: host-test
+   harness upkeep. Done (pull request #5): the 22 harnesses that cut production
+   code out by text markers call one helper, `crosspoint_extract_between`
+   (`test/cmake/ProductionExtract.cmake`), in place of eleven local copies. It
+   requires a unique start marker and reports every moved marker in a single
+   configure run, so after a rebase `cmake -S test -B <dir>` lists them all.
+   Generated sources are byte-identical to before; no firmware source changed.
+   Left, each only if rebases keep hurting: anchor single-function extractions
+   on the signature with brace matching (the lexer in
+   `test/library_ui/extract.py`), so an inserted neighbour function no longer
+   moves an end marker; share the byte-identical collaborator stubs that
+   `epub_indexing` and `epub_load` duplicate (and the five `FsHelpers.h`
+   copies); about 20 markers sit inside functions of upstream files and would
+   need fork logic hoisted out of them, which widens the firmware diff.
 
 Watch on later rebases: the X4 Pro app partition is 89% full (5.83 MB of
 6.55 MB). The 2026-09-30 upstream update (plugins, content protection) took
