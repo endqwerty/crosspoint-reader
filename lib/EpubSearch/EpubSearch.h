@@ -37,8 +37,8 @@ enum class Status : uint8_t { Running, Complete, LimitReached, Cancelled, Invali
 class ChapterSearch final : public Print {
  public:
   using Cancel = bool (*)(void*);
-  ChapterSearch(Results& results, int spineIndex, Cancel cancel = nullptr, void* context = nullptr,
-                size_t xmlBudget = MAX_XML_BYTES, uint32_t byteBudget = MAX_CHAPTER_BYTES);
+  explicit ChapterSearch(Results& results, int spineIndex, Cancel cancel = nullptr, void* context = nullptr,
+                         size_t xmlBudget = MAX_XML_BYTES, uint32_t byteBudget = MAX_CHAPTER_BYTES);
   ~ChapterSearch() override;
   ChapterSearch(const ChapterSearch&) = delete;
   ChapterSearch& operator=(const ChapterSearch&) = delete;

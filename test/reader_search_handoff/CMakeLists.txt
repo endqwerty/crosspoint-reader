@@ -1,27 +1,13 @@
 set(READER_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${READER_SOURCE})
-file(READ ${READER_SOURCE} source)
-string(FIND "${source}" "void EpubReaderActivity::prepareForBookSearch()" start)
-string(FIND "${source}" "bool EpubReaderActivity::launchKOReaderSync()" end)
-if(start LESS 0 OR end LESS_EQUAL start)
-  message(FATAL_ERROR "Reader search handoff extraction markers moved")
-endif()
-math(EXPR length "${end} - ${start}")
-string(SUBSTRING "${source}" ${start} ${length} methods)
-string(FIND "${source}" "    case EpubReaderMenuActivity::MenuAction::FIND_IN_BOOK:" start)
-string(FIND "${source}" "    case EpubReaderMenuActivity::MenuAction::BOOKMARKS:" end)
-if(start LESS 0 OR end LESS_EQUAL start)
-  message(FATAL_ERROR "Reader search menu extraction markers moved")
-endif()
-math(EXPR length "${end} - ${start}")
-string(SUBSTRING "${source}" ${start} ${length} menu)
-string(FIND "${source}" "void EpubReaderActivity::clearPendingNavigation()" start)
-string(FIND "${source}" "bool EpubReaderActivity::saveProgress(" end)
-if(start LESS 0 OR end LESS_EQUAL start)
-  message(FATAL_ERROR "Reader pending navigation extraction markers moved")
-endif()
-math(EXPR length "${end} - ${start}")
-string(SUBSTRING "${source}" ${start} ${length} clear_pending)
+crosspoint_extract_between(methods ${READER_SOURCE}
+  "void EpubReaderActivity::prepareForBookSearch()"
+  "bool EpubReaderActivity::launchKOReaderSync()")
+crosspoint_extract_between(menu ${READER_SOURCE}
+  "    case EpubReaderMenuActivity::MenuAction::FIND_IN_BOOK:"
+  "    case EpubReaderMenuActivity::MenuAction::BOOKMARKS:")
+crosspoint_extract_between(clear_pending ${READER_SOURCE}
+  "void EpubReaderActivity::clearPendingNavigation()"
+  "bool EpubReaderActivity::saveProgress(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderSearchProduction.cpp
   "#include \"ReaderSearchFixture.h\"\n${methods}\n${clear_pending}\nvoid EpubReaderActivity::activateFind() {\n switch (EpubReaderMenuActivity::MenuAction::FIND_IN_BOOK) {\n${menu}\n}}\n")
 add_executable(ReaderSearchHandoffTest ReaderSearchHandoffTest.cpp
