@@ -1,8 +1,9 @@
 # Fork instructions
 
 This is the canonical location for persistent instructions specific to this fork.
-Read it alongside the upstream `AGENTS.md`. Keep temporary task state, branch
-names, release hashes and outstanding work in `WIP.md`.
+Read it alongside the upstream `AGENTS.md`. Track tasks and handoffs in the
+[personal fork's issue queue](https://github.com/endqwerty/crosspoint-reader/issues/15),
+with validation evidence in the linked pull request and firmware package.
 
 ## Precedence
 
@@ -19,7 +20,7 @@ they do not waive engineering, validation or upstream-compatibility requirements
 The preferences below narrow where fork
 effort goes; they never justify diverging from upstream's design. If a fork
 preference conflicts with upstream, follow upstream and note the conflict in
-`WIP.md`.
+the task's issue or pull request.
 
 ## Shared information
 
@@ -31,7 +32,8 @@ only record of a rule, decision or finding. Record it here instead:
 | Information | Location |
 | --- | --- |
 | Durable rules, preferences, standing authorizations | This file |
-| Task state, handoff evidence, release hashes, next steps | `WIP.md` |
+| Task ownership, progress, blockers, next steps | Personal fork GitHub issues; start at [#15](https://github.com/endqwerty/crosspoint-reader/issues/15) |
+| Validation and source/build identity | Linked pull request and dated firmware package (`build-info.json`) |
 | Design, invariants, limits, attributions of fork features | `docs/fork-*.md` |
 | Upstream conventions | `AGENTS.md` (upstream; only its link here is local) |
 | Current firmware image and build evidence | `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` |
@@ -193,6 +195,13 @@ origin/develop            downstream integration branch
 - The user merges pull requests (T3 Code or GitHub), with squash. Do not merge
   one unless the user says so in that thread. A pull request whose commits
   should stay separate can be rebase-merged instead.
+  For the autonomous review session requested on 2026-10-02
+  (`t3code/automated-feature-review`), the user explicitly authorized selecting
+  work, assigning sub-agents, implementing, validating and merging it without
+  further intervention. That session may squash-merge its validated personal
+  fork pull request. Keep the existing offline EPUB/X4 Pro focus and defer
+  feedback-dependent decisions; this is not standing merge permission for
+  unrelated threads or permission to publish upstream or release tags.
 - After the merge GitHub deletes the remote branch, the thread settles and the
   user archives it. The worktree is T3 Code's to remove; see "Worktree
   lifecycle". Never delete a thread's local branch: T3 Code recreates the
@@ -295,7 +304,8 @@ alone does not enforce linear history.
 ## Starting a task
 
 - A new thread's worktree starts from the fork's `develop`. Read this file and
-  `WIP.md`, inspect `git worktree list`, status and remote URLs, then run
+  the [issue queue](https://github.com/endqwerty/crosspoint-reader/issues/15),
+  inspect `git worktree list`, status and remote URLs, then run
   `scripts/fork-workflow.sh status` and sync with upstream first if it is ahead.
 - The worktree starts without the SDK. `scripts/fork-workflow.sh prepare` checks
   out the reader-pinned revision; do not substitute the SDK's newest branch tip.
@@ -304,8 +314,20 @@ alone does not enforce linear history.
 - Do the work in the thread's worktree. A shared local build mirror is usable
   only after verifying its source matches the intended worktree; never reuse
   another feature's outputs without checking.
-- `WIP.md` separates completed handoff evidence from possible future work.
-  Its roadmap is context, not an instruction to begin unrequested features.
+- Select an unclaimed `backlog` issue whose activation conditions are met;
+  exclude `in-progress`, `needs-decision` and `waiting-upstream`. Claim it with
+  `in-progress` and a note naming the thread's branch before edits. Recheck for
+  another claim and resolve ownership if two threads race. The issue's scope
+  and this file's authorizations govern implementation; a backlog entry does
+  not waive an explicit deferred condition.
+- Keep progress, blockers and next actions on the issue, not in a versioned
+  task-status file. If stopping before delivery, leave a concrete issue handoff
+  and remove `in-progress`. If GitHub is unavailable, report the limitation and
+  preserve a resumable handoff in the thread; do not invent live issue status.
+- Completed pre-migration history remains in
+  [the frozen handoff](https://github.com/endqwerty/crosspoint-reader/blob/75e2cb47f2784d246a03abebf34e03e37a600d96/WIP.md).
+  Inspect live Git state and the shared `FLASH-LATEST.md` instead of treating
+  historical hashes or roadmap notes as current instructions.
 
 ## Finishing a task
 
@@ -314,9 +336,12 @@ alone does not enforce linear history.
   pending when unavailable; do not claim device validation or hold the pull
   request back solely on that absence. Documentation-only changes require review
   and diff checks, not a firmware rebuild or device test.
-- Update `WIP.md` and the affected `docs/fork-*.md` in the same pull request.
+- Update the task issue and affected `docs/fork-*.md`; link the issue from the
+  pull request. After the authorized merge and artifact handoff, verify issue
+  closure explicitly (the integration branch is `develop`). Close with actual
+  validation results and remaining limits, then remove `in-progress`.
 - A firmware handoff is built from the pull request's head. Record the pull
-  request number and head commit in `build-info.json` and `WIP.md`: after a
+  request number and head commit in `build-info.json` and the issue/PR: after a
   squash merge that commit is no longer on `develop`, but GitHub keeps it at
   `refs/pull/<number>/head`, and the squash commit has the same tree as long as
   `develop` did not move in between.
@@ -350,6 +375,13 @@ alone does not enforce linear history.
   a clean X4 Pro build, and prefer changes whose benefit is deterministic over
   ones that trade latency against battery or heap. List device checks as
   unverified, never as validated.
+- The user declined extra reading-display features (2026-09-29): time-left
+  estimates, whole-book page estimates and additional indentation/estimate UI.
+  Do not propose them again without a new request. Chapter-boundary prefetch,
+  idle-power changes, extra series-menu UI and UUID-less relinking remain
+  conditional on a reported need; an autonomous backlog review does not
+  activate them. Upstream watch conditions are tracked in
+  [#13](https://github.com/endqwerty/crosspoint-reader/issues/13).
 - Library workflow: the user keeps their full Calibre library on the SD card.
   They export from Calibre ("Save to disk") on a computer and copy the files
   with an SD card reader. USB transfer from the device is much slower, so don't
@@ -404,7 +436,7 @@ alone does not enforce linear history.
   currently validated image. Historical
   filenames alone do not establish which image should be flashed.
 - Do not start open-ended roadmap work from a handoff. Finish the user's requested
-  scope and record concrete remaining work in `WIP.md`.
+  scope and record concrete remaining work in GitHub issues.
 
 ## Instruction-file maintenance
 
