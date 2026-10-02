@@ -17,6 +17,8 @@ void RecentBooksStore::toJson(JsonDocument& doc) const {
 }
 
 bool RecentBooksStore::fromJson(JsonVariantConst doc) {
+  // Loading can normalize or truncate the input, so persist it once before skipping unchanged updates.
+  needsSave = true;
   // Tolerate a missing/invalid 'books' key (treat as empty list); only a
   // JSON parse error is fatal. A null JsonArray iterates zero times.
   recentBooks.clear();
@@ -36,6 +38,12 @@ bool RecentBooksStore::fromJson(JsonVariantConst doc) {
   return true;
 }
 
+bool RecentBooksStore::saveToFile() const {
+  const bool saved = PersistableStore<RecentBooksStore>::saveToFile();
+  needsSave = !saved;
+  return saved;
+}
+
 void RecentBooksStore::addBook(const std::string& path, const std::string& title, const std::string& author,
                                const std::string& coverBmpPath) {
   // Drop stale entries first so a new add can't evict a valid book in their stead.
@@ -44,6 +52,8 @@ void RecentBooksStore::addBook(const std::string& path, const std::string& title
   auto it =
       std::find_if(recentBooks.begin(), recentBooks.end(), [&](const RecentBook& book) { return book.path == path; });
   if (it != recentBooks.end()) {
+    needsSave = needsSave || it != recentBooks.begin() || it->title != title || it->author != author ||
+                it->coverBmpPath != coverBmpPath;
     // Move the existing entry to the front instead of copying it. The reader calls this after its first
     // render, so fresh string buffers would land among reader allocations and outlive them, splitting the
     // largest free block once the reader exits.
@@ -53,13 +63,14 @@ void RecentBooksStore::addBook(const std::string& path, const std::string& title
     if (book.author != author) book.author = author;
     if (book.coverBmpPath != coverBmpPath) book.coverBmpPath = coverBmpPath;
   } else {
+    needsSave = true;
     recentBooks.insert(recentBooks.begin(), {path, title, author, coverBmpPath});
     if (recentBooks.size() > MAX_RECENT_BOOKS) {
       recentBooks.resize(MAX_RECENT_BOOKS);
     }
   }
 
-  saveToFile();
+  if (needsSave) saveToFile();
 }
 
 void RecentBooksStore::updateBook(const std::string& path, const std::string& title, const std::string& author,
@@ -68,10 +79,11 @@ void RecentBooksStore::updateBook(const std::string& path, const std::string& ti
       std::find_if(recentBooks.begin(), recentBooks.end(), [&](const RecentBook& book) { return book.path == path; });
   if (it != recentBooks.end()) {
     RecentBook& book = *it;
-    book.title = title;
-    book.author = author;
-    book.coverBmpPath = coverBmpPath;
-    saveToFile();
+    needsSave = needsSave || book.title != title || book.author != author || book.coverBmpPath != coverBmpPath;
+    if (book.title != title) book.title = title;
+    if (book.author != author) book.author = author;
+    if (book.coverBmpPath != coverBmpPath) book.coverBmpPath = coverBmpPath;
+    if (needsSave) saveToFile();
   }
 }
 
@@ -82,6 +94,7 @@ bool RecentBooksStore::removeByPath(const std::string& path) {
     return false;
   }
   recentBooks.erase(it);
+  needsSave = true;
   if (!saveToFile()) {
     LOG_ERR("RBS", "Failed to persist removal of recent book: %s", path.c_str());
   }
@@ -95,6 +108,7 @@ void RecentBooksStore::updatePath(const std::string& oldPath, const std::string&
   if (it == recentBooks.end()) {
     return;
   }
+  needsSave = true;
   it->path = newPath;
   if (!oldCachePath.empty() && !it->coverBmpPath.empty() && it->coverBmpPath.rfind(oldCachePath, 0) == 0) {
     it->coverBmpPath = newCachePath + it->coverBmpPath.substr(oldCachePath.size());
@@ -107,5 +121,7 @@ bool RecentBooksStore::isMissing(const RecentBook& book) { return !Storage.exist
 bool RecentBooksStore::pruneMissing() {
   const size_t before = recentBooks.size();
   recentBooks.erase(std::remove_if(recentBooks.begin(), recentBooks.end(), &isMissing), recentBooks.end());
-  return recentBooks.size() != before;
+  const bool changed = recentBooks.size() != before;
+  needsSave = needsSave || changed;
+  return changed;
 }
