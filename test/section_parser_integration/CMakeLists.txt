@@ -1,15 +1,22 @@
-# Reuse the extraction helper/paths from the persistence target, but link these
-# methods to the actual chapter parser with one consistent filesystem HAL.
+# Link the extracted persistence methods to the actual chapter parser with one
+# consistent filesystem HAL.
 set(SECTION_SOURCE ${REPO_ROOT}/lib/Epub/Epub/Section.cpp)
 set(SECTION_HEADER ${REPO_ROOT}/lib/Epub/Epub/Section.h)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SECTION_SOURCE} ${SECTION_HEADER})
-file(READ ${SECTION_SOURCE} SECTION_IMPLEMENTATION)
-file(READ ${SECTION_HEADER} SECTION_DECLARATION)
-section_extract("${SECTION_IMPLEMENTATION}" "constexpr uint8_t SECTION_FILE_VERSION" "struct SectionLookupTables" constants)
-section_extract("${SECTION_IMPLEMENTATION}" "Section::~Section()" "bool Section::createSectionFile(" header_and_page)
-section_extract("${SECTION_IMPLEMENTATION}" "bool Section::buildSomeMore(" "bool Section::hasHtmlCache(" advance)
-section_extract("${SECTION_IMPLEMENTATION}" "bool Section::recoverBuildBackup(" "std::unique_ptr<Page> Section::loadPageDuringBuild(" commit_and_finish)
-section_extract("${SECTION_DECLARATION}" "std::string binTmpPath() const" "  std::unique_ptr<Page> loadPageAt(" tmp_path)
+crosspoint_extract_between(constants ${SECTION_SOURCE}
+  "constexpr uint8_t SECTION_FILE_VERSION"
+  "struct SectionLookupTables")
+crosspoint_extract_between(header_and_page ${SECTION_SOURCE}
+  "Section::~Section()"
+  "bool Section::createSectionFile(")
+crosspoint_extract_between(advance ${SECTION_SOURCE}
+  "bool Section::buildSomeMore("
+  "bool Section::hasHtmlCache(")
+crosspoint_extract_between(commit_and_finish ${SECTION_SOURCE}
+  "bool Section::recoverBuildBackup("
+  "std::unique_ptr<Page> Section::loadPageDuringBuild(")
+crosspoint_extract_between(tmp_path ${SECTION_HEADER}
+  "std::string binTmpPath() const"
+  "  std::unique_ptr<Page> loadPageAt(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SectionTmpPath.h "${tmp_path}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SectionIntegrationProduction.cpp
   "#include \"SectionIntegrationFixture.h\"\nnamespace {\n${constants}\n}\n"
