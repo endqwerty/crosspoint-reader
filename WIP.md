@@ -452,9 +452,8 @@ optional future scope, not unfinished work blocking deletion.
 Checked on 2026-10-01, when asked for "the next WIP item": official `develop` is
 still `664528b2` and #3488, #3795, #3799, #3800, #3706, #3757, #3814, #3705 and
 #3675 are all still open, so items 5, 7 and 8 and the "take when merged" PRs
-stay gated. Item 10 is the only one that could start. Its scope is 22 test
-harnesses that read production sources with `file(READ ...)` (`test/*/CMakeLists.txt`);
-it does nothing for reading, so it waits for the user's go-ahead.
+stay gated. Item 10 was the only one that could start; the user asked for it
+later that day (see item 10).
 
 ## Proposed next steps
 
@@ -502,12 +501,20 @@ Each item needs the user's go-ahead. Order is the recommended order.
    splitting by hunk would not avoid.
 9. Done 2026-09-30 (r61): line-break gap window adapted from #3814 (see the
    r61 notes above and `docs/fork-layout.md`).
-10. Only if it keeps recurring: host-test harness upkeep. Tests that compile
-   code extracted between text markers from upstream-owned files
-   (`EpubReaderActivity.cpp`, `ReaderActivity.cpp`, `Epub.cpp`) break when
-   upstream moves a marker or adds a collaborator; seven needed new seams on
-   2026-09-30 and several did on 2026-09-29. Reducing that coupling makes
-   rebases cheaper but does not improve reading.
+10. Started 2026-10-01 after #3824 broke two harnesses again: host-test
+   harness upkeep. Done (pull request #5): the 22 harnesses that cut production
+   code out by text markers call one helper, `crosspoint_extract_between`
+   (`test/cmake/ProductionExtract.cmake`), in place of eleven local copies. It
+   requires a unique start marker and reports every moved marker in a single
+   configure run, so after a rebase `cmake -S test -B <dir>` lists them all.
+   Generated sources are byte-identical to before; no firmware source changed.
+   Left, each only if rebases keep hurting: anchor single-function extractions
+   on the signature with brace matching (the lexer in
+   `test/library_ui/extract.py`), so an inserted neighbour function no longer
+   moves an end marker; share the byte-identical collaborator stubs that
+   `epub_indexing` and `epub_load` duplicate (and the five `FsHelpers.h`
+   copies); about 20 markers sit inside functions of upstream files and would
+   need fork logic hoisted out of them, which widens the firmware diff.
 
 Watch on later rebases: the X4 Pro app partition is 89% full (5.83 MB of
 6.55 MB). The 2026-09-30 upstream update (plugins, content protection) took
