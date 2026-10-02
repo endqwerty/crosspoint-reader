@@ -1,23 +1,11 @@
 set(EPUB_SOURCE ${REPO_ROOT}/lib/Epub/Epub.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${EPUB_SOURCE})
-file(READ ${EPUB_SOURCE} source)
-string(FIND "${source}" "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)" start)
-string(FIND "${source}" "bool Epub::loadMetadata(" end)
-if(start LESS 0 OR end LESS start)
-  message(FATAL_ERROR "EPUB load method boundaries moved")
-endif()
-math(EXPR length "${end} - ${start}")
-string(SUBSTRING "${source}" ${start} ${length} load_method)
+crosspoint_extract_between(load_method ${EPUB_SOURCE}
+  "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)"
+  "bool Epub::loadMetadata(")
 set(CSS_SOURCE ${REPO_ROOT}/lib/Epub/Epub/css/CssParser.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CSS_SOURCE})
-file(READ ${CSS_SOURCE} css_source)
-string(FIND "${css_source}" "bool CssParser::sectionCacheIsStale(" start)
-string(FIND "${css_source}" "CssParser::CacheStatus CssParser::inspectCache()" end)
-if(start LESS 0 OR end LESS start)
-  message(FATAL_ERROR "CSS section-cache predicate boundaries moved")
-endif()
-math(EXPR length "${end} - ${start}")
-string(SUBSTRING "${css_source}" ${start} ${length} stale_predicate)
+crosspoint_extract_between(stale_predicate ${CSS_SOURCE}
+  "bool CssParser::sectionCacheIsStale("
+  "CssParser::CacheStatus CssParser::inspectCache()")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp
   "#include \"EpubLoadFixture.h\"\n${load_method}\n${stale_predicate}\n")
 add_executable(EpubLoadTest EpubLoadTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp

@@ -12,15 +12,8 @@ target_link_libraries(EpubSearchTest PRIVATE FirmwareExpat GTest::gtest_main)
 gtest_discover_tests(EpubSearchTest)
 
 set(INPUT_SOURCE ${REPO_ROOT}/src/MappedInputManager.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${INPUT_SOURCE})
-file(READ ${INPUT_SOURCE} INPUT_IMPLEMENTATION)
-string(FIND "${INPUT_IMPLEMENTATION}" "void MappedInputManager::update(" input_start)
-string(FIND "${INPUT_IMPLEMENTATION}" "bool MappedInputManager::isNavDirectionSwapped()" input_end)
-if(input_start LESS 0 OR input_end LESS_EQUAL input_start)
-  message(FATAL_ERROR "Search input-pump extraction boundaries moved")
-endif()
-math(EXPR input_length "${input_end} - ${input_start}")
-string(SUBSTRING "${INPUT_IMPLEMENTATION}" ${input_start} ${input_length} input_update)
+crosspoint_extract_between(input_update ${INPUT_SOURCE}
+  "void MappedInputManager::update(" "bool MappedInputManager::isNavDirectionSwapped()")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SearchInputProduction.cpp
   "#include \"TestUi.h\"\n${input_update}\n")
 

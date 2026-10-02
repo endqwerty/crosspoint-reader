@@ -656,8 +656,7 @@ void FileBrowserActivity::buildScreen(UiScreen& screen) {
   }
 
   if (files.empty() && mode == Mode::PickFirmware) {
-    screen.centeredText(mode == Mode::PickFirmware ? tr(STR_NO_BIN_FILES) : tr(STR_NO_FILES_FOUND),
-                        screen.theme().bodyText);
+    screen.centeredText(tr(STR_NO_BIN_FILES), screen.theme().bodyText);
     return;
   }
 
