@@ -36,16 +36,20 @@ std::unique_ptr<Page> SectionPageReader::load(const std::string& filePath, const
     return nullptr;
   }
 
-  // The visible offset shares this handle so saving progress needs no second open.
+  // The visible offset is required: substituting zero would save chapter-start progress.
   uint32_t visibleLutOffset = 0;
   uint32_t visibleTextOffset = 0;
-  if (readOffset(file, HEADER_SIZE - sizeof(uint32_t), visibleLutOffset)) {
-    const uint64_t visibleEntry =
-        static_cast<uint64_t>(visibleLutOffset) + sizeof(uint32_t) * static_cast<uint64_t>(page);
-    if (visibleLutOffset >= HEADER_SIZE && visibleEntry <= std::numeric_limits<uint32_t>::max() - sizeof(uint32_t) &&
-        visibleEntry + sizeof(uint32_t) <= fileSize) {
-      if (!readOffset(file, static_cast<uint32_t>(visibleEntry), visibleTextOffset)) visibleTextOffset = 0;
-    }
+  if (!readOffset(file, HEADER_SIZE - sizeof(uint32_t), visibleLutOffset)) {
+    LOG_ERR("SCT", "Failed to read section visible-offset header");
+    return nullptr;
+  }
+  const uint64_t visibleEntry =
+      static_cast<uint64_t>(visibleLutOffset) + sizeof(uint32_t) * static_cast<uint64_t>(page);
+  if (visibleLutOffset <= lutOffset || visibleEntry > std::numeric_limits<uint32_t>::max() - sizeof(uint32_t) ||
+      visibleEntry + sizeof(uint32_t) > fileSize ||
+      !readOffset(file, static_cast<uint32_t>(visibleEntry), visibleTextOffset)) {
+    LOG_ERR("SCT", "Invalid or unreadable section visible offset: %d", page);
+    return nullptr;
   }
   if (!file.seek(pagePos)) {
     LOG_ERR("SCT", "Failed to seek section page: %d", page);
