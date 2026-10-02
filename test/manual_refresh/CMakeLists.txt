@@ -1,30 +1,12 @@
 # Compile complete production panel methods; keep only hardware/UI plumbing in stubs.
 set(PANEL_SOURCE ${REPO_ROOT}/src/activities/util/FrontlightPanelActivity.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PANEL_SOURCE})
-file(READ ${PANEL_SOURCE} PANEL_IMPLEMENTATION)
-
-function(panel_method start_marker end_marker output)
-  string(FIND "${PANEL_IMPLEMENTATION}" "${start_marker}" start)
-  if(start LESS 0)
-    message(FATAL_ERROR "Manual refresh test start marker moved: ${start_marker}")
-  endif()
-  string(SUBSTRING "${PANEL_IMPLEMENTATION}" ${start} -1 remainder)
-  if(end_marker STREQUAL "EOF")
-    set(${output} "${remainder}" PARENT_SCOPE)
-    return()
-  endif()
-  string(FIND "${remainder}" "${end_marker}" end)
-  if(end LESS 0)
-    message(FATAL_ERROR "Manual refresh test end marker moved: ${end_marker}")
-  endif()
-  string(SUBSTRING "${remainder}" 0 ${end} result)
-  set(${output} "${result}" PARENT_SCOPE)
-endfunction()
-
-panel_method("void FrontlightPanelActivity::persistLightSettings()" "void FrontlightPanelActivity::onBrightnessEvent(" exit_methods)
-panel_method("void FrontlightPanelActivity::onTileEvent(" "bool FrontlightPanelActivity::handleHomeGesture()" tile_methods)
-panel_method("void FrontlightPanelActivity::loop()" "int FrontlightPanelActivity::computePanelBottom()" loop_method)
-panel_method("void FrontlightPanelActivity::render(" "EOF" render_method)
+crosspoint_extract_between(exit_methods ${PANEL_SOURCE}
+  "void FrontlightPanelActivity::persistLightSettings()" "void FrontlightPanelActivity::onBrightnessEvent(")
+crosspoint_extract_between(tile_methods ${PANEL_SOURCE}
+  "void FrontlightPanelActivity::onTileEvent(" "bool FrontlightPanelActivity::handleHomeGesture()")
+crosspoint_extract_between(loop_method ${PANEL_SOURCE}
+  "void FrontlightPanelActivity::loop()" "int FrontlightPanelActivity::computePanelBottom()")
+crosspoint_extract_between(render_method ${PANEL_SOURCE} "void FrontlightPanelActivity::render(" "EOF")
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ManualRefreshProduction.cpp
   "#include \"ManualRefreshFixture.h\"\n${exit_methods}\n${tile_methods}\n${loop_method}\n${render_method}\n")
