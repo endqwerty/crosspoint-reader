@@ -46,9 +46,13 @@ Tests exercise shipping code, not copied algorithms. Where a whole translation
 unit cannot link on the host, the suite extracts complete production functions
 at CMake configure time and compiles them against narrow fixtures:
 
-- CMake string extraction by start/end markers, e.g.
+- CMake string extraction by start/end markers through
+  `crosspoint_extract_between(<out_var> <file> <start_marker> <end_marker>)` in
+  `test/cmake/ProductionExtract.cmake`, e.g.
   `test/section_persistence/CMakeLists.txt` (Section commit, page-complete,
-  build-time load, visible-offset lookup, version constants, temp path).
+  build-time load, visible-offset lookup, version constants, temp path). It
+  requires the start marker to be present and unique and the end marker (or
+  `EOF`) to follow it, and adds the file to `CMAKE_CONFIGURE_DEPENDS`.
 - Python extractors: `test/file_browser/extract.py` and `test/library_ui/extract.py`
   (brace-balanced method extraction that skips comments and string literals;
   file browser also generates a `StrId` shim for referenced `STR_*` keys),
@@ -58,10 +62,13 @@ at CMake configure time and compiles them against narrow fixtures:
   ISR edges and semaphore tokens; the refresh-sequence runner copies production
   driver sources beside SDK host stubs.
 
-Rules: configuration must fail (`FATAL_ERROR` or raised exception) when a marker
-is missing, appears more than once where one is expected, or braces cannot be
-balanced, so a moved boundary cannot silently test stale code. Source files are
-added to `CMAKE_CONFIGURE_DEPENDS` so edits re-extract. Stubs supply only owned
+Rules: configuration must fail (`SEND_ERROR`, `FATAL_ERROR` or raised exception)
+when a marker is missing, appears more than once where one is expected, or braces
+cannot be balanced, so a moved boundary cannot silently test stale code. The
+shared helper uses `SEND_ERROR`, so one configure reports every moved marker;
+after an upstream rebase, `cmake -S test -B <dir>` lists them all before anything
+is compiled. Source files are added to `CMAKE_CONFIGURE_DEPENDS` so edits
+re-extract. Stubs supply only owned
 fields, storage and dependency seams; they must not implement the policy under
 test. Real dependencies are linked where possible (LibraryText, SDK ListNav and
 FreeInkUI geometry, SectionPageReader, Page/TextBlock serialization).
