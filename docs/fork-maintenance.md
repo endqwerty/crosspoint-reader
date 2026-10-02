@@ -4,8 +4,10 @@ This document covers two maintenance concerns of the X4 Pro reading fork: the
 host test policy that guards local changes, and the record of how upstream
 CrossPoint `develop` work has been imported, adapted, deferred or rejected.
 Repository workflow (linear patch series, rebasing, publication rules) lives in
-`docs/FORK.md`; open planning and current release state live in `WIP.md`. Byte
-layouts are in `docs/file-formats.md`.
+`docs/FORK.md`; open planning lives in the
+[fork issue queue](https://github.com/endqwerty/crosspoint-reader/issues/15).
+Current firmware and its evidence live in the build share's `FLASH-LATEST.md`.
+Byte layouts are in `docs/file-formats.md`.
 
 ## Host test suite
 
@@ -224,7 +226,10 @@ upstream interfaces, not an alternate core.
 Bases in order: RC02 source `6c83eddbf3feeb375cef20fe702f7c99e5d38703` (SDK
 `2cca22fe`), then `develop` at `6f94d1ad` (SDK `13418e09`), `b88b653a` (SDK
 `deb62ab7`), `1d61100f` and `4a6283db` (SDK `111fdcc7`). Later bases and the
-current SDK patch are recorded in `WIP.md`.
+SDK patch history are recorded in the
+[pre-issues handoff](https://github.com/endqwerty/crosspoint-reader/blob/75e2cb47f2784d246a03abebf34e03e37a600d96/WIP.md).
+Use live Git refs and the reader's submodule pin for current source identity;
+subsequent imports carry their validation in the task issue and pull request.
 
 ### Adopted as upstream implements it
 
@@ -321,13 +326,14 @@ current SDK patch are recorded in `WIP.md`.
   reliability fix is separate work. Tests check the non-PSRAM compile guard only.
 - Connectivity and media workflows are carried unmodified and not customized.
 - Later decisions (adopted, partially adopted, deferred, watch-only and
-  rejected PRs) are tracked in `WIP.md`.
+  rejected PRs) are in the feature docs and the
+  [upstream tracker](https://github.com/endqwerty/crosspoint-reader/issues/13).
 
 ## Known gaps
 
-- Library selection is not restored across a full rebuild: row ordinals are not
-  stable after reordering, so this needs stable path identity and measured index
-  I/O. The state-action fix restores context only while index order is unchanged.
+- Library rebuild selection now follows stable book identity, as described in
+  `docs/fork-library.md`. Remaining relink recovery limitations are tracked in
+  [#12](https://github.com/endqwerty/crosspoint-reader/issues/12).
 - Host coverage limits above apply to every integration; device checks after an
   import start with anti-aliasing off and cover reading, menus, sleep/wake, cache
   rebuilds and Library views.
