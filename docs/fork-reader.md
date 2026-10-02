@@ -298,6 +298,12 @@ the failed target rather than the section entry page. The three-retry limit
 stays. Unsuccessful attempts save no progress and do not alter link/footnote
 history. Reuses existing fields; no allocation.
 
+The section page loader also requires a readable, in-bounds visible-text-offset
+entry before decoding the page. Every supported committed or partial section
+contains this table. Failed reads, short reads and invalid pointers use the same
+recovery path instead of supplying a fabricated zero offset that could overwrite
+saved progress. A successfully read zero remains a valid chapter-start position.
+
 ## Scheduling and the render lock
 
 - `RenderLock` offers `Mode::Blocking` and `Mode::Try` with `ownsLock()` and a
