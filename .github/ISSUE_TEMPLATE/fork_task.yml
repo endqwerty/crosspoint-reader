@@ -1,0 +1,38 @@
+name: Personal fork task
+description: Track scoped offline EPUB, Library, or fork-maintenance work.
+labels: [backlog]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with [the work queue](https://github.com/endqwerty/crosspoint-reader/issues/15)
+        and [fork rules](https://github.com/endqwerty/crosspoint-reader/blob/develop/docs/FORK.md).
+        Keep ownership and progress here; put durable design in docs/fork-*.md.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Problem and evidence
+      description: Give a concrete trigger, observed behavior, and source paths/lines or upstream links.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Intended result and scope
+      description: Describe the useful change and any important limits.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Start condition
+      description: State dependencies, upstream merge conditions, or user decisions. Use none if ready.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Acceptance and validation
+      description: Specify meaningful host checks and required firmware gates. Keep device results separate; do not require manual measurements.
+    validations:
+      required: true
