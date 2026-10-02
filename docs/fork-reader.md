@@ -452,9 +452,10 @@ Results are transient; reopening starts a new scan.
   are rejected; external entities are never fetched. A malformed chapter rolls
   back its own results but keeps earlier valid chapters.
 - Case folding covers ASCII, Latin-1 uppercase and basic Greek and Cyrillic
-  uppercase only; no full Unicode folding or accent normalization. CSS-hidden
-  text can match. Phrases do not cross spine items. More than 32 matches need a
-  narrower query. No persistent index or match highlighting.
+  uppercase only; no full Unicode folding or accent normalization. Text under
+  the HTML `hidden` attribute is skipped; text hidden only by CSS can match.
+  Phrases do not cross spine items. More than 32 matches need a narrower
+  query. No persistent index or match highlighting.
 
 ## Library changes recorded with the reader work
 
