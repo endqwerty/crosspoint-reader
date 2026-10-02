@@ -20,6 +20,7 @@ class RecentBooksStore : public PersistableStore<RecentBooksStore> {
 
  private:
   std::vector<RecentBook> recentBooks;
+  mutable bool needsSave = true;
 
   RecentBooksStore() = default;
   ~RecentBooksStore() = default;
@@ -30,6 +31,8 @@ class RecentBooksStore : public PersistableStore<RecentBooksStore> {
   static const char* getFilePath() { return "/.crosspoint/recent.json"; }
   void toJson(JsonDocument& doc) const;
   bool fromJson(JsonVariantConst doc);
+  // Explicit saves always write; failed saves remain pending for the next update.
+  bool saveToFile() const;
 
   // Add a book to the recent list (moves to front if already exists)
   void addBook(const std::string& path, const std::string& title, const std::string& author,

@@ -128,6 +128,8 @@ add_subdirectory(atomic_file)
 add_subdirectory(bookmark_actions)
 
 add_subdirectory(bookmark_persistence)
+add_subdirectory(recent_books)
+add_subdirectory(calibre_sync)
 add_subdirectory(settings_migration)
 add_subdirectory(text_truncation)
 add_subdirectory(sleep_grayscale)
