@@ -162,22 +162,11 @@ Rebased the 38-patch series onto `d1509d07` (three upstream commits: #3704,
 
 ## Recovery and verification
 
-The series before the 2026-09-30 rebase (reader `e09fdec2` on `d1509d07`, SDK
-`d466732a` on `87c4493a`) is in
-`/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260930/`
-(`develop-e09fdec2.bundle` and `sdk-develop-d466732a.bundle`, verified `git
-bundle` files of the local patches). The series before the 2026-09-29 rebase
-(reader `d9562882` on `ce9f5c28`) is in
-`/Users/danielyang/.local/share/crosspoint-build/rebase-backup-20260929/develop-d9562882.bundle`.
-
-No backup branches or extra worktrees are kept; reader and SDK each have only
-`develop`. History removed on 2026-09-28
-(earlier develop tips, the pre-split series, old review/test branches and the
-SDK's single-patch versions) is in verified bundles under
-`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260928/`, with
-`RESTORE.md`. The 2026-09-27 bundles in
-`/Users/danielyang/.local/share/crosspoint-build/branch-cleanup-20260927/` still
-cover the pre-cleanup history.
+No backup branches, bundles or extra worktrees are kept; reader and SDK each
+have only `develop`. The user decided on 2026-10-01 that pre-rebase backups of
+the fork are not needed, and the bundles of earlier series (2026-09-27 to
+2026-09-30) were deleted. `scripts/fork-workflow.sh sync-publish` still leaves
+the previous `develop` tip under `refs/fork-backup/` in the checkout.
 
 ## Current flash image
 
