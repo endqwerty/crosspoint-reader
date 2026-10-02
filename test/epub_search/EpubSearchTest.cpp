@@ -118,6 +118,14 @@ TEST(EpubSearch, SkipsHeadScriptStyleTitleAndRpWithoutShiftingOffsets) {
   EXPECT_EQ(out.results.items[0].visibleTextOffset, 6u);
 }
 
+TEST(EpubSearch, HiddenAttributeTextIsNotMatchedButKeepsReaderOffsets) {
+  const auto out = search("<p>ab<span hidden=\"hidden\">needle <b>needle</b></span> needle</p>", "needle");
+  ASSERT_EQ(out.status, Status::Complete);
+  ASSERT_EQ(out.results.count, 1);
+  EXPECT_EQ(out.results.items[0].visibleTextOffset, 16u);
+  EXPECT_EQ(search("<div hidden=\"\"><p>needle</p></div><p>other</p>", "needle").results.count, 0);
+}
+
 TEST(EpubSearch, EntitiesAndUnicodeOffsetsUseCodepoints) {
   const auto out = search("😀 café &amp; &#x4E2D;&#25991; &nbsp;needle", "needle", 1);
   ASSERT_EQ(out.status, Status::Complete);
