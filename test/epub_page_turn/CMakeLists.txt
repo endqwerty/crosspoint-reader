@@ -2,17 +2,12 @@
 # in every translation unit; linking a renderer built with a different HalFile
 # definition would violate the one-definition rule.
 set(IMAGE_BLOCK_SOURCE ${REPO_ROOT}/lib/Epub/Epub/blocks/ImageBlock.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${IMAGE_BLOCK_SOURCE})
-file(READ ${IMAGE_BLOCK_SOURCE} IMAGE_BLOCK_IMPLEMENTATION)
-string(FIND "${IMAGE_BLOCK_IMPLEMENTATION}" "ImageBlock::ImageBlock(" image_constructor_start)
-string(FIND "${IMAGE_BLOCK_IMPLEMENTATION}" "void* ImageBlock::extractCtx" image_constructor_end)
-string(FIND "${IMAGE_BLOCK_IMPLEMENTATION}" "bool ImageBlock::serialize(" image_serialization_start)
-if(image_constructor_start LESS 0 OR image_constructor_end LESS image_constructor_start OR image_serialization_start LESS 0)
-  message(FATAL_ERROR "Image persistence extraction boundaries moved")
-endif()
-math(EXPR image_constructor_size "${image_constructor_end} - ${image_constructor_start}")
-string(SUBSTRING "${IMAGE_BLOCK_IMPLEMENTATION}" ${image_constructor_start} ${image_constructor_size} image_constructor)
-string(SUBSTRING "${IMAGE_BLOCK_IMPLEMENTATION}" ${image_serialization_start} -1 image_serialization)
+crosspoint_extract_between(image_constructor ${IMAGE_BLOCK_SOURCE}
+  "ImageBlock::ImageBlock("
+  "void* ImageBlock::extractCtx")
+crosspoint_extract_between(image_serialization ${IMAGE_BLOCK_SOURCE}
+  "bool ImageBlock::serialize("
+  EOF)
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ImagePersistenceProduction.cpp
   "#include <Epub/blocks/ImageBlock.h>\n#include <Memory.h>\n#include <Logging.h>\n#include <Serialization.h>\n"
   "${image_constructor}\n${image_serialization}\n")
