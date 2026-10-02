@@ -78,6 +78,24 @@ content-rights split, OPDS pagination; no conflict). Upstream's design won:
 - Upstream draft #3814 (adapted in r61) now uses a 32-entry window where the
   fork has 64. It is still changing; take upstream's form when it merges.
 
+### Codex review of pull request #5 (2026-10-01)
+
+Codex reviewed the whole fork series, because #5 was first pushed on an
+unpublished rebase. Its three findings, checked against `develop`:
+
+- Fixed: `moveBookWithState()` (Browse Files rename, "Move finished books to
+  /Read") left the Library reading-state record under the old path, so a book
+  added there later inherited the favorite and Reading/Finished marks. It now
+  removes the old record after the move, as `relinkBookState()` does.
+- Fixed: in-book search matched text under the HTML `hidden` attribute, which
+  the reader does not render. Such text is no longer matched but still
+  advances the offset, as in the reader. CSS-hidden text can still match.
+- Left: renaming a protected EPUB in Browse Files does not move its `.key`
+  and `.rights` sidecars. Upstream's rename has the same gap, and the fork
+  does not use protected books.
+
+Both fixes are unverified on the device and are not in the r61 image.
+
 ### Upstream sync on 2026-10-01
 
 Rebased onto `664528b2` (#3808, the "Footnotes" label becomes "Links and
