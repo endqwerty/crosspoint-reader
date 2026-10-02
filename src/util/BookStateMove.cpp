@@ -154,5 +154,10 @@ bool moveBookWithState(const std::string& oldPath, const std::string& newPath) {
     return false;
   }
   state->commit();
+  // The record now lives under the new path; a later book at the old path must not inherit it.
+  const uint64_t oldKey = library::bookStateKey(oldPath);
+  if (oldKey != library::bookStateKey(newPath) && !library::removeBookState(oldKey)) {
+    LOG_ERR("BookMove", "Old reading state not removed: %s", oldPath.c_str());
+  }
   return true;
 }
