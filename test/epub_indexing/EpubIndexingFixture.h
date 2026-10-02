@@ -40,16 +40,11 @@ class CssParser {
   void clear() {}
   static bool sectionCacheIsStale(CacheStatus, CacheLoadResult, ParseResult) { return false; }
 };
-// These fixtures open every book as a plain ZIP; no entry is protected.
-namespace freeink::content {
-struct ContentDecryptor {};
-inline std::unique_ptr<ContentDecryptor> openProtectedBook(const std::string&, std::string&) { return nullptr; }
-}  // namespace freeink::content
 class Epub {
  public:
   std::string filepath = "/book.epub", cachePath = "/cache", contentBasePath;
-  std::unique_ptr<freeink::content::ContentDecryptor> decryptor;
-  std::string protectionError;
+  // These fixtures open every book as a plain ZIP; no entry is protected.
+  bool openProtection() { return true; }
   std::string tocNavItem, tocNcxItem;
   std::vector<std::string> cssFiles;
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
