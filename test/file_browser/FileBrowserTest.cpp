@@ -289,6 +289,56 @@ TEST_F(FileBrowserTest, BookPathIsTakenByLeftoverStateWithoutTheBook) {
   EXPECT_TRUE(isBookPathFree("/read/Done.xtc"));
 }
 
+TEST_F(FileBrowserTest, ExistingDestinationBookRejectsMoveBeforeStateWrites) {
+  const std::string oldPath = "/Old.epub", newPath = "/New.epub";
+  fake::add(oldPath, "source book");
+  fake::add(newPath, "destination book");
+  fake::add(oldPath + ".key", "key");
+  fake::add(oldPath + ".rights", "rights");
+  fake::add(getBookCachePath(oldPath), "cache");
+  fake::add(BookmarkUtil::getBookmarkPath(oldPath), "marks");
+  ASSERT_TRUE(library::writeBookState(library::bookStateKey(oldPath), {true, library::ReadingState::Finished}));
+  const auto writes = fake::writesByPath;
+  EXPECT_FALSE(moveBookWithState(oldPath, newPath));
+  EXPECT_EQ(bytes(oldPath), "source book");
+  EXPECT_EQ(bytes(newPath), "destination book");
+  EXPECT_EQ(bytes(oldPath + ".key"), "key");
+  EXPECT_EQ(bytes(oldPath + ".rights"), "rights");
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "marks");
+  EXPECT_FALSE(Storage.exists((newPath + ".key").c_str()));
+  EXPECT_FALSE(Storage.exists((newPath + ".rights").c_str()));
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+  EXPECT_FALSE(Storage.exists(BookmarkUtil::getBookmarkPath(newPath).c_str()));
+  EXPECT_EQ(fake::writesByPath, writes);
+  expectState(oldPath, true, library::ReadingState::Finished);
+  expectState(newPath, false, library::ReadingState::Unread);
+}
+
+TEST_F(FileBrowserTest, MissingSourceBookLeavesOrphanedStateAndSidecarsUntouched) {
+  const std::string oldPath = "/Old.epub", newPath = "/New.epub";
+  fake::add(oldPath + ".key", "key");
+  fake::add(oldPath + ".rights", "rights");
+  fake::add(getBookCachePath(oldPath), "cache");
+  fake::add(BookmarkUtil::getBookmarkPath(oldPath), "marks");
+  ASSERT_TRUE(library::writeBookState(library::bookStateKey(oldPath), {true, library::ReadingState::Finished}));
+  const auto writes = fake::writesByPath;
+  EXPECT_FALSE(moveBookWithState(oldPath, newPath));
+  EXPECT_EQ(bytes(oldPath + ".key"), "key");
+  EXPECT_EQ(bytes(oldPath + ".rights"), "rights");
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "marks");
+  EXPECT_FALSE(Storage.exists(oldPath.c_str()));
+  EXPECT_FALSE(Storage.exists(newPath.c_str()));
+  EXPECT_FALSE(Storage.exists((newPath + ".key").c_str()));
+  EXPECT_FALSE(Storage.exists((newPath + ".rights").c_str()));
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+  EXPECT_FALSE(Storage.exists(BookmarkUtil::getBookmarkPath(newPath).c_str()));
+  EXPECT_EQ(fake::writesByPath, writes);
+  expectState(oldPath, true, library::ReadingState::Finished);
+  expectState(newPath, false, library::ReadingState::Unread);
+}
+
 TEST_F(FileBrowserTest, DestinationProtectionSidecarsRejectMovesBeforeStateWrites) {
   const std::string oldPath = "/Old.epub", newPath = "/New.epub";
   for (const char* suffix : {".key", ".rights"}) {

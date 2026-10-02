@@ -189,6 +189,14 @@ bool relinkBookState(const std::string& oldPath, const std::string& newPath) {
 }
 
 bool moveBookWithState(const std::string& oldPath, const std::string& newPath) {
+  if (!Storage.exists(oldPath.c_str())) {
+    LOG_ERR("BookMove", "Book source is missing: %s", oldPath.c_str());
+    return false;
+  }
+  if (Storage.exists(newPath.c_str())) {
+    LOG_ERR("BookMove", "Book target already exists: %s", newPath.c_str());
+    return false;
+  }
   auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath, true);
   if (!state) {
     LOG_ERR("BookMove", "OOM: move state");
