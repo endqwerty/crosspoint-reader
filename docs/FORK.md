@@ -180,6 +180,16 @@ origin/develop            downstream integration branch
 - When T3 Code's `link_pull_request` tool is available, link every pull request
   to the thread; T3 Code then shows it beside the thread and settles the thread
   when it merges.
+- One thread is one worktree, one branch and one pull request. Sub-agents
+  (Claude or Codex, started from the thread) work inside that worktree and
+  commit on its branch; do not give them worktrees of their own
+  (`isolation: worktree`, `git worktree add`, scratch clones), because T3 Code
+  does not know about those and never removes them. Work that needs a separate
+  pull request needs a separate T3 Code thread, which the user starts.
+- If upstream is ahead, publish the sync before a pull request is opened
+  (T3 Code's own "create pull request" does not check). A branch pushed while
+  it sits on an unpublished rebase shows the whole series and conflicts with
+  `develop`; `sync-publish` of the validated rebase fixes that.
 - The user merges pull requests (T3 Code or GitHub), with squash. Do not merge
   one unless the user says so in that thread. A pull request whose commits
   should stay separate can be rebase-merged instead.
