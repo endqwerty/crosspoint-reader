@@ -19,10 +19,11 @@
 # while a changed book gets a fresh mtime and is re-parsed.
 #
 # Reading progress, bookmarks and reading state are keyed by SD path. Keep the
-# Calibre save template stable; a book whose folder or filename changes is
-# treated as a new book. Before copying, books that would move are listed by
-# matching the Calibre UUID embedded in each EPUB. With --delete, keep "Move
-# finished books to /Read" off, otherwise moved books are copied back into
+# Calibre save template stable. Library refresh can relink state after a rename
+# when the UUID matches, the old copy is gone and the new path has no state.
+# Before copying, books that would move are listed by matching the Calibre UUID
+# embedded in each EPUB. With --delete, keep "Move finished books to /Read"
+# off, otherwise moved books are copied back into
 # SD_BOOKS_DIR on the next sync.
 
 set -euo pipefail
@@ -48,17 +49,28 @@ done
 
 src="${1%/}"
 dest="${2%/}"
+[ -n "$src" ] || src="$1"
+[ -n "$dest" ] || dest=/
 
 [ -d "$src" ] || { echo "Export folder not found: $src" >&2; exit 1; }
-dest_parent="$(dirname "$dest")"
-[ -d "$dest_parent" ] || { echo "SD card folder not found: $dest_parent (is the card mounted?)" >&2; exit 1; }
+src_abs="$(cd -- "$src" && pwd -P)"
+if [ -d "$dest" ]; then
+  dest_abs="$(cd -- "$dest" && pwd -P)"
+  dest_parent_abs="$(dirname "$dest_abs")"
+elif [ -e "$dest" ] || [ -L "$dest" ]; then
+  echo "SD books destination is not a directory: $dest" >&2
+  exit 1
+else
+  dest_parent="$(dirname "$dest")"
+  [ -d "$dest_parent" ] || { echo "SD card folder not found: $dest_parent (is the card mounted?)" >&2; exit 1; }
+  dest_parent_abs="$(cd -- "$dest_parent" && pwd -P)"
+  dest_abs="${dest_parent_abs%/}/$(basename "$dest")"
+fi
 
-src_abs="$(cd "$src" && pwd -P)"
-dest_parent_abs="$(cd "$dest_parent" && pwd -P)"
-dest_abs="$dest_parent_abs/$(basename "$dest")"
+[ "$dest_abs" != / ] || { echo "Use a dedicated books folder, not the filesystem root." >&2; exit 1; }
 
 case "$dest_abs/" in
-  "$src_abs"/*) echo "SD folder must not be inside the export folder." >&2; exit 1 ;;
+  "${src_abs%/}/"*) echo "SD folder must not be inside the export folder." >&2; exit 1 ;;
 esac
 case "$src_abs/" in
   "$dest_abs"/*) echo "Export folder must not be inside the SD folder." >&2; exit 1 ;;
@@ -118,8 +130,7 @@ calibre_uuid() {
     sed -e 's/.*>//' -e 's/^urn:uuid://' -e 's/[[:space:]]//g' || true
 }
 
-# Lists books whose path changes between the card and the export. Their
-# progress, bookmarks and reading state stay with the old path.
+# Lists UUID matches whose paths change between the card and the export.
 report_moves() {
   local tmp rel id moved
   tmp="$(mktemp -d)"
@@ -138,8 +149,8 @@ report_moves() {
   LC_ALL=C join -t "$(printf '\t')" "$tmp/old" "$tmp/new" >"$tmp/moved"
   moved=$(wc -l <"$tmp/moved" | tr -d ' ')
   if [ "$moved" -gt 0 ]; then
-    echo "$moved book(s) changed path since the last sync; their reading progress, bookmarks" \
-      "and reading state stay with the old path:"
+    echo "$moved book(s) changed path since the last sync; Library refresh can relink" \
+      "their reading state when the old copies are removed and the new paths have no state:"
     while IFS="$(printf '\t')" read -r id old new; do
       echo "  $old -> $new"
     done <"$tmp/moved"
@@ -157,7 +168,8 @@ args=(-r --checksum --prune-empty-dirs --itemize-changes
   --include='*/' --include='*.epub' --include='*.EPUB'
   --exclude='*')
 [ "$dry_run" -eq 1 ] && args+=(--dry-run)
-[ "$delete" -eq 1 ] && args+=(--delete)
+# Defer deletions until after the transfer phase.
+[ "$delete" -eq 1 ] && args+=(--delete-after)
 
 [ "$dry_run" -eq 1 ] || mkdir -p "$dest_abs"
 # Unchanged books are itemized as ".f..T....": identical content, and the SD
