@@ -1,40 +1,19 @@
 # Exercise the production navigation methods without the reader's rendering,
 # storage, or UI dependencies. Fail closed if an extraction boundary moves.
-function(navigation_source file start_marker end_marker output)
-  set(source_path ${REPO_ROOT}/src/activities/reader/${file})
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${source_path})
-  file(READ ${source_path} source)
-  string(FIND "${source}" "${start_marker}" start)
-  if(start LESS 0)
-    message(FATAL_ERROR "Reader navigation start marker moved: ${file}: ${start_marker}")
-  endif()
-  string(SUBSTRING "${source}" ${start} -1 remainder)
-  if(end_marker STREQUAL "EOF")
-    set(${output} "${remainder}" PARENT_SCOPE)
-    return()
-  endif()
-  string(FIND "${remainder}" "${end_marker}" end)
-  if(end LESS 0)
-    message(FATAL_ERROR "Reader navigation end marker moved: ${file}: ${end_marker}")
-  endif()
-  string(SUBSTRING "${remainder}" 0 ${end} result)
-  set(${output} "${result}" PARENT_SCOPE)
-endfunction()
-
-navigation_source(ReaderActivity.cpp "void ReaderActivity::loop()" "void ReaderActivity::render(" reader_loop)
-navigation_source(ReaderActivity.cpp "bool ReaderActivity::handleForcedRefresh()" "EOF" forced_refresh)
-navigation_source(XtcReaderActivity.cpp "bool XtcReaderActivity::pageTurn(" "void XtcReaderActivity::saveProgress()" xtc_navigation)
-navigation_source(EpubReaderActivity.cpp "bool EpubReaderActivity::pageTurn(" "bool EpubReaderActivity::handleLoadFailure()" epub_navigation)
-navigation_source(EpubReaderActivity.cpp "bool EpubReaderActivity::isAtEndOfBook() const" "bool EpubReaderActivity::skipLoopDelay(" epub_end_of_book)
-navigation_source(EpubReaderActivity.cpp
+crosspoint_extract_between(reader_loop ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "void ReaderActivity::loop()" "void ReaderActivity::render(")
+crosspoint_extract_between(forced_refresh ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "bool ReaderActivity::handleForcedRefresh()" "EOF")
+crosspoint_extract_between(xtc_navigation ${REPO_ROOT}/src/activities/reader/XtcReaderActivity.cpp "bool XtcReaderActivity::pageTurn(" "void XtcReaderActivity::saveProgress()")
+crosspoint_extract_between(epub_navigation ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "bool EpubReaderActivity::pageTurn(" "bool EpubReaderActivity::handleLoadFailure()")
+crosspoint_extract_between(epub_end_of_book ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "bool EpubReaderActivity::isAtEndOfBook() const" "bool EpubReaderActivity::skipLoopDelay(")
+crosspoint_extract_between(epub_automatic_wait ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "    if (hasPendingSectionJump() || pendingBuildError) {"
-  "    if (RenderLock::peek())" epub_automatic_wait)
-navigation_source(EpubReaderActivity.cpp
+  "    if (RenderLock::peek())")
+crosspoint_extract_between(epub_automatic ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "    if ((millis() - lastPageTurnTime) >= pageTurnDuration) {"
-  "\n  }\n\n  // While the end-of-book" epub_automatic)
-navigation_source(EpubReaderActivity.cpp
+  "\n  }\n\n  // While the end-of-book")
+crosspoint_extract_between(epub_input ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "  constexpr unsigned long kMinManualTurnGapMs = 200;"
-  "\n}\n\nvoid EpubReaderActivity::jumpToPercent(" epub_input)
+  "\n}\n\nvoid EpubReaderActivity::jumpToPercent(")
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderNavigationProduction.cpp
   "#include \"ReaderNavigationFixture.h\"\n"
