@@ -146,24 +146,6 @@ void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string&
     return;
   }
 
-  // Protected-book sidecars travel with the book; a protected book separated
-  // from its key no longer opens, so a failed move rolls everything back.
-  static constexpr const char* SIDECARS[] = {".key", ".rights"};
-  for (size_t i = 0; i < std::size(SIDECARS); i++) {
-    const std::string from = srcPath + SIDECARS[i];
-    if (!Storage.exists(from.c_str())) continue;
-    const std::string to = dstPath + SIDECARS[i];
-    if (Storage.rename(from.c_str(), to.c_str())) continue;
-    LOG_ERR("ERS", "Failed to move sidecar %s -> %s", from.c_str(), to.c_str());
-    for (size_t j = 0; j < i; j++) {
-      Storage.rename((dstPath + SIDECARS[j]).c_str(), (srcPath + SIDECARS[j]).c_str());
-    }
-    if (!moveBookWithState(dstPath, srcPath)) {
-      LOG_ERR("ERS", "Failed to restore epub after sidecar move failure: %s -> %s", dstPath.c_str(), srcPath.c_str());
-    }
-    return;
-  }
-
   library::markLibraryIndexDirty();
   RECENT_BOOKS.updatePath(srcPath, dstPath, getBookCachePath(srcPath), getBookCachePath(dstPath));
   if (APP_STATE.openEpubPath == srcPath) {
