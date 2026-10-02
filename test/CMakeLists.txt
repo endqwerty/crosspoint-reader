@@ -47,6 +47,7 @@ target_compile_options(crosspoint_test_common INTERFACE
 enable_testing()
 include(GoogleTest)
 include(cmake/FirmwareExpat.cmake)
+include(cmake/ProductionExtract.cmake)
 add_subdirectory(expat_streaming)
 
 add_subdirectory(streaming_json_parser)
