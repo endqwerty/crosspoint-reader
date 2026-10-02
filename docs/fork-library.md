@@ -32,6 +32,16 @@ The byte layouts of `library.idx` (CLX1) and the book-state records are defined 
   (some files excluded)" for a partial scan, "Library (unsorted)" when ranks are
   degraded.
 
+### Recent persistence
+
+Reopening the front entry with unchanged metadata, or applying an identical
+metadata update, skips JSON serialization and SD writes after the list has been
+saved successfully. Reordering, changed metadata, removal, path changes and
+pruning mark the list pending. A failed save leaves it pending, so an unchanged
+reopen retries persistence. Explicit saves still write; loading marks the list
+pending conservatively because parsing can normalize or truncate entries.
+The tracking flag adds no heap allocation or second copy of the list.
+
 ### Author and Series directories
 
 - Author and Series open as directories: one name per row, no titles or subtitles.
@@ -96,9 +106,21 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
   or by opening them.
 - State is keyed by the raw complete path. Renames performed through Browse Files
   on the device, and the "Move finished books to /Read" move, carry the state
-  sidecar (with bookmark and cache files) and roll back on failure
+  sidecar (with bookmark/cache files and protected-book `.key`/`.rights` files)
+  and roll back on failure
   (`moveBookWithState()` in `src/util/BookStateMove.cpp`). The /Read destination
-  skips names that already have leftover state.
+  skips names that already have leftover cache/bookmark files or nondefault
+  Library reading/favorite marks. Unreadable marks also block reuse. A readable
+  Unread/nonfavorite record is available, including a record left by resetting
+  marks. The move transaction checks again before any state writes, so direct
+  Browse Files renames have the same protection.
+- Protection sidecars participate in the same move transaction, before the
+  EPUB itself; old reading-state cleanup happens only after all moves succeed.
+  Destination sidecars block reuse. This also keeps a sidecar failure from
+  requiring a second book move into a path whose old marks could remain.
+  The transaction stores a fixed pair of old/new sidecar paths on its existing
+  checked heap allocation, avoiding larger stack arrays or allocations during
+  rollback. External UUID relinking does not move protection sidecars.
 - Books renamed or moved outside the device (a Calibre re-export after a title or
   author edit) keep their state when the book names a UUID (see "Relinking after
   external renames" below); a file without a UUID does not.
@@ -128,6 +150,26 @@ Cost: one journal record per UUID rename (about 20 bytes plus the old path) on S
 nothing kept in RAM, and a handful of existence checks per renamed book. Not
 covered: books without a UUID, and a rename plus a same-UUID copy elsewhere (the
 first match wins).
+
+The journal is temporary: a failed relink after index installation can lose its
+retry mapping. Removing old-path marks after a committed move is best effort;
+failed cleanup can leave stale marks. Durable replay and power-loss recovery
+are separate work in [issue #12](https://github.com/endqwerty/crosspoint-reader/issues/12).
+
+### Copying a Calibre export
+
+Use `scripts/sync-calibre-library.sh` with a dedicated books folder. It resolves
+existing destination aliases before rejecting source/destination overlap,
+device-cache paths and card roots. A missing final books folder is supported
+when its parent exists. Dry runs do not create that folder.
+
+With `--delete`, rsync uses `--delete-after`: deletion follows the transfer
+phase. Temporary fixtures on Apple openrsync verify that a failed receiver write
+or destination conflict retains the old renamed EPUB, and successful transfers
+precede deletions. This is not a power-loss transaction. Hidden files and
+non-EPUB sidecars are excluded; the existing AppleDouble cleanup still runs
+after a successful sync. UUID rename notices describe the firmware's relinking
+conditions, not a guarantee of recovery. Eject the card safely before reading.
 
 ### End-of-book suggestions
 
