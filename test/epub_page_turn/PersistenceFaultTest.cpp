@@ -691,7 +691,7 @@ TEST_F(PersistenceFault, RuleWriterRejectsZeroDimensionsLikeReader) {
 
 TEST_F(PersistenceFault, SectionReaderRejectsFailedOpenAndRequiredOffsetReadsWithoutDecoding) {
   PageTurnFixture fixture(Scene::Prose);
-  for (int failure = 0; failure < 3; ++failure) {
+  for (int failure = 0; failure < 5; ++failure) {
     SCOPED_TRACE(failure);
     io = {};
     faults = {};
@@ -706,7 +706,7 @@ TEST_F(PersistenceFault, SectionReaderRejectsFailedOpenAndRequiredOffsetReadsWit
 
 TEST_F(PersistenceFault, SectionReaderRejectsFailedRequiredSeeksWithoutDecoding) {
   PageTurnFixture fixture(Scene::Prose);
-  for (size_t seek : {1u, 2u, 5u}) {
+  for (size_t seek : {1u, 2u, 3u, 4u, 5u}) {
     SCOPED_TRACE(seek);
     io = {};
     faults = {};
@@ -718,19 +718,52 @@ TEST_F(PersistenceFault, SectionReaderRejectsFailedRequiredSeeksWithoutDecoding)
   }
 }
 
-TEST_F(PersistenceFault, SectionReaderOptionalVisibleOffsetFailureKeepsReadablePage) {
+TEST_F(PersistenceFault, SectionReaderRejectsShortVisibleOffsetReadsWithoutDecoding) {
   PageTurnFixture fixture(Scene::Prose);
   for (size_t read : {3u, 4u}) {
     SCOPED_TRACE(read);
     io = {};
     faults = {};
-    faults.failReadCall = read;
-    auto page = SectionPageReader::load("section", 0);
-    ASSERT_NE(page, nullptr);
-    EXPECT_EQ(1u, io.injectedFailures);
-    EXPECT_EQ(0u, page->visibleTextOffset);
-    EXPECT_FALSE(page->elements.empty());
+    faults.shortReadCall = read;
+    {
+      NothrowAllocationScope allocations(0);
+      EXPECT_EQ(nullptr, SectionPageReader::load("section", 0));
+      EXPECT_EQ(1u, io.injectedFailures);
+      EXPECT_EQ(0u, allocations.attempts());
+    }
+    faults = {};
+    auto retry = SectionPageReader::load("section", 0);
+    ASSERT_NE(retry, nullptr);
+    EXPECT_EQ(PageTurnFixture::VISIBLE_OFFSET, retry->visibleTextOffset);
   }
+}
+
+TEST_F(PersistenceFault, SectionReaderRejectsInvalidVisibleOffsetBoundsWithoutDecoding) {
+  PageTurnFixture fixture(Scene::Prose);
+  const auto complete = files[0];
+  uint32_t lutOffset = 0;
+  std::memcpy(&lutOffset, complete.data() + SectionPageReader::HEADER_SIZE - sizeof(uint32_t) * 5, sizeof(lutOffset));
+  for (uint32_t offset : {0u, SectionPageReader::HEADER_SIZE - 1, SectionPageReader::HEADER_SIZE, lutOffset,
+                          std::numeric_limits<uint32_t>::max(), static_cast<uint32_t>(complete.size() - 3)}) {
+    SCOPED_TRACE(offset);
+    files[0] = complete;
+    patch(files[0], SectionPageReader::HEADER_SIZE - sizeof(uint32_t), offset);
+    NothrowAllocationScope allocations(0);
+    EXPECT_EQ(nullptr, SectionPageReader::load("section", 0));
+    EXPECT_EQ(0u, allocations.attempts());
+  }
+}
+
+TEST_F(PersistenceFault, SectionReaderAcceptsGenuineZeroVisibleOffset) {
+  PageTurnFixture fixture(Scene::Prose);
+  uint32_t visibleLutOffset = 0;
+  std::memcpy(&visibleLutOffset, files[0].data() + SectionPageReader::HEADER_SIZE - sizeof(uint32_t),
+              sizeof(visibleLutOffset));
+  patch(files[0], visibleLutOffset, uint32_t{0});
+  auto page = SectionPageReader::load("section", 0);
+  ASSERT_NE(page, nullptr);
+  EXPECT_EQ(0u, page->visibleTextOffset);
+  EXPECT_FALSE(page->elements.empty());
 }
 
 TEST_F(PersistenceFault, SectionReaderRejectsOverflowAndOutOfFileLookupEntries) {
