@@ -184,7 +184,7 @@ int LibraryListActivity::selectedEntry() const {
 bool LibraryListActivity::showingRecents() const { return activeTabIndex == RECENT_TAB; }
 
 void LibraryListActivity::openSelectedBook() {
-  if (selectedEntry() < 0 || selectedEntry() >= bookRowCount()) return;
+  if (selectedEntry() >= bookRowCount()) return;
   std::string path;
   if (showingRecents()) {
     const auto& books = RECENT_BOOKS.getBooks();
@@ -656,7 +656,6 @@ void LibraryListActivity::filterBooks() {
     }
     if (!textMatches) {
       library::ClixSeriesRef ref{};
-      uint16_t count = 0;
       if (!index.readSeriesRef(ordinal, ref)) {
         filterFailed = true;
         break;
@@ -664,6 +663,7 @@ void LibraryListActivity::filterBooks() {
       if (ref.seriesId != library::CLIX_SERIES_NONE) {
         // The series table and query are immutable during this filter pass.
         if (ref.seriesId != lastSeriesId) {
+          uint16_t count = 0;
           if (!index.readSeries(ref.seriesId, candidateText, count)) {
             filterFailed = true;
             break;
@@ -743,7 +743,7 @@ bool LibraryListActivity::rowTextFor(const int entry, std::string& title, std::s
   if (entry < 0 || entry >= bookRowCount()) return false;
   if (showingRecents()) {
     const auto& books = RECENT_BOOKS.getBooks();
-    if (entry < 0 || entry >= static_cast<int>(books.size())) return false;
+    if (entry >= static_cast<int>(books.size())) return false;
     const auto& book = books[static_cast<size_t>(entry)];
     title = book.title;
     author = book.author;
