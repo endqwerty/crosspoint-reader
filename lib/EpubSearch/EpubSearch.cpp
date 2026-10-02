@@ -371,7 +371,7 @@ int XMLCALL ChapterSearch::externalEntity(XML_Parser, const XML_Char*, const XML
   return XML_STATUS_ERROR;
 }
 
-void XMLCALL ChapterSearch::startElement(void* context, const XML_Char* name, const XML_Char**) {
+void XMLCALL ChapterSearch::startElement(void* context, const XML_Char* name, const XML_Char** atts) {
   auto& self = *static_cast<ChapterSearch*>(context);
   if (++self.depth > MAX_DEPTH || std::strlen(name) > 128) {
     self.stop(Status::LimitReached);
@@ -382,13 +382,19 @@ void XMLCALL ChapterSearch::startElement(void* context, const XML_Char* name, co
     self.sawBody = true;
   }
   if (self.insideBody && (self.nonVisibleDepth || VisibleTextUtils::isNonVisibleElement(name))) self.nonVisibleDepth++;
-  if (self.insideBody && !self.nonVisibleDepth && block(name)) self.visible(' ', true);
+  // The reader lays out the HTML hidden attribute as display:none but still counts the text's offsets.
+  bool hidden = self.hiddenDepth != 0;
+  for (const XML_Char** att = atts; att && *att && !hidden; att += 2) hidden = std::strcmp(*att, "hidden") == 0;
+  if (self.insideBody && hidden) self.hiddenDepth++;
+  if (self.insideBody && !self.nonVisibleDepth && !self.hiddenDepth && block(name)) self.visible(' ', true);
 }
 
 void XMLCALL ChapterSearch::endElement(void* context, const XML_Char* name) {
   auto& self = *static_cast<ChapterSearch*>(context);
   if (self.nonVisibleDepth) self.nonVisibleDepth--;
-  if (self.insideBody && !self.nonVisibleDepth && block(name)) self.visible(' ', true);
+  const bool wasHidden = self.hiddenDepth != 0;
+  if (wasHidden) self.hiddenDepth--;
+  if (self.insideBody && !self.nonVisibleDepth && !wasHidden && block(name)) self.visible(' ', true);
   if (VisibleTextUtils::equalsTag(name, "body")) self.insideBody = false;
   if (self.depth) self.depth--;
 }
@@ -403,6 +409,10 @@ void XMLCALL ChapterSearch::characterData(void* context, const XML_Char* data, c
     if (!decode(text, cursor, cp)) {
       self.stop(Status::InvalidInput);
       return;
+    }
+    if (self.hiddenDepth) {
+      self.visibleOffset++;
+      continue;
     }
     self.visible(cp);
   }
