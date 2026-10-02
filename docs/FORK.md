@@ -115,7 +115,9 @@ use worktrees and leaves the SDK submodule unpopulated in them
 (`worktreeSubmodules: "none"`), because git cannot remove a worktree that has a
 submodule checked out (see "Worktree lifecycle").
 
-Keep backup history in verified bundles before removing obsolete branches.
+Do not keep bundle or other off-repository backups of the fork's history; the
+user does not want them (2026-10-01). The backup ref that `sync-publish` leaves
+under `refs/fork-backup/` is enough.
 
 ## Branches and pull requests
 
