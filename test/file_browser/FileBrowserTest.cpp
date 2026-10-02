@@ -248,6 +248,8 @@ TEST_F(FileBrowserTest, MoveIntoFolderCarriesBookmarksCacheAndReadingState) {
   EXPECT_EQ(bytes(getBookCachePath(newPath)), "cache");
   expectState(newPath, true, library::ReadingState::Finished);
   EXPECT_FALSE(isBookPathFree(newPath));
+  // A book added later at the old path starts without the moved book's marks.
+  expectState(oldPath, false, library::ReadingState::Unread);
 }
 
 TEST_F(FileBrowserTest, BookPathIsTakenByLeftoverStateWithoutTheBook) {
