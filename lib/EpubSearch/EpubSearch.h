@@ -107,6 +107,7 @@ class ChapterSearch final : public Print {
   uint16_t snippetLengths[MAX_RESULTS] = {};
   unsigned depth = 0;
   unsigned nonVisibleDepth = 0;
+  unsigned hiddenDepth = 0;
   bool insideBody = false;
   bool sawBody = false;
   bool previousSpace = true;
