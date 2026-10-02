@@ -41,6 +41,23 @@ When a user instruction changes how work is done, update this file in the same
 task. When a fact belongs to the machine rather than the repository, update the
 homelab page. If `/Volumes/workspace` is not mounted, say so instead of guessing.
 
+## Second opinion from another model
+
+On the user's Mac, Claude Code sessions have two user-level subagents that hand
+work to the Codex CLI (a ChatGPT model): `codex-reviewer` (read-only review,
+`codex exec -s read-only`) and `codex-implementer` (`-s workspace-write`; the
+caller reviews the diff). They live in `~/workspace/agent-config/agents/`, which
+is the single source for shared agent configuration (see
+`/Volumes/workspace/homelab/workstation.md`), not in this repository, so they
+exist only on that Mac.
+
+- Use `codex-reviewer` on a branch's diff before opening a pull request when the
+  change touches memory handling, rendering or shared code, and treat its
+  findings as claims to verify against the code. It does not replace
+  `scripts/fork-workflow.sh check` or the device tests in `AGENTS.md`.
+- Everything above about branches, pull requests and not merging still applies
+  to work done through `codex-implementer`.
+
 ## Upstream first
 
 Treat the original project as the authoritative, more stable implementation. The
