@@ -5,16 +5,10 @@
 #include <utility>
 #include <vector>
 
+#include "HeapCap.h"
 #include "LibraryIndexFile.h"
+#include "LibraryText.h"
 #include "Memory.h"
-
-namespace library {
-
-std::string joinLibraryPath(const std::string_view folder, const std::string_view name) {
-  return std::string(folder) + "/" + std::string(name);
-}
-
-}  // namespace library
 
 namespace {
 
@@ -950,7 +944,8 @@ struct FolderScanFixture {
   std::vector<std::string> folders;
   std::vector<uint32_t> offsets;
 };
-FolderScanFixture folderScanFixture(uint16_t count, bool varied = false) {
+FolderScanFixture folderScanFixture(uint16_t count, bool varied = false, const std::string& filename = "book.epub",
+                                    const std::string& folder = {}) {
   FolderScanFixture fixture;
   auto& header = fixture.header;
   std::memcpy(header.magic, library::CLIX_MAGIC, sizeof(header.magic));
@@ -970,12 +965,12 @@ FolderScanFixture folderScanFixture(uint16_t count, bool varied = false) {
       path = length > 8 ? "/Café" : "/";
       path.append(length - path.size(), 'x');
     }
+    if (!folder.empty()) path = folder + (count > 1 ? std::to_string(i) : "");
     fixture.offsets.push_back(library::CLIX_ALIGN + folderBytes);
     folderBytes += 1 + path.size();
     fixture.folders.push_back(std::move(path));
   }
-  constexpr char NAME[] = "book.epub";
-  library::layoutSections(header, folderBytes, sizeof(uint64_t) + sizeof(NAME) - 1);
+  library::layoutSections(header, folderBytes, sizeof(uint64_t) + filename.size());
   fixture.bytes.resize(header.selfSize);
   std::memcpy(fixture.bytes.data(), &header, sizeof(header));
   for (uint16_t i = 0; i < count; ++i) {
@@ -983,9 +978,9 @@ FolderScanFixture folderScanFixture(uint16_t count, bool varied = false) {
     fixture.bytes[at++] = fixture.folders[i].size();
     std::memcpy(fixture.bytes.data() + at, fixture.folders[i].data(), fixture.folders[i].size());
   }
-  std::memcpy(fixture.bytes.data() + header.nameStart + sizeof(uint64_t), NAME, sizeof(NAME) - 1);
+  std::memcpy(fixture.bytes.data() + header.nameStart + sizeof(uint64_t), filename.data(), filename.size());
   fixture.record.folderId = count - 1;
-  fixture.record.nameLen = sizeof(NAME) - 1;
+  fixture.record.nameLen = filename.size();
   return fixture;
 }
 }  // namespace
@@ -998,7 +993,7 @@ TEST(LibraryIndexFile, FolderScanBatches4096LengthReads) {
   HalFile::resetIoCounters();
   std::string path;
   ASSERT_TRUE(index.readPath(fixture.record, path));
-  EXPECT_EQ(path, fixture.folders.back() + "/book.epub");
+  EXPECT_EQ(path, library::joinLibraryPath(fixture.folders.back(), "book.epub"));
   EXPECT_LE(HalFile::readCalls, 600u);
   EXPECT_LE(HalFile::seekCalls, 600u);
   std::printf("FOLDER_SCAN_4096 reads=%zu seeks=%zu bytes=%zu\n", HalFile::readCalls, HalFile::seekCalls,
@@ -1017,11 +1012,14 @@ TEST(LibraryIndexFile, FolderScanPreservesBoundaryAndUtf8PathsWithoutCrossSectio
     std::string path;
     ASSERT_TRUE(index.readPath(fixture.record, path));
     HalFile::captureReads = false;
-    EXPECT_EQ(path, fixture.folders[i] + "/book.epub") << i;
+    EXPECT_EQ(path, library::joinLibraryPath(fixture.folders[i], "book.epub")) << i;
     for (const auto& [offset, length] : HalFile::readRanges) {
       if (offset >= fixture.header.folderStart && offset < fixture.header.folderStart + fixture.header.folderLen) {
         EXPECT_LE(offset + length, fixture.header.folderStart + fixture.header.folderLen);
-        if (offset != fixture.offsets[i] + 1) {
+        const auto pathStart = fixture.offsets[i] + 1;
+        const auto pathEnd = pathStart + fixture.folders[i].size();
+        const bool folderSuffix = offset >= pathStart && offset + length == pathEnd;
+        if (!folderSuffix) {
           EXPECT_LE(length, 64u);
           EXPECT_LE(offset % library::CLIX_ALIGN + length, library::CLIX_ALIGN);
         }
@@ -1061,7 +1059,7 @@ TEST(LibraryIndexFile, FolderScanEveryReadShortReadAndSeekFailureClearsPathAndRe
       EXPECT_TRUE(index.ioFailed());
       HalFile::resetFaults();
       ASSERT_TRUE(index.readPath(fixture.record, path));
-      EXPECT_EQ(path, fixture.folders.back() + "/book.epub");
+      EXPECT_EQ(path, library::joinLibraryPath(fixture.folders.back(), "book.epub"));
       EXPECT_TRUE(index.ioFailed());
     }
   }
@@ -1106,7 +1104,7 @@ TEST(LibraryIndexFile, FolderScanDoesNotRetainWindowAcrossCallsOrReopen) {
   Storage.setFile("/library.clx", second.bytes);
   ASSERT_TRUE(index.open("/library.clx"));
   ASSERT_TRUE(index.readPath(second.record, path));
-  EXPECT_EQ(path, second.folders.back() + "/book.epub");
+  EXPECT_EQ(path, library::joinLibraryPath(second.folders.back(), "book.epub"));
 }
 
 TEST(LibraryIndexFile, AuthorContractEmptyFieldIsReadableWithoutExtraIo) {
@@ -1250,4 +1248,150 @@ TEST(LibraryIndexFile, CombinedMetadataPreservesFieldsAcrossBufferBoundaries) {
   EXPECT_EQ(seeks[1], 1215u);
   EXPECT_EQ(bytes[0], 173944u);
   EXPECT_EQ(bytes[1], 193023u);
+}
+
+TEST(LibraryIndexFile, FolderPathsReuseOutputCapacityAndBufferedBytes) {
+  std::string path;
+  path.reserve(511);
+  size_t allocationsTotal = 0;
+  size_t readsTotal = 0;
+  size_t seeksTotal = 0;
+  size_t bytesTotal = 0;
+  const std::vector<std::string> folders = {"/", "/a/", "/Café/読書", "/" + std::string(254, 'd'),
+                                            "/" + std::string(253, 'd') + "/"};
+  for (const auto& folder : folders) {
+    for (const size_t nameLength : {1u, 15u, 16u, 63u, 254u, 255u}) {
+      SCOPED_TRACE(testing::Message() << folder.size() << ":" << nameLength);
+      const std::string name(nameLength, 'b');
+      auto fixture = folderScanFixture(1, false, name, folder);
+      Storage.setFile("/library.clx", fixture.bytes);
+      library::LibraryIndexFile index;
+      ASSERT_TRUE(index.open("/library.clx"));
+      const auto expected = library::joinLibraryPath(folder, name);
+      HalFile::resetIoCounters();
+      heapcap::reset(SIZE_MAX);
+      const bool ok = index.readPath(fixture.record, path);
+      heapcap::stop();
+      const auto measured = heapcap::allocationCalls();
+      allocationsTotal += measured;
+      readsTotal += HalFile::readCalls;
+      seeksTotal += HalFile::seekCalls;
+      bytesTotal += HalFile::bytesRead;
+      ASSERT_TRUE(ok);
+      EXPECT_EQ(path, expected);
+      EXPECT_EQ(path.size(), folder.size() + (folder.back() == '/' ? 0u : 1u) + name.size());
+      EXPECT_EQ(measured, 0u);
+      EXPECT_EQ(HalFile::readCalls, folder.size() < 64 ? 2u : 3u);
+      EXPECT_EQ(HalFile::seekCalls, 2u);
+      EXPECT_EQ(HalFile::bytesRead, folder.size() + 1 + name.size());
+    }
+  }
+  std::printf("PATH_REUSE cases=30 allocations=%zu reads=%zu seeks=%zu bytes=%zu\n", allocationsTotal, readsTotal,
+              seeksTotal, bytesTotal);
+}
+
+TEST(LibraryIndexFile, FolderPathsGrowOnceForMaximumPath) {
+  const std::string folder = "/" + std::string(254, 'd');
+  const std::string filename(255, 'b');
+  const auto fixture = folderScanFixture(1, false, filename, folder);
+  Storage.setFile("/library.clx", fixture.bytes);
+  library::LibraryIndexFile index;
+  ASSERT_TRUE(index.open("/library.clx"));
+  std::string path;
+  heapcap::reset(SIZE_MAX);
+  const bool ok = index.readPath(fixture.record, path);
+  heapcap::stop();
+  const auto measured = heapcap::allocationCalls();
+  ASSERT_TRUE(ok);
+  EXPECT_EQ(path, folder + "/" + filename);
+  EXPECT_EQ(path.size(), 511u);
+  EXPECT_EQ(measured, 1u);
+}
+
+TEST(LibraryIndexFile, FolderPathFailuresDiscardPartialLongPaths) {
+  const auto fixture = folderScanFixture(1, false, std::string(255, 'b'), "/" + std::string(254, 'd'));
+  Storage.setFile("/library.clx", fixture.bytes);
+  size_t reads = 0;
+  size_t seeks = 0;
+  {
+    library::LibraryIndexFile index;
+    ASSERT_TRUE(index.open("/library.clx"));
+    std::string path;
+    HalFile::resetIoCounters();
+    ASSERT_TRUE(index.readPath(fixture.record, path));
+    reads = HalFile::readCalls;
+    seeks = HalFile::seekCalls;
+  }
+  for (int fault = 0; fault < 3; ++fault) {
+    for (size_t call = 0; call < (fault == 2 ? seeks : reads); ++call) {
+      SCOPED_TRACE(testing::Message() << fault << ":" << call);
+      HalFile::resetFaults();
+      library::LibraryIndexFile index;
+      ASSERT_TRUE(index.open("/library.clx"));
+      if (fault == 0) HalFile::failReadAfter = call;
+      if (fault == 1) HalFile::shortReadAfter = call;
+      if (fault == 2) HalFile::failSeekAfter = call;
+      std::string path(511, 's');
+      EXPECT_FALSE(index.readPath(fixture.record, path));
+      EXPECT_TRUE(path.empty());
+      EXPECT_TRUE(index.ioFailed());
+    }
+  }
+  HalFile::resetFaults();
+  library::LibraryIndexFile index;
+  ASSERT_TRUE(index.open("/library.clx"));
+  for (int invalid = 0; invalid < 4; ++invalid) {
+    auto record = fixture.record;
+    if (invalid == 0) record.nameOff = UINT32_MAX;
+    if (invalid == 1) record.nameOff = fixture.header.nameLen - 1;
+    if (invalid == 2) record.nameOff = 1;
+    if (invalid == 3) record.nameLen = 0;
+    std::string path(511, 's');
+    EXPECT_FALSE(index.readPath(record, path));
+    EXPECT_TRUE(path.empty());
+  }
+}
+
+TEST(LibraryIndexFile, CalibreLibraryPathsReuseOneOutputAcross750Folders) {
+  const std::string name = "A complete exported Calibre book title.epub";
+  auto fixture = folderScanFixture(750, false, name, "/Author Name/Calibre book title number ");
+  Storage.setFile("/library.clx", fixture.bytes);
+  library::LibraryIndexFile index;
+  ASSERT_TRUE(index.open("/library.clx"));
+  std::string path;
+  path.reserve(511);
+  size_t totalAllocations = 0;
+  size_t totalReads = 0;
+  size_t totalSeeks = 0;
+  size_t totalBytes = 0;
+  for (uint16_t i = 0; i < fixture.header.folderCount; ++i) {
+    fixture.record.folderId = i;
+    HalFile::resetIoCounters();
+    heapcap::reset(SIZE_MAX);
+    const bool ok = index.readPath(fixture.record, path);
+    heapcap::stop();
+    const auto measured = heapcap::allocationCalls();
+    totalAllocations += measured;
+    totalReads += HalFile::readCalls;
+    totalSeeks += HalFile::seekCalls;
+    totalBytes += HalFile::bytesRead;
+    ASSERT_TRUE(ok) << i;
+    EXPECT_EQ(path, library::joinLibraryPath(fixture.folders[i], name));
+  }
+  EXPECT_EQ(totalAllocations, 0u);
+  std::printf("CALIBRE_PATHS books=750 allocations=%zu reads=%zu seeks=%zu bytes=%zu\n", totalAllocations, totalReads,
+              totalSeeks, totalBytes);
+}
+
+TEST(LibraryIndexFile, FolderPathPreservesLeadingSlashAndUtf8Filename) {
+  const std::string name = "/読書.epub";
+  for (const std::string folder : {"/", "/Café/", "/Café"}) {
+    const auto fixture = folderScanFixture(1, false, name, folder);
+    Storage.setFile("/library.clx", fixture.bytes);
+    library::LibraryIndexFile index;
+    ASSERT_TRUE(index.open("/library.clx"));
+    std::string path;
+    ASSERT_TRUE(index.readPath(fixture.record, path));
+    EXPECT_EQ(path, library::joinLibraryPath(folder, name));
+  }
 }
