@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <cstring>
 
-#include "LibraryText.h"
-
 namespace library {
 
 LibraryIndexFile::~LibraryIndexFile() { close(); }
@@ -383,12 +381,15 @@ bool LibraryIndexFile::readRecord(const uint16_t ordinal, ClixRecord& out) {
   return true;
 }
 
+bool LibraryIndexFile::validName(const ClixRecord& record) const {
+  return opened && record.nameLen != 0 && record.nameOff <= head.nameLen &&
+         sizeof(uint64_t) <= head.nameLen - record.nameOff &&
+         record.nameLen <= head.nameLen - record.nameOff - sizeof(uint64_t);
+}
+
 bool LibraryIndexFile::readName(const ClixRecord& record, std::string& out) {
   out.clear();
-  if (!opened || record.nameLen == 0) return false;
-  if (record.nameOff > head.nameLen || sizeof(uint64_t) > head.nameLen - record.nameOff ||
-      record.nameLen > head.nameLen - record.nameOff - sizeof(uint64_t))
-    return false;
+  if (!validName(record)) return false;
   out.resize(record.nameLen);
   return readAt(head.nameStart + record.nameOff + sizeof(uint64_t), out.data(), record.nameLen);
 }
@@ -540,12 +541,22 @@ bool LibraryIndexFile::readPath(const ClixRecord& record, std::string& out) {
     if (pathLen == 0) return false;
     if (pathLen > folderEnd - offset - 1u) return false;
     if (i == record.folderId) {
-      std::string dir(pathLen, '\0');
-      if (!readAt(offset + 1, dir.data(), pathLen)) return false;
-      std::string name;
-      if (!readName(record, name)) return false;
-      out = joinLibraryPath(dir, name);
-      return true;
+      // Reuse the caller's capacity and the folder bytes already in the scan buffer.
+      out.resize(static_cast<size_t>(pathLen) + 1 + record.nameLen);
+      const size_t start = offset - bufferStart + 1;
+      const size_t copied = std::min<size_t>(pathLen, buffered - start);
+      memcpy(out.data(), buffer + start, copied);
+      if (copied == pathLen || readAt(offset + 1 + copied, out.data() + copied, pathLen - copied)) {
+        const size_t nameStart = pathLen + (out[pathLen - 1] == '/' ? 0u : 1u);
+        if (nameStart > pathLen) out[pathLen] = '/';
+        if (validName(record) &&
+            readAt(head.nameStart + record.nameOff + sizeof(uint64_t), out.data() + nameStart, record.nameLen)) {
+          out.resize(nameStart + record.nameLen);
+          return true;
+        }
+      }
+      out.clear();
+      return false;
     }
     offset += 1u + pathLen;
     if (offset >= folderEnd) return false;
