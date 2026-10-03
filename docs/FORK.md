@@ -45,20 +45,26 @@ homelab page. If `/Volumes/workspace` is not mounted, say so instead of guessing
 
 ## Second opinion from another model
 
-On the user's Mac, Claude Code sessions have two user-level subagents that hand
-work to the Codex CLI (a ChatGPT model): `codex-reviewer` (read-only review,
-`codex exec -s read-only`) and `codex-implementer` (`-s workspace-write`; the
-caller reviews the diff). They live in `~/workspace/agent-config/agents/`, which
-is the single source for shared agent configuration (see
-`/Volumes/workspace/homelab/workstation.md`), not in this repository, so they
-exist only on that Mac.
+Use T3 native delegation: choose the provider/model with
+`orchestrator_capabilities`, then call `delegate_task` with the task, file paths
+and explicit runtime mode. Children share the thread's worktree. Keep the task
+ID and result; use `task_status` to inspect it and `task_cancel` to stop it.
+A wait timeout does not cancel a child; check its status before retrying.
+Native approval prompts are supported workflow.
 
-- Use `codex-reviewer` on a branch's diff before opening a pull request when the
-  change touches memory handling, rendering or shared code, and treat its
-  findings as claims to verify against the code. It does not replace
+- Get an independent review from another model on a branch's diff before
+  opening a pull request when the change touches memory handling, rendering or
+  shared code. Verify findings against the code; review does not replace
   `scripts/fork-workflow.sh check` or the device tests in `AGENTS.md`.
-- Everything above about branches, pull requests and not merging still applies
-  to work done through `codex-implementer`.
+- Codex reviewer: use `runtimeMode: "approval-required"` (read-only), with no
+  edits, remote contact (including MCP/connector actions) or access escalation.
+- Codex implementer: start with a clean Git tree, including untracked files,
+  and record HEAD. Use `runtimeMode: "auto-accept-edits"` (workspace-write),
+  with no access escalation. Do not commit, push or delete branches/worktrees
+  before caller review. Return status and diff; the caller compares HEAD and
+  reviews all changes before committing.
+- Delegation preserves this file's branch, pull-request, merge, validation and
+  delivery rules; it grants no additional publishing or integration authority.
 
 ## Upstream first
 
@@ -220,8 +226,8 @@ run here before a pull request is opened or updated:
   `bin/clang-format-fix`, then no diff), host tests in Release and under the
   sanitizers, and the `x4pro-gh_release` firmware build. Use it for every change
   to source, tests or build files.
-- `check --full` adds `pio check` (cppcheck) and the five firmware targets CI
-  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`). Use it after an
+- `check --full` adds `pio check` (cppcheck) and the six firmware targets CI
+  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`, `metalio_eink4`). Use it after an
   upstream sync that changed source, and for changes to shared code that other
   boards compile.
 - `check --fast` is formatting and Release host tests only.
@@ -236,30 +242,37 @@ it must follow the `AGENTS.md` commit format; nothing checks that automatically.
 
 ### Worktree lifecycle
 
-T3 Code owns the worktrees. It removes one by itself when its thread is
-deleted, when the thread has been idle for the configured number of days, or
-when the worktree's HEAD is already contained in `origin/develop`; it recreates
-the worktree from the thread's branch when the thread is used again. There is
-no other cleanup job. T3 Code only removes a worktree that is on its thread's
-branch, has no uncommitted or untracked files, has no ignored files (build
-output) and has no submodule checked out, so:
+T3 Code owns the worktrees. Native pull-request linking and Settle are the
+default handoff; settling a thread does not itself remove its checkout. The
+native cleanup worker considers deletion, configured idle time (currently five
+days), and whether HEAD is contained in `origin/develop`. Removal still requires
+the thread's branch, no active commands or sessions, no uncommitted/untracked
+files, no ignored files except `node_modules`, and no populated submodules.
+T3 recreates a removed checkout from the thread's branch when resumed. There is
+no other cleanup job.
 
 - Run `scripts/fork-workflow.sh prepare` before building or testing. It checks
   out the pinned SDK, borrowing objects from the permanent checkout.
-- Run `scripts/fork-workflow.sh release` as the last step of every handoff,
-  after everything is committed and pushed. It refuses to drop SDK work that is
-  not pushed, then removes the SDK checkout, all ignored files
-  (`.pio`, generated headers, `platformio.local.ini`) and the worktree's check
-  directories, and says whether T3 Code can now remove the worktree. Copy any
-  firmware image to the share first. The next `prepare` and `check` rebuild
-  what was dropped.
+- `scripts/fork-workflow.sh release` is optional, explicit build/SDK cleanup
+  when finished with this workspace and cleanup is needed for native removal.
+  Never run it merely because a thread settles or reaches a handoff. First
+  commit/push authorized work and preserve/export wanted firmware, check logs
+  and ignored local overrides such as `platformio.local.ini`. The command
+  deinitializes the SDK, runs `git clean -ffdX` (including `.pio`, generated
+  headers and ignored overrides), and deletes the external per-worktree check
+  directories under `~/.local/share/crosspoint-build/ci/`. It checks SDK state
+  before dropping it, but does not preserve those artifacts or local overrides.
+  The next `prepare` and `check` can rebuild generated output, not recover
+  discarded logs or local configuration. A successful "released" result means
+  filesystem readiness only, not proof of native cleanup eligibility.
 - Do not remove a worktree or its branch by hand, and do not leave the worktree
   on another branch.
 
-After a squash merge the branch tip is not contained in `origin/develop`, so
-the merged thread's worktree goes when the thread is deleted or has been idle
-for the configured days, not at the moment of the merge. T3 Code's settings and
-their limits are in the homelab `workstation.md`.
+After a squash or rebase merge the branch tip may not be contained in
+`origin/develop`; merge/unchanged ancestry checks can therefore still prevent
+removal of a released worktree. It may need the configured five-day idle
+cleanup or thread deletion, with all native guards still satisfied. T3 Code's
+settings and their limits are in the homelab `workstation.md`.
 
 ### Syncing with upstream
 
@@ -351,8 +364,9 @@ alone does not enforce linear history.
     linked to the thread;
   - the branch is pushed, and `origin/develop` contains the upstream tip;
   - temporary git worktrees or scratch clones created for the task are removed;
-  - `scripts/fork-workflow.sh release` ran last and reported that T3 Code can
-    remove the worktree.
+  - the thread's branch is retained for native PR/Settle handling; report any
+    optional build/SDK cleanup performed or deferred under "Worktree lifecycle".
+    Do not equate a "released" filesystem with native removal eligibility.
 - Preserve human authorship when adapting patches; do not add assistant
   attribution to commits. Follow the author-verification rules in `AGENTS.md`.
 
