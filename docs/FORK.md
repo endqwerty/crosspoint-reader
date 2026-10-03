@@ -45,20 +45,26 @@ homelab page. If `/Volumes/workspace` is not mounted, say so instead of guessing
 
 ## Second opinion from another model
 
-On the user's Mac, Claude Code sessions have two user-level subagents that hand
-work to the Codex CLI (a ChatGPT model): `codex-reviewer` (read-only review,
-`codex exec -s read-only`) and `codex-implementer` (`-s workspace-write`; the
-caller reviews the diff). They live in `~/workspace/agent-config/agents/`, which
-is the single source for shared agent configuration (see
-`/Volumes/workspace/homelab/workstation.md`), not in this repository, so they
-exist only on that Mac.
+Use T3 native delegation: choose the provider/model with
+`orchestrator_capabilities`, then call `delegate_task` with the task, file paths
+and explicit runtime mode. Children share the thread's worktree. Keep the task
+ID and result; use `task_status` to inspect it and `task_cancel` to stop it.
+A wait timeout does not cancel a child; check its status before retrying.
+Native approval prompts are supported workflow.
 
-- Use `codex-reviewer` on a branch's diff before opening a pull request when the
-  change touches memory handling, rendering or shared code, and treat its
-  findings as claims to verify against the code. It does not replace
+- Get an independent review from another model on a branch's diff before
+  opening a pull request when the change touches memory handling, rendering or
+  shared code. Verify findings against the code; review does not replace
   `scripts/fork-workflow.sh check` or the device tests in `AGENTS.md`.
-- Everything above about branches, pull requests and not merging still applies
-  to work done through `codex-implementer`.
+- Codex reviewer: use `runtimeMode: "approval-required"` (read-only), with no
+  edits, remote contact (including MCP/connector actions) or access escalation.
+- Codex implementer: start with a clean Git tree, including untracked files,
+  and record HEAD. Use `runtimeMode: "auto-accept-edits"` (workspace-write),
+  with no access escalation. Do not commit, push or delete branches/worktrees
+  before caller review. Return status and diff; the caller compares HEAD and
+  reviews all changes before committing.
+- Delegation preserves this file's branch, pull-request, merge, validation and
+  delivery rules; it grants no additional publishing or integration authority.
 
 ## Upstream first
 
