@@ -1,12 +1,17 @@
 add_executable(LibraryIndexFileTest
   LibraryIndexFileTest.cpp
+  ${REPO_ROOT}/test/huge_book_index/HeapCap.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryIndexFile.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryFormat.cpp
+  ${REPO_ROOT}/lib/LibraryIndex/LibraryText.cpp
+  ${REPO_ROOT}/lib/Utf8/Utf8.cpp
 )
 
 target_include_directories(LibraryIndexFileTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/stubs
   ${REPO_ROOT}/lib/LibraryIndex
+  ${REPO_ROOT}/lib/Utf8
+  ${REPO_ROOT}/test/huge_book_index
 )
 
 target_link_libraries(LibraryIndexFileTest PRIVATE
