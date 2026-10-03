@@ -295,7 +295,12 @@ library-sized stays resident.
   can read up to 64 bytes for one rank.
 - **Folder paths**: resolving folder N uses a fresh 64-byte stack window for nearby
   length bytes, never extending past the folder section or the current 512-byte
-  sector. Failures leave the returned path empty.
+  sector. The selected folder reuses bytes already in that window and reads only
+  its remaining suffix. The complete path is assembled in the caller's output
+  string, with at most 511 bytes of content (255 folder + slash + 255 filename).
+  Existing capacity is retained; there are no temporary folder/name strings or
+  persistent folder caches. Root/trailing slashes use `joinLibraryPath` semantics.
+  Failures leave the returned path empty.
 - **Field reads** (`readFields`): one 64-byte stack buffer combines short fields
   and length bytes; spans of at least 64 bytes remaining are read directly into the
   pre-sized output string. Length checks precede copying; failure clears all
@@ -458,6 +463,12 @@ Host tests (`test/`): `library_format`, `library_index_file`, `library_builder`
 reach `stageRecord`), `library_text`, `library_book_state`, `library_ui`,
 `library_details`, `library_follow_ons` (real index builds with one folder per book), the `LibraryRenameRelinkTest` cases in `library_builder`, the `RelinkBookStateTest` cases in `file_browser`,
 `content_opf_parser`, `folder_search`, `file_browser`.
+
+`test/library_index_file` links the real text/path helpers and checks path bytes
+against `joinLibraryPath`, including root, trailing slashes, UTF-8, maximum-length
+names, scan boundaries and every read/seek failure. Path allocation checks reuse
+one output string and include a cold maximum-length path as a positive control;
+they use the shared heap counter's ASan hooks when sanitized.
 
 `test/library_ui` extracts production methods (e.g. `readAuthor`, grouping,
 filtering, refresh capture/restore, `formatAuthorHeading`) through `extract.py`;

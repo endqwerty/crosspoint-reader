@@ -137,6 +137,7 @@ class LibraryIndexFile {
  private:
   bool openImpl(const char* path, bool acceptStaleFold);
   bool readAt(uint32_t offset, void* dst, size_t len);
+  bool validName(const ClixRecord& record) const;
   uint16_t readOrdinal(uint32_t orderStart, uint16_t row);
   bool readBlobField(const ClixRecord& record, uint8_t field, std::string& out);
   // Blob fields 0..count-1 into the non-null outputs, in one buffered pass.
