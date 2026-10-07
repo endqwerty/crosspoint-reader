@@ -33,8 +33,9 @@ for size in ${LIBRON_FONT_SIZES[@]}; do
   for style in ${READER_FONT_STYLES[@]}; do
     font_name="libron_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
     font_path="../builtinFonts/source/Libron/Libron-${style}.ttf"
+    fallback_path="../builtinFonts/source/NotoSans/NotoSans-${style}.ttf"
     output_path="../builtinFonts/${font_name}.h"
-    python fontconvert.py "$font_name" "$size" "$font_path" --2bit --compress --pnum --zopfli > "$output_path"
+    python fontconvert.py "$font_name" "$size" "$font_path" "$fallback_path" --2bit --compress --pnum --zopfli > "$output_path"
     echo "Generated $output_path"
   done
 done

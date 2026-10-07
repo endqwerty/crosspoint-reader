@@ -12,10 +12,10 @@
 #define UI_10_FONT_ID (1322569422)
 #define UI_12_FONT_ID (1831230762)
 #define SMALL_FONT_ID (1465627787)
-#define LIBRON_12_FONT_ID (189239120)
-#define LIBRON_14_FONT_ID (1263062637)
-#define LIBRON_16_FONT_ID (2031516206)
-#define LIBRON_18_FONT_ID (39890387)
+#define LIBRON_12_FONT_ID (153285203)
+#define LIBRON_14_FONT_ID (-1912713536)
+#define LIBRON_16_FONT_ID (250985690)
+#define LIBRON_18_FONT_ID (934935093)
 
 // Font ID 0 is reserved as the "not found" sentinel.
 // Guard against any hash accidentally producing 0.
