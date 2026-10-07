@@ -11,6 +11,11 @@
 #include "ReaderNavigationHistory.h"
 #include "components/HeaderBackTapTarget.h"
 
+inline bool eegoA4Panel = false;
+namespace BoardConfig {
+inline bool isEegoA4() { return eegoA4Panel; }
+}  // namespace BoardConfig
+
 inline bool xteinkPanel = true;
 inline bool xteinkClassPanel() { return xteinkPanel; }
 
