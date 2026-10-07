@@ -677,6 +677,9 @@ The index migration does not change EPUB reading-position or section-cache files
 Fold/sort revision 6 preserves leading words in title and series sorting and search,
 adopting upstream fold revision 4 while retaining the local author and arrival rules.
 Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
+Fold/sort revision 7 reparses series metadata using upstream's explicitly typed
+EPUB 3 collection selection and finite numeric positions; untyped collections
+are no longer inferred to be series. Arrival history and reading state survive.
 
 ### Layout
 

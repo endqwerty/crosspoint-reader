@@ -271,11 +271,19 @@ library-sized stays resident.
 
 ### Series
 
-- Supports Calibre series metadata (which wins when both are present) and EPUB 3
-  collections/refinements. Up to four collections and eight refines are staged so
-  a series-typed collection is preferred over a box set. Series attribute/text
-  values over 255 bytes are ignored rather than merged by truncated prefix; general
-  metadata text is capped at 1,024 bytes (Expat may still buffer a larger token).
+- Uses upstream's Calibre series precedence and explicitly series-typed EPUB 3
+  collections/refinements. Untyped collections are not inferred to be series.
+  Eight bounded candidate slots retain declaration/refinement order without
+  a growing vector. The sync parser caps metadata at 512 bytes; the Library
+  adapter ignores series longer than 255 bytes before composing or hashing them,
+  so sync's truncated prefix cannot merge unrelated Library identities.
+  The Library collapses XML whitespace in the selected name; an empty result
+  has no series, without changing upstream's source precedence. Numeric positions
+  follow upstream's finite floating-point interpretation: comma fractions,
+  suffixes such as `3 of 7`, and trailing-space numbers are rejected. The adapter
+  rounds nonnegative positions to hundredths and clamps to 655.34 without a
+  scientific-notation text round-trip; negative positions are treated as no position.
+  Fold revision 7 reparses cached metadata while preserving arrival history.
 - Series identity is a digest of the full normalized name persisted before display
   truncation, so unrelated series sharing a long prefix do not merge. The ordering
   key is a 16-byte folded prefix plus that digest; this is deterministic but not

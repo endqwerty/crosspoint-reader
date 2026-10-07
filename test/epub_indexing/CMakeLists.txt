@@ -5,7 +5,10 @@ crosspoint_extract_between(parse_methods ${EPUB_SOURCE}
 crosspoint_extract_between(load_method ${EPUB_SOURCE}
   "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)"
   "bool Epub::loadMetadata(")
-set(methods "#include \"EpubIndexingFixture.h\"\n${parse_methods}\n${load_method}\n")
+crosspoint_extract_between(sync_method ${EPUB_SOURCE}
+  "bool Epub::loadSyncMetadata("
+  "bool Epub::loadMetadata(LibraryMetadata")
+set(methods "#include \"EpubIndexingFixture.h\"\n${parse_methods}\n${load_method}\n${sync_method}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubIndexingProduction.cpp "${methods}")
 add_executable(EpubIndexingTest EpubIndexingTest.cpp XmlAllocationFaults.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/EpubIndexingProduction.cpp
