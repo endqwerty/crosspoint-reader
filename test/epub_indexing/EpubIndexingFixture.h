@@ -50,6 +50,11 @@ class Epub {
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   std::unique_ptr<CssParser> cssParser;
   bool load(bool buildIfMissing = true, bool skipLoadingCss = true);
+  struct SyncMetadata {
+    std::string isbn, asin, series;
+    std::optional<float> seriesIndex;
+  };
+  bool loadSyncMetadata(SyncMetadata&);
   struct LibraryMetadata {
     std::string title, author, series, seriesIndexText, titleSort, authorSort, uuid;
   };
