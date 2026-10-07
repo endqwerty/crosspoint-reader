@@ -67,8 +67,8 @@
 namespace {
 // The X4 Pro and X4 Classic carry the X4's panel but sit outside isXteinkDevice()
 // (that helper also gates power management). Overlay refresh choices are per-panel:
-// this family runs the grayscale anti-aliasing pass, so chrome painted over a
-// fresh page needs the HALF ghost-cleanup and closing re-renders the page.
+// grayscale pages re-render after overlays; monochrome pages restore the snapshot.
+// A4 always re-renders and schedules its cleanup refresh.
 bool xteinkClassPanel() {
   return gpio.isXteinkDevice() || BoardConfig::isX4Pro() || BoardConfig::isX4Classic() || BoardConfig::isEegoA4();
 }
@@ -2037,9 +2037,8 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool bodyTextNeedsGrayscale = renderer.endTextGrayscaleTracking();
   renderStatusBar();
   const auto tBwRender = millis();
-  const auto grayPlan =
-      ReaderGrayscalePlan::forPage(SETTINGS.textAntiAliasing, pageHasImages, grayscale, bodyTextNeedsGrayscale,
-                                    !BoardConfig::isEegoA4());
+  const auto grayPlan = ReaderGrayscalePlan::forPage(SETTINGS.textAntiAliasing, pageHasImages, grayscale,
+                                                     bodyTextNeedsGrayscale, !BoardConfig::isEegoA4());
   renderedPageNeedsGrayscale = grayPlan.enabled;
   auto renderGrayscalePass = [&]() {
     // A4 gray planes replace the full page, including its clipping highlights.
@@ -2609,7 +2608,8 @@ void EpubReaderActivity::closeOverlayToPage() {
   overlayPopup.dismiss();  // an option picker cannot outlive its panel
   toolbarUi.reset();       // ~1 KB of interaction table + props, only needed while open
   if (BoardConfig::isEegoA4()) pagesUntilFullRefresh = 1;
-  if (!BoardConfig::isEegoA4() && overlayPageStored && !forcedRefreshPending && (!xteinkClassPanel() || !renderedPageNeedsGrayscale)) {
+  if (!BoardConfig::isEegoA4() && overlayPageStored && !forcedRefreshPending &&
+      (!xteinkClassPanel() || !renderedPageNeedsGrayscale)) {
     // No baseline resync: the glass shows the chrome, and erasing it needs
     // the differential to keep diffing against the last pushed frame.
     renderer.restoreBwBuffer(/*resyncPanelBaseline=*/false);

@@ -226,8 +226,9 @@ run here before a pull request is opened or updated:
   `bin/clang-format-fix`, then no diff), host tests in Release and under the
   sanitizers, and the `x4pro-gh_release` firmware build. Use it for every change
   to source, tests or build files.
-- `check --full` adds `pio check` (cppcheck) and the six firmware targets CI
-  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`, `metalio_eink4`). Use it after an
+- `check --full` adds `pio check` (cppcheck) and the seven firmware targets CI
+  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`, `metalio_eink4`,
+  `eego_a4`): eight builds including `x4pro-gh_release`. Use it after an
   upstream sync that changed source, and for changes to shared code that other
   boards compile.
 - `check --fast` is formatting and Release host tests only.
