@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 READER_FONT_STYLES=("Regular" "Italic" "Bold" "BoldItalic")
 NOTOSERIF_FONT_SIZES=(12 14 16 18)
 NOTOSANS_FONT_SIZES=(12 14 16 18)
+LIBRON_FONT_SIZES=(12 14 16 18)
 
 for size in ${NOTOSERIF_FONT_SIZES[@]}; do
   for style in ${READER_FONT_STYLES[@]}; do
@@ -24,6 +25,16 @@ for size in ${NOTOSANS_FONT_SIZES[@]}; do
     font_path="../builtinFonts/source/NotoSans/NotoSans-${style}.ttf"
     output_path="../builtinFonts/${font_name}.h"
     python fontconvert.py $font_name $size $font_path --2bit --compress --pnum --zopfli > $output_path
+    echo "Generated $output_path"
+  done
+done
+
+for size in ${LIBRON_FONT_SIZES[@]}; do
+  for style in ${READER_FONT_STYLES[@]}; do
+    font_name="libron_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
+    font_path="../builtinFonts/source/Libron/Libron-${style}.ttf"
+    output_path="../builtinFonts/${font_name}.h"
+    python fontconvert.py "$font_name" "$size" "$font_path" --2bit --compress --pnum --zopfli > "$output_path"
     echo "Generated $output_path"
   done
 done

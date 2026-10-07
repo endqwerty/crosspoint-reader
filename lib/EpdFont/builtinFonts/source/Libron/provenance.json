@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/nicoverbruggen/libron",
+  "release": "v0.30",
+  "release_url": "https://github.com/nicoverbruggen/libron/releases/tag/v0.30",
+  "release_published_at": "2026-10-06T17:27:35Z",
+  "release_commit": "15d764ead028c6979cdbf2b5be6da66200156d85",
+  "archive_url": "https://github.com/nicoverbruggen/libron/releases/download/v0.30/Libron.zip",
+  "archive_bytes": 479403,
+  "archive_sha256": "9441937b9dabd9cdffc9e0ed329685bb730f214fe79e5c8ae749b174c3e05e1d",
+  "copyright_license_source": "https://raw.githubusercontent.com/nicoverbruggen/libron/15d764ead028c6979cdbf2b5be6da66200156d85/",
+  "source_files_unmodified": true,
+  "reader_head_at_inspection": "9bb82de4bc3a9d975b0082cb9481ad5c7a4f76d4",
+  "converter": "lib/EpdFont/scripts/fontconvert.py",
+  "converter_sha256": "7b7698876fa711da0621fb42cc584e63f92aadcec3a03808be55d8f41f43b2d2",
+  "python_version": "3.14.8",
+  "freetype_version": "2.13.2",
+  "host_platform": "Darwin arm64",
+  "python_packages": {
+    "fonttools": "4.62.1",
+    "freetype-py": "2.5.1",
+    "zopfli": "0.4.1"
+  }
+}

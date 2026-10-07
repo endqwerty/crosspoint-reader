@@ -72,6 +72,29 @@ constexpr unsigned long X4PRO_POWER_CLICK_MAX_HOLD_MS = 300;
 static bool wakePowerReleasePending = false;
 
 // Fonts
+EpdFont libron14RegularFont(&libron_14_regular);
+EpdFont libron14BoldFont(&libron_14_bold);
+EpdFont libron14ItalicFont(&libron_14_italic);
+EpdFont libron14BoldItalicFont(&libron_14_bolditalic);
+EpdFontFamily libron14FontFamily(&libron14RegularFont, &libron14BoldFont, &libron14ItalicFont, &libron14BoldItalicFont);
+#ifndef OMIT_FONTS
+EpdFont libron12RegularFont(&libron_12_regular);
+EpdFont libron12BoldFont(&libron_12_bold);
+EpdFont libron12ItalicFont(&libron_12_italic);
+EpdFont libron12BoldItalicFont(&libron_12_bolditalic);
+EpdFontFamily libron12FontFamily(&libron12RegularFont, &libron12BoldFont, &libron12ItalicFont, &libron12BoldItalicFont);
+EpdFont libron16RegularFont(&libron_16_regular);
+EpdFont libron16BoldFont(&libron_16_bold);
+EpdFont libron16ItalicFont(&libron_16_italic);
+EpdFont libron16BoldItalicFont(&libron_16_bolditalic);
+EpdFontFamily libron16FontFamily(&libron16RegularFont, &libron16BoldFont, &libron16ItalicFont, &libron16BoldItalicFont);
+EpdFont libron18RegularFont(&libron_18_regular);
+EpdFont libron18BoldFont(&libron_18_bold);
+EpdFont libron18ItalicFont(&libron_18_italic);
+EpdFont libron18BoldItalicFont(&libron_18_bolditalic);
+EpdFontFamily libron18FontFamily(&libron18RegularFont, &libron18BoldFont, &libron18ItalicFont, &libron18BoldItalicFont);
+#endif
+
 EpdFont notoserif14RegularFont(&notoserif_14_regular);
 EpdFont notoserif14BoldFont(&notoserif_14_bold);
 EpdFont notoserif14ItalicFont(&notoserif_14_italic);
@@ -406,6 +429,12 @@ void setupDisplayAndFonts(bool seamless = false) {
   }
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
+  renderer.insertFont(LIBRON_14_FONT_ID, libron14FontFamily);
+#ifndef OMIT_FONTS
+  renderer.insertFont(LIBRON_12_FONT_ID, libron12FontFamily);
+  renderer.insertFont(LIBRON_16_FONT_ID, libron16FontFamily);
+  renderer.insertFont(LIBRON_18_FONT_ID, libron18FontFamily);
+#endif
   renderer.insertFont(NOTOSERIF_14_FONT_ID, notoserif14FontFamily);
 #ifndef OMIT_FONTS
   renderer.insertFont(NOTOSERIF_12_FONT_ID, notoserif12FontFamily);

@@ -1,5 +1,22 @@
 #pragma once
 
+#include <builtinFonts/libron_12_bold.h>
+#include <builtinFonts/libron_12_bolditalic.h>
+#include <builtinFonts/libron_12_italic.h>
+#include <builtinFonts/libron_12_regular.h>
+#include <builtinFonts/libron_14_bold.h>
+#include <builtinFonts/libron_14_bolditalic.h>
+#include <builtinFonts/libron_14_italic.h>
+#include <builtinFonts/libron_14_regular.h>
+#include <builtinFonts/libron_16_bold.h>
+#include <builtinFonts/libron_16_bolditalic.h>
+#include <builtinFonts/libron_16_italic.h>
+#include <builtinFonts/libron_16_regular.h>
+#include <builtinFonts/libron_18_bold.h>
+#include <builtinFonts/libron_18_bolditalic.h>
+#include <builtinFonts/libron_18_italic.h>
+#include <builtinFonts/libron_18_regular.h>
+
 #include <builtinFonts/notoserif_12_bold.h>
 #include <builtinFonts/notoserif_12_bolditalic.h>
 #include <builtinFonts/notoserif_12_italic.h>
