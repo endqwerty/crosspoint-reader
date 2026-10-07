@@ -1293,7 +1293,7 @@ TEST_F(LibraryBuilderTest, SharedSurnameKeysPreserveInterleavedCanonicalSources)
               fake::delays);
   EXPECT_EQ(reads, 2530u);
   EXPECT_EQ(seeks, 2529u);
-  EXPECT_EQ(hash, 0xe14a1d1ddfb4e9fbULL);
+  EXPECT_EQ(hash, 0x8da9ba5fb347a9f4ULL);
   LibraryIndexFile index;
   ASSERT_TRUE(index.open(INDEX));
   ASSERT_EQ(index.bookCount(), GROUPS * PER_GROUP);

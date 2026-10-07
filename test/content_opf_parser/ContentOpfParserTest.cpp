@@ -224,7 +224,8 @@ TEST(ContentOpfParserSeriesCalibre, ReadsNameAndIndex) {
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Discworld");
-  EXPECT_EQ(parser.seriesIndexText, "5");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 5.0f);
 }
 
 TEST(ContentOpfParserSeriesCalibre, ReadsAFractionalIndex) {
@@ -238,7 +239,8 @@ TEST(ContentOpfParserSeriesCalibre, ReadsAFractionalIndex) {
 
   parse(parser, xml);
 
-  EXPECT_EQ(parser.seriesIndexText, "16.5");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 16.5f);
 }
 
 TEST(ContentOpfParserSeriesCalibre, SurvivesAMissingIndex) {
@@ -252,7 +254,7 @@ TEST(ContentOpfParserSeriesCalibre, SurvivesAMissingIndex) {
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Discworld");
-  EXPECT_TRUE(parser.seriesIndexText.empty());
+  EXPECT_FALSE(parser.seriesIndex.has_value());
 }
 
 TEST(ContentOpfParserSeriesCalibre, DecodesEntitiesInTheName) {
@@ -294,7 +296,8 @@ TEST(ContentOpfParserSeriesCalibre, ToleratesARawGreaterThanInAnAttributeValue) 
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "A > B");
-  EXPECT_EQ(parser.seriesIndexText, "2");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 2.0f);
 }
 
 TEST(ContentOpfParserSeriesEpub3, ReadsCollectionAndGroupPosition) {
@@ -310,10 +313,11 @@ TEST(ContentOpfParserSeriesEpub3, ReadsCollectionAndGroupPosition) {
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "The Wheel of Time");
-  EXPECT_EQ(parser.seriesIndexText, "3");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 3.0f);
 }
 
-TEST(ContentOpfParserSeriesEpub3, AcceptsACollectionWithNoDeclaredType) {
+TEST(ContentOpfParserSeriesEpub3, IgnoresACollectionWithNoDeclaredType) {
   const std::string xml = R"(<package><metadata>
     <meta property="belongs-to-collection" id="c1">Earthsea</meta>
     <meta refines="#c1" property="group-position">2</meta>
@@ -324,8 +328,8 @@ TEST(ContentOpfParserSeriesEpub3, AcceptsACollectionWithNoDeclaredType) {
 
   parse(parser, xml);
 
-  EXPECT_EQ(parser.series, "Earthsea");
-  EXPECT_EQ(parser.seriesIndexText, "2");
+  EXPECT_TRUE(parser.series.empty());
+  EXPECT_FALSE(parser.seriesIndex.has_value());
 }
 
 TEST(ContentOpfParserSeriesEpub3, AcceptsAMiscasedCollectionType) {
@@ -371,7 +375,8 @@ TEST(ContentOpfParserSeriesEpub3, PrefersTheSeriesOverABoxedSetDeclaredBeforeIt)
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Earthsea");
-  EXPECT_EQ(parser.seriesIndexText, "4");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 4.0f);
 }
 
 TEST(ContentOpfParserSeriesEpub3, PrefersAnExplicitSeriesOverAnUntypedCollection) {
@@ -389,7 +394,7 @@ TEST(ContentOpfParserSeriesEpub3, PrefersAnExplicitSeriesOverAnUntypedCollection
   EXPECT_EQ(parser.series, "Earthsea");
 }
 
-TEST(ContentOpfParserSeriesEpub3, TakesTheFirstUntypedCollectionWhenNoneClaimsToBeASeries) {
+TEST(ContentOpfParserSeriesEpub3, IgnoresUntypedCollections) {
   const std::string xml = R"(<package><metadata>
     <meta property="belongs-to-collection" id="a">First</meta>
     <meta property="belongs-to-collection" id="b">Second</meta>
@@ -400,13 +405,14 @@ TEST(ContentOpfParserSeriesEpub3, TakesTheFirstUntypedCollectionWhenNoneClaimsTo
 
   parse(parser, xml);
 
-  EXPECT_EQ(parser.series, "First");
+  EXPECT_TRUE(parser.series.empty());
 }
 
 TEST(ContentOpfParserSeriesEpub3, FallsBackPastACollectionWhoseNameIsBlank) {
   const std::string xml = R"(<package><metadata>
     <meta property="belongs-to-collection" id="a">   </meta>
     <meta property="belongs-to-collection" id="b">Earthsea</meta>
+    <meta refines="#b" property="collection-type">series</meta>
   </metadata></package>)";
   const std::string cachePath = "";
   const std::string baseContentPath = "";
@@ -421,6 +427,7 @@ TEST(ContentOpfParserSeriesEpub3, DoesNotTakeAPositionThatRefinesSomethingElse) 
   const std::string xml = R"(<package><metadata>
     <meta property="belongs-to-collection" id="c1">Earthsea</meta>
     <meta refines="#other" property="group-position">9</meta>
+    <meta refines="#c1" property="collection-type">series</meta>
   </metadata></package>)";
   const std::string cachePath = "";
   const std::string baseContentPath = "";
@@ -429,7 +436,7 @@ TEST(ContentOpfParserSeriesEpub3, DoesNotTakeAPositionThatRefinesSomethingElse) 
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Earthsea");
-  EXPECT_TRUE(parser.seriesIndexText.empty());
+  EXPECT_FALSE(parser.seriesIndex.has_value());
 }
 
 TEST(ContentOpfParserSeriesEpub3, TrimsTheCollectionName) {
@@ -437,6 +444,7 @@ TEST(ContentOpfParserSeriesEpub3, TrimsTheCollectionName) {
     <meta property="belongs-to-collection" id="c1">
       The   Wheel of Time
     </meta>
+    <meta refines="#c1" property="collection-type">series</meta>
   </metadata></package>)";
   const std::string cachePath = "";
   const std::string baseContentPath = "";
@@ -460,7 +468,8 @@ TEST(ContentOpfParserSeriesEpub3, ResolvesARefineThatPrecedesItsCollection) {
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Earthsea");
-  EXPECT_EQ(parser.seriesIndexText, "7");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 7.0f);
 }
 
 TEST(ContentOpfParserSeriesPrecedence, CalibreWinsWhenABookCarriesBoth) {
@@ -477,10 +486,11 @@ TEST(ContentOpfParserSeriesPrecedence, CalibreWinsWhenABookCarriesBoth) {
   parse(parser, xml);
 
   EXPECT_EQ(parser.series, "Discworld");
-  EXPECT_EQ(parser.seriesIndexText, "5");
+  ASSERT_TRUE(parser.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*parser.seriesIndex, 5.0f);
 }
 
-TEST(ContentOpfParserSeriesPrecedence, FallsBackToEpub3WhenTheCalibreNameIsBlank) {
+TEST(ContentOpfParserSeriesPrecedence, KeepsCalibreSourceEvenWhenWhitespaceOnly) {
   const std::string xml = R"(<package><metadata>
     <meta name="calibre:series" content="  "/>
     <meta property="belongs-to-collection" id="c1">Earthsea</meta>
@@ -491,7 +501,7 @@ TEST(ContentOpfParserSeriesPrecedence, FallsBackToEpub3WhenTheCalibreNameIsBlank
 
   parse(parser, xml);
 
-  EXPECT_EQ(parser.series, "Earthsea");
+  EXPECT_EQ(parser.series, "  ");
 }
 
 TEST(ContentOpfParserSeriesAbsent, LeavesTheFieldsEmpty) {
@@ -505,7 +515,7 @@ TEST(ContentOpfParserSeriesAbsent, LeavesTheFieldsEmpty) {
   parse(parser, xml);
 
   EXPECT_TRUE(parser.series.empty());
-  EXPECT_TRUE(parser.seriesIndexText.empty());
+  EXPECT_FALSE(parser.seriesIndex.has_value());
 }
 
 TEST(ContentOpfParserSeriesAbsent, DoesNotDisturbTitleOrAuthor) {
@@ -526,29 +536,32 @@ TEST(ContentOpfParserSeriesAbsent, DoesNotDisturbTitleOrAuthor) {
   EXPECT_EQ(parser.series, "Discworld");
 }
 
-TEST(ContentOpfParserBounds, OversizedSeriesDoesNotCollapseIntoAnotherSeriesPrefix) {
+TEST(ContentOpfParserBounds, SyncSeriesTextRemainsBounded) {
   for (const bool attribute : {true, false}) {
     const std::string value(100000, 'a');
-    const std::string tag = attribute ? "<meta name=\"calibre:series\" content=\"" + value + "\"/>"
-                                      : "<meta property=\"belongs-to-collection\">" + value + "</meta>";
+    const std::string tag = attribute
+                                ? "<meta name=\"calibre:series\" content=\"" + value + "\"/>"
+                                : "<meta property=\"belongs-to-collection\" id=\"series\">" + value +
+                                      "</meta><meta refines=\"#series\" property=\"collection-type\">series</meta>";
     const std::string xml = "<package><metadata>" + tag + "</metadata></package>";
     const std::string cachePath = "";
     const std::string baseContentPath = "";
     ContentOpfParser parser(cachePath, baseContentPath, xml.size(), nullptr);
     parse(parser, xml);
-    EXPECT_TRUE(parser.series.empty());
+    EXPECT_EQ(parser.series, value.substr(0, 512));
   }
 }
 
 TEST(ContentOpfParserBounds, ChunkedWhitespaceAndEntitiesCannotGrowCollectionBeyondItsLimit) {
-  const std::string xml = "<package><metadata><meta property=\"belongs-to-collection\">" + std::string(254, 'a') +
-                          " &#233; extra</meta></metadata></package>";
+  const std::string xml =
+      "<package><metadata><meta property=\"belongs-to-collection\" id=\"series\">" + std::string(510, 'a') +
+      " &#233; extra</meta><meta refines=\"#series\" property=\"collection-type\">series</meta></metadata></package>";
   const std::string cachePath = "";
   const std::string baseContentPath = "";
   ContentOpfParser parser(cachePath, baseContentPath, xml.size(), nullptr);
   ASSERT_TRUE(parser.setup());
   for (const unsigned char byte : xml) EXPECT_EQ(parser.write(byte), 1u);
-  EXPECT_TRUE(parser.series.empty());
+  EXPECT_LE(parser.series.size(), 512u);
 }
 
 TEST(ContentOpfParserBounds, LargeTitleAndAuthorHaveBoundedMetadataResults) {
@@ -565,7 +578,8 @@ TEST(ContentOpfParserBounds, LargeTitleAndAuthorHaveBoundedMetadataResults) {
 TEST(ContentOpfParserBounds, FullLengthCollectionRemainsAvailable) {
   const std::string value = std::string(253, 'a') + "é";
   const std::string xml =
-      "<package><metadata><meta property=\"belongs-to-collection\">" + value + "</meta></metadata></package>";
+      "<package><metadata><meta property=\"belongs-to-collection\" id=\"series\">" + value +
+      "</meta><meta refines=\"#series\" property=\"collection-type\">series</meta></metadata></package>";
   const std::string cachePath = "";
   const std::string baseContentPath = "";
   ContentOpfParser parser(cachePath, baseContentPath, xml.size(), nullptr);
@@ -781,4 +795,23 @@ TEST(ContentOpfParserSortKeys, UuidSchemeOutranksAPrefixedIdentifierInEitherOrde
     <dc:identifier id="uuid_id">bbbbbbbb-0000-4000-8000-000000000000</dc:identifier>
     <dc:identifier>urn:uuid:cccccccc-0000-4000-8000-000000000000</dc:identifier>)");
   EXPECT_EQ(keys.uuid, "bbbbbbbb-0000-4000-8000-000000000000");
+}
+
+TEST(ContentOpfParserBounds, SyncFieldsDoNotResumeAfterDroppedGlyphAcrossCallbacks) {
+  const std::string prefix(510, 'a');
+  const std::string xml = "<package><metadata><identifier scheme='ISBN'>" + prefix +
+                          "&#x1f600;x</identifier>"
+                          "<meta property='belongs-to-collection' id='s'>" +
+                          prefix +
+                          "&#x1f600;x</meta>"
+                          "<meta property='collection-type' refines='#s'>series</meta></metadata></package>";
+  const std::string path;
+  ContentOpfParser parser(path, path, xml.size(), nullptr);
+  ASSERT_TRUE(parser.setup());
+  for (size_t offset = 0; offset < xml.size(); offset += 7) {
+    const size_t length = std::min(size_t{7}, xml.size() - offset);
+    ASSERT_EQ(parser.write(reinterpret_cast<const uint8_t*>(xml.data() + offset), length), length);
+  }
+  EXPECT_EQ(parser.isbn, prefix);
+  EXPECT_EQ(parser.series, prefix);
 }

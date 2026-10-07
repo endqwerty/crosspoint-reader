@@ -7,6 +7,7 @@ struct UITheme {
   ThemeMetrics metrics;
   static UITheme& getInstance();
   const ThemeMetrics& getMetrics() const { return metrics; }
+  static Rect getContentArea(const GfxRenderer&);
   Rect getScreenSafeArea(const GfxRenderer&, bool, bool);
 };
 inline UITheme themeInstance;
