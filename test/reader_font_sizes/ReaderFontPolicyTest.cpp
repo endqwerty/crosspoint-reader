@@ -38,10 +38,9 @@ std::vector<uint8_t> SdCardFontFamilyInfo::availableSizes() const { return {}; }
 namespace {
 constexpr uint8_t SIZES[] = {12, 14, 16, 18};
 constexpr int IDS[] = {LIBRON_12_FONT_ID, LIBRON_14_FONT_ID, LIBRON_16_FONT_ID, LIBRON_18_FONT_ID};
-constexpr int OLD_IDS[] = {NOTOSERIF_12_FONT_ID, NOTOSERIF_14_FONT_ID, NOTOSERIF_16_FONT_ID,
-                           NOTOSERIF_18_FONT_ID, NOTOSANS_12_FONT_ID, NOTOSANS_14_FONT_ID,
-                           NOTOSANS_16_FONT_ID, NOTOSANS_18_FONT_ID};
-}
+constexpr int OLD_IDS[] = {NOTOSERIF_12_FONT_ID, NOTOSERIF_14_FONT_ID, NOTOSERIF_16_FONT_ID, NOTOSERIF_18_FONT_ID,
+                           NOTOSANS_12_FONT_ID,  NOTOSANS_14_FONT_ID,  NOTOSANS_16_FONT_ID,  NOTOSANS_18_FONT_ID};
+}  // namespace
 
 TEST(ReaderFontPolicy, OverridesBuiltinAndSdChoicesAtEverySupportedSize) {
   for (const uint8_t family : {0, 1, 2, 255}) {

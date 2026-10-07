@@ -7,7 +7,8 @@ rendering also resolves Libron directly, without consulting the SD resolver.
 Settings menus and text previews expose the same single family as **Reader Serif**.
 Libron is a reserved font name; its OFL requires a different primary name for
 converted firmware fonts. The released TTF files retain their original names. UI fonts retain
-their existing roles.
+their existing roles. The unused Noto Serif reader family is not registered, so
+the linker can discard those flash assets and fit the firmware partition.
 
 The four styles are rasterized at 12, 14, 16 and 18 points using the existing
 2-bit, compressed built-in font pipeline. Available sizes and tie-breaking match
@@ -24,8 +25,8 @@ block in `convert-builtin-fonts.sh`, then regenerate `src/fontIds.h` using
 
 Glyph bitmaps, intervals and metrics use the converter's flash-resident constant
 arrays. Sixteen small `EpdFont` wrappers and four family wrappers use static
-storage, following the existing built-in registration pattern. Registration adds
-four map entries once during startup; the map is the renderer's existing public
+storage, replacing the previous Noto Serif reader wrappers. Registration uses
+the same four map entries once during startup; the map is the renderer's existing public
 font lookup interface. There is no new heap allocation in font selection or
 normalization. Glyph decompression uses the existing bounded shared font cache;
 SD/vector reader font loading is bypassed. Font chooser storage reserves one
