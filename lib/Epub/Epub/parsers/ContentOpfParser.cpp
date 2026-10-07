@@ -111,10 +111,6 @@ std::optional<float> parseFiniteFloat(const std::string& value) {
   if (end == value.c_str() || *end != '\0' || !std::isfinite(parsed)) return std::nullopt;
   return parsed;
 }
-std::string stripRefinesHash(const std::string& refines) {
-  return refines.size() > 1 && refines.front() == '#' ? refines.substr(1) : std::string();
-}
-
 std::string collapseAttributeText(const std::string& in) {
   std::string out;
   out.reserve(in.size());
@@ -304,12 +300,16 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
   if (self->state == IN_METADATA && xmlLocalNameEquals(name, "identifier")) {
     self->state = IN_BOOK_IDENTIFIER;
     self->identifierText.clear();
+    self->identifierClamped = false;
     self->identifierScheme.clear();
     self->identifierIsUuidScheme = false;
     self->metadataSpacePending = false;
     for (int i = 0; atts[i]; i += 2) {
       if (xmlLocalNameEquals(atts[i], "scheme")) self->identifierScheme = boundedMetadataValue(atts[i + 1]);
-        self->identifierIsUuidScheme = equalsIgnoreAsciiCase(self->identifierScheme, "uuid");
+      if ((strcmp(atts[i], "id") == 0 && strcmp(atts[i + 1], "uuid_id") == 0) ||
+          (xmlLocalNameEquals(atts[i], "scheme") && equalsIgnoreAsciiCase(atts[i + 1], "uuid"))) {
+        self->identifierIsUuidScheme = true;
+      }
     }
     return;
   }
@@ -356,8 +356,10 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     std::string content;
     self->metaProperty.clear();
     self->metaRefines.clear();
+    self->metaRefinesLocal = false;
     self->metaId.clear();
     self->metaText.clear();
+    self->metaClamped = false;
 
     for (int i = 0; atts[i]; i += 2) {
       if (xmlLocalNameEquals(atts[i], "name")) {
@@ -368,6 +370,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
         self->metaProperty = boundedMetadataValue(atts[i + 1]);
       } else if (xmlLocalNameEquals(atts[i], "refines")) {
         self->metaRefines = boundedMetadataValue(atts[i + 1]);
+        self->metaRefinesLocal = !self->metaRefines.empty() && self->metaRefines[0] == '#';
         if (!self->metaRefines.empty() && self->metaRefines[0] == '#') self->metaRefines.erase(0, 1);
       } else if (xmlLocalNameEquals(atts[i], "id")) {
         self->metaId = boundedMetadataValue(atts[i + 1]);
@@ -594,12 +597,16 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
   }
 
   if (self->state == IN_BOOK_IDENTIFIER) {
-    appendMetadataText(self->identifierText, s, len, self->metadataSpacePending);
+    if (!self->identifierClamped) {
+      self->identifierClamped = !appendMetadataText(self->identifierText, s, len, self->metadataSpacePending);
+    }
     return;
   }
 
   if (self->state == IN_META_TEXT) {
-    appendMetadataText(self->metaText, s, len, self->metadataSpacePending);
+    if (!self->metaClamped) {
+      self->metaClamped = !appendMetadataText(self->metaText, s, len, self->metadataSpacePending);
+    }
     return;
   }
 }
@@ -666,7 +673,7 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
       self->state = IN_METADATA;
       if (self->metaText.size() > 255) return;
       const bool isRole = property == "role";
-      const std::string target = stripRefinesHash("#" + self->metaRefines);
+      const std::string target = self->metaRefinesLocal ? self->metaRefines : std::string();
       if (self->applyPersonRefine(target, self->metaText, isRole)) return;
       if (self->personRefineCount < MAX_PERSON_REFINES) {
         auto& refine = self->personRefines[self->personRefineCount++];
@@ -732,11 +739,6 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
       }
     }
     self->state = IN_PACKAGE;
-    if (self->seriesIndex.has_value()) {
-      char position[32];
-      snprintf(position, sizeof(position), "%.9g", static_cast<double>(*self->seriesIndex));
-      self->seriesIndexText = position;
-    }
     self->resolveSortKeys();
     self->metadataComplete = true;
     return;
