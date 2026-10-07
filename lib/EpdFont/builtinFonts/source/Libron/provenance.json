@@ -1,0 +1,60 @@
+{
+  "repository": "https://github.com/nicoverbruggen/libron",
+  "release": "v0.30",
+  "release_url": "https://github.com/nicoverbruggen/libron/releases/tag/v0.30",
+  "release_published_at": "2026-10-06T17:27:35Z",
+  "release_commit": "15d764ead028c6979cdbf2b5be6da66200156d85",
+  "archive_url": "https://github.com/nicoverbruggen/libron/releases/download/v0.30/Libron.zip",
+  "archive_bytes": 479403,
+  "archive_sha256": "9441937b9dabd9cdffc9e0ed329685bb730f214fe79e5c8ae749b174c3e05e1d",
+  "copyright_license_source": "https://raw.githubusercontent.com/nicoverbruggen/libron/15d764ead028c6979cdbf2b5be6da66200156d85/",
+  "source_files_unmodified": true,
+  "reader_head_at_inspection": "9bb82de4bc3a9d975b0082cb9481ad5c7a4f76d4",
+  "converter": "lib/EpdFont/scripts/fontconvert.py",
+  "converter_sha256": "7b7698876fa711da0621fb42cc584e63f92aadcec3a03808be55d8f41f43b2d2",
+  "python_version": "3.14.8",
+  "freetype_version": "2.13.2",
+  "host_platform": "Darwin arm64",
+  "python_packages": {
+    "fonttools": "4.62.1",
+    "freetype-py": "2.5.1",
+    "zopfli": "0.4.1"
+  },
+  "reader_head_at_fallback_generation": "9525d9ebbd14ddc654a51c47224991e6fa2342e4",
+  "fontstack_priority": [
+    "Libron-${style}.ttf",
+    "NotoSans-${style}.ttf"
+  ],
+  "fallback": {
+    "family": "Noto Sans",
+    "version": "2.015",
+    "repository": "https://github.com/notofonts/latin-greek-cyrillic",
+    "copyright": "Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)",
+    "license": "lib/EpdFont/builtinFonts/source/NotoSans/OFL.txt",
+    "reader_source_import_commit": "bf7bffd506c997b3ce679d286b9b5f2b37f1d730",
+    "source_files_unmodified": true,
+    "source_files": [
+      {
+        "path": "lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Bold.ttf",
+        "sha256": "13a813c49624ae3ba3c5c6e72c5ebffc4b9e1e6ea32f421c04069b037c6ad431"
+      },
+      {
+        "path": "lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-BoldItalic.ttf",
+        "sha256": "7e34616e092593c340449baf9a259075a054c6419511ccf21ff0d83a1c9dd0d0"
+      },
+      {
+        "path": "lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Italic.ttf",
+        "sha256": "feb3e57888ce3acb604f270c278cfb304c674306518771619ddbdefca42a066b"
+      },
+      {
+        "path": "lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Regular.ttf",
+        "sha256": "fe8c022f48d8dd29f17b744d16f9346f4357e16f7d4f7be58b000ae7c291b614"
+      },
+      {
+        "path": "lib/EpdFont/builtinFonts/source/NotoSans/OFL.txt",
+        "sha256": "be2f3f8727ac2e18b714ad1c4336d4ddb3f3adbeb9a7f70bfab74d21f4d2b3fb"
+      }
+    ]
+  },
+  "native_baseline_commit": "9525d9ebbd14ddc654a51c47224991e6fa2342e4"
+}

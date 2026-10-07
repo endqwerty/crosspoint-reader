@@ -91,12 +91,9 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   doc["frontButtonRight"] = frontButtonRight;
   // Font family and size — both use dynamic getter/setters in SettingsList (the
   // option lists depend on the SD font registry), so the generic loop skips them.
-  doc["fontFamily"] = fontFamily;
+  doc["fontFamily"] = LIBRON;
   doc["fontSize"] = fontPointSize;
-  // SD card font family name — not in SettingsList, save manually
-  if (sdFontFamilyName[0] != '\0') {
-    doc["sdFontFamilyName"] = sdFontFamilyName;
-  }
+  doc.remove("sdFontFamilyName");
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, save manually
   if (dictionaryName[0] != '\0') {
     doc["dictionaryName"] = dictionaryName;
@@ -231,9 +228,6 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   }
   fontPointSize = storedFontSize;
 
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
-  const uint8_t storedFontFamily = doc["fontFamily"] | (uint8_t)0;
-  fontFamily = clamp(storedFontFamily, BUILTIN_FONT_COUNT, 0);
   // These controls use board-specific display-index mappings and are skipped by
   // the generic settings loop. Persisted action IDs remain stable across boards.
   longPressMenuFunction = clamp(doc["longPressMenuFunction"] | (uint8_t)LP_MENU_DISABLED,
@@ -250,16 +244,9 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     }
   }
 
-  // SD card font family name — not in SettingsList, load manually
-  const char* sfn = doc["sdFontFamilyName"] | "";
-  strncpy(sdFontFamilyName, sfn, sizeof(sdFontFamilyName) - 1);
-  sdFontFamilyName[sizeof(sdFontFamilyName) - 1] = '\0';
-  if (storedFontFamily == LEGACY_OPENDYSLEXIC && sdFontFamilyName[0] == '\0') {
-    fontFamily = NOTOSERIF;
-    strncpy(sdFontFamilyName, "OpenDyslexic", sizeof(sdFontFamilyName) - 1);
-    sdFontFamilyName[sizeof(sdFontFamilyName) - 1] = '\0';
-    needsResave = true;
-  } else if (storedFontFamily >= BUILTIN_FONT_COUNT) {
+  // Ignore saved reader families, including SD/vector selections, in this personal firmware.
+  if (enforceReaderFont() || doc["fontFamily"] != static_cast<uint8_t>(LIBRON) ||
+      (doc["sdFontFamilyName"] | "")[0] != '\0' || storedFontSize != fontPointSize) {
     needsResave = true;
   }
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, load manually
@@ -320,51 +307,16 @@ ReaderRenderSpec CrossPointSettings::readerRenderSpec(const uint16_t viewportWid
 }
 
 float CrossPointSettings::getReaderLineCompression() const {
-  // SD card and vector fonts get a wider scale than the built-ins: their
-  // faces carry their own (often generous) natural line height, so the old
-  // Bookerly-tuned 1.1/1.2 steps were visually near-indistinguishable. At
-  // 12pt in portrait (~760px viewport) this scale spans ~26/24/19/15 lines
-  // per page — each step reads as a clearly different density.
-  if (sdFontFamilyName[0] != '\0') {
-    switch (lineSpacing) {
-      case TIGHT:
-        return 0.95f;
-      case NORMAL:
-      default:
-        return 1.0f;
-      case WIDE:
-        return 1.3f;
-      case EXTRA_WIDE:
-        return 1.6f;
-    }
-  }
-
-  switch (fontFamily) {
-    case NOTOSERIF:
+  switch (lineSpacing) {
+    case TIGHT:
+      return 0.95f;
+    case NORMAL:
     default:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.95f;
-        case NORMAL:
-        default:
-          return 1.0f;
-        case WIDE:
-          return 1.1f;
-        case EXTRA_WIDE:
-          return 1.2f;
-      }
-    case NOTOSANS:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.90f;
-        case NORMAL:
-        default:
-          return 0.95f;
-        case WIDE:
-          return 1.0f;
-        case EXTRA_WIDE:
-          return 1.05f;
-      }
+      return 1.0f;
+    case WIDE:
+      return 1.1f;
+    case EXTRA_WIDE:
+      return 1.2f;
   }
 }
 
@@ -395,6 +347,16 @@ int CrossPointSettings::getRefreshFrequency() const {
   }
 }
 
+bool CrossPointSettings::enforceReaderFont() {
+  const uint8_t pt =
+      snapToNearestPointSize(BUILTIN_READER_POINT_SIZES, std::size(BUILTIN_READER_POINT_SIZES), fontPointSize);
+  const bool changed = fontFamily != LIBRON || sdFontFamilyName[0] != '\0' || fontPointSize != pt;
+  fontFamily = LIBRON;
+  sdFontFamilyName[0] = '\0';
+  fontPointSize = pt;
+  return changed;
+}
+
 void CrossPointSettings::clearSdFontFamily() {
   sdFontFamilyName[0] = '\0';
   fontPointSize =
@@ -403,29 +365,17 @@ void CrossPointSettings::clearSdFontFamily() {
 }
 
 int CrossPointSettings::getReaderFontId() const {
-  // Check SD card font first
-  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
-    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontPointSize);
-    if (id != 0) return id;
-    // Fall through to built-in if SD font not found
-  }
-
-  // A built-in family only exists at BUILTIN_READER_POINT_SIZES, so a size
-  // carried over from an SD family may not be one of them. ensureLoaded()
-  // normally persists the snap; snap again here (without allocating — this runs
-  // in the page render loop) so rendering is correct even before it has run.
   const uint8_t pt =
       snapToNearestPointSize(BUILTIN_READER_POINT_SIZES, std::size(BUILTIN_READER_POINT_SIZES), fontPointSize);
-  const bool sans = (fontFamily == NOTOSANS);
   switch (pt) {
     case 12:
-      return sans ? NOTOSANS_12_FONT_ID : NOTOSERIF_12_FONT_ID;
+      return LIBRON_12_FONT_ID;
     case 16:
-      return sans ? NOTOSANS_16_FONT_ID : NOTOSERIF_16_FONT_ID;
+      return LIBRON_16_FONT_ID;
     case 18:
-      return sans ? NOTOSANS_18_FONT_ID : NOTOSERIF_18_FONT_ID;
+      return LIBRON_18_FONT_ID;
     case 14:
     default:
-      return sans ? NOTOSANS_14_FONT_ID : NOTOSERIF_14_FONT_ID;
+      return LIBRON_14_FONT_ID;
   }
 }

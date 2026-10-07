@@ -100,7 +100,17 @@ ruby -rdigest -e 'puts [
 ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
 ))"
 
+for size in 12 14 16 18; do
+  font_id=$(ruby -rdigest -e 'puts ARGV.map { |f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)' \
+    "libron_${size}_regular.h" "libron_${size}_bold.h" "libron_${size}_bolditalic.h" "libron_${size}_italic.h")
+  echo "#define LIBRON_${size}_FONT_ID (${font_id})"
+done
+
 FONT_ID_NAMES=(
+  LIBRON_12_FONT_ID
+  LIBRON_14_FONT_ID
+  LIBRON_16_FONT_ID
+  LIBRON_18_FONT_ID
   NOTOSERIF_12_FONT_ID
   NOTOSERIF_14_FONT_ID
   NOTOSERIF_16_FONT_ID
