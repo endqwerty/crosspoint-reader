@@ -9,7 +9,7 @@ with validation evidence in the linked pull request and firmware package.
 
 1. The user's current instructions and explicit standing authorizations recorded
    below (automatic commits, task-branch pushes and pull requests on the personal
-   fork, and upstream syncs of the personal `develop`).
+   fork including validated merges, and upstream syncs of the personal `develop`).
 2. The official project: upstream `AGENTS.md`, its architecture, interfaces,
    conventions and maintainer decisions.
 3. This file.
@@ -17,9 +17,16 @@ with validation evidence in the linked pull request and firmware package.
 For firmware architecture and behavior, upstream always wins over the fork.
 The recorded user authorizations satisfy generic requirements to obtain approval;
 they do not waive engineering, validation or upstream-compatibility requirements.
-The preferences below narrow where fork
-effort goes; they never justify diverging from upstream's design. If a fork
-preference conflicts with upstream, follow upstream and note the conflict in
+On this personal fork, the standing authorization replaces `AGENTS.md` Git
+Operation Rules 2–3 and its ask-first/hardware-tested commit conditions. Local
+checks replace its GitHub Actions gate and determine build readiness. Investigate
+new warnings caused by the diff; record existing dependency warnings rather than
+blocking delivery or changing upstream solely to silence them. Report unavailable
+human/device checks
+as unverified; do not request measurements or wait on them. `AGENTS.md`'s
+engineering, attribution and staging rules still apply. The preferences narrow
+where fork effort goes; they never justify diverging from upstream's design.
+If a fork preference conflicts with upstream, follow upstream and note it in
 the task's issue or pull request.
 
 ## Shared information
@@ -43,28 +50,45 @@ When a user instruction changes how work is done, update this file in the same
 task. When a fact belongs to the machine rather than the repository, update the
 homelab page. If `/Volumes/workspace` is not mounted, say so instead of guessing.
 
-## Second opinion from another model
+## Autonomous agents and delegation
 
-Use T3 native delegation: choose the provider/model with
-`orchestrator_capabilities`, then call `delegate_task` with the task, file paths
-and explicit runtime mode. Children share the thread's worktree. Keep the task
-ID and result; use `task_status` to inspect it and `task_cancel` to stop it.
-A wait timeout does not cancel a child; check its status before retrying.
-Native approval prompts are supported workflow.
+Daniel's direction (2026-10-06) is autonomous work end to end. Complete the
+requested scope: inspect upstream, select eligible work, implement, validate,
+review, publish and integrate the personal-fork PR, export changed firmware and
+update the task record. Resolve routine implementation choices from the code,
+upstream and these rules. Ask only when an essential fact or decision cannot be
+resolved from available evidence or a real runtime approval is required; an
+agent's review, commit or merge step is not a new user approval gate.
 
-- Get an independent review from another model on a branch's diff before
-  opening a pull request when the change touches memory handling, rendering or
-  shared code. Verify findings against the code; review does not replace
-  `scripts/fork-workflow.sh check` or the device tests in `AGENTS.md`.
-- Codex reviewer: use `runtimeMode: "approval-required"` (read-only), with no
-  edits, remote contact (including MCP/connector actions) or access escalation.
-- Codex implementer: start with a clean Git tree, including untracked files,
-  and record HEAD. Use `runtimeMode: "auto-accept-edits"` (workspace-write),
-  with no access escalation. Do not commit, push or delete branches/worktrees
-  before caller review. Return status and diff; the caller compares HEAD and
-  reviews all changes before committing.
-- Delegation preserves this file's branch, pull-request, merge, validation and
-  delivery rules; it grants no additional publishing or integration authority.
+Use T3's injected orchestration instructions and `orchestrator_capabilities`
+for the live provider/model catalog. Prefer native subagents when they support
+the selected model; use `delegate_task` for cross-provider work, unsupported
+models or explicitly T3-owned children. Honor a requested model when available.
+Codex and Claude follow the same delegation policy:
+
+- Inherit the parent's approval/runtime mode (`runtimeMode: "inherit"` or omit
+  the override). Do not force a restrictive child mode, alter permission
+  settings or bypass an actual approval request. Task scope defines a
+  read-only reviewer; it does not require a different runtime mode.
+- Pass the task, absolute paths, starting HEAD, owned files, allowed actions
+  and completion criteria. Children share the thread's checkout. Assign
+  disjoint implementation files; serialize overlapping edits, builds that
+  generate shared files, and Git mutations through the parent. Preserve
+  existing changes rather than requiring a blanket clean-tree reset.
+- Code reviews are read-only. Research may use explicitly assigned read-only
+  remote access. Implementers edit their assigned files and run relevant
+  checks, then return the diff, results and unresolved findings. The parent
+  reviews and handles commits, publishing and integration; no child creates
+  an unmanaged worktree, deletes branches or publishes independently.
+- Obtain an independent review from another model for memory, rendering or
+  shared-code changes. Verify findings against source and resolve material
+  objections. Reviews complement meaningful host/build checks; unavailable
+  device measurements do not block delivery.
+- Retain task IDs and collect every outcome. Use `task_status` when the result
+  is needed and `task_cancel` to stop obsolete work; a wait timeout does not
+  cancel a child. For T3-delegated reviews, start each round with a new
+  `delegate_task`, including prior findings and responses; do not send another
+  round to `childThreadId`. Continue native subagents through native tools.
 
 ## Upstream first
 
@@ -83,8 +107,10 @@ fork is a linear series of local patches on top of upstream `develop`.
   interwoven fork history.
 - Preserve upstream architecture, public interfaces, and behavior when resolving
   conflicts. Adapt or drop local changes that conflict with upstream's design;
-  remove patches that upstream has superseded. Do not retain an older local
-  implementation at the expense of upstream compatibility.
+  remove patches that upstream has superseded. Previously validated fork work
+  is disposable when upstream implements its purpose differently. Invalidate
+  obsolete code, tests and design assumptions; document any intentional loss
+  of fork functionality instead of preserving incompatible architecture.
 - Before rewriting existing local history, create a backup ref. Flatten legacy
   local merges into a reviewed patch series above the upstream base, preserving
   intended changes and human authorship. Revalidate the resulting source using
@@ -153,7 +179,7 @@ official/develop          official project (upstream), fetch only
 origin/develop            downstream integration branch
       ^
       |  pull requests, squash-merged
-      +-- t3code/<slug>   one per T3 Code thread, in its own worktree
+      +-- <T3-assigned branch>   one per thread, in its own worktree
       +-- feature/<x>, fix/<x>, docs/<x>, refactor/<x>, codex/<x>
 ```
 
@@ -162,19 +188,18 @@ origin/develop            downstream integration branch
   `develop` to a task branch. It changes in exactly two ways: a merged pull
   request, or an upstream sync.
 - Every task happens on a short-lived branch created from `origin/develop`. A
-  T3 Code thread already has one: its worktree under `~/.t3/worktrees` is on
-  `t3code/<slug>`, created from `origin/develop`. T3 Code renames it once, right
-  after the thread's first message (`t3code/b3eaa40d` became
-  `t3code/next-wip-pr-handling`, 2026-10-01), so read the name with `git branch
-  --show-current` instead of remembering the one from the start. After that,
-  keep the branch and its name for the whole thread (T3 Code tracks the thread
-  by it). Branches made by hand
+  T3 Code thread already has one under `~/.t3/worktrees`, created from
+  `origin/develop`. Read the branch T3 assigned with `git branch --show-current`;
+  it may rename it at thread startup. Keep that branch for the thread's lifetime
+  because T3 tracks the workspace by it. Branches made by hand
   use `feature/`, `fix/`, `docs/`, `refactor/` or `codex/`. The permanent
   checkout stays on `develop`; do not check out `develop` in a worktree.
-- Standing authorization: commit completed, validated work on the task branch,
-  push that branch to `origin` and open a pull request against the fork's
-  `develop`, without asking each time. Do not leave completed work only in a
-  disposable worktree.
+- Standing authorization (2026-10-06): without asking each time, commit
+  completed work on the task branch, push it to `origin`, open a pull request
+  against the fork's `develop`, resolve review findings and squash-merge this
+  thread's own PR. It covers the requested scope on the personal fork,
+  including daily maintenance, not upstream publication or release tags.
+  Do not leave completed work only in a disposable worktree.
 - Open the pull request with `scripts/fork-workflow.sh pr --title "<type>:
   <summary>" --body-file <file>`. It refuses to run on `develop`, with
   uncommitted changes, on a branch that is not based on the current
@@ -189,25 +214,25 @@ origin/develop            downstream integration branch
   to the thread; T3 Code then shows it beside the thread and settles the thread
   when it merges.
 - One thread is one worktree, one branch and one pull request. Sub-agents
-  (Claude or Codex, started from the thread) work inside that worktree and
-  commit on its branch; do not give them worktrees of their own
+  (Claude or Codex, started from the thread) work inside that worktree; the
+  parent serializes commits on its branch. Do not give children their own worktrees
   (`isolation: worktree`, `git worktree add`, scratch clones), because T3 Code
   does not know about those and never removes them. Work that needs a separate
-  pull request needs a separate T3 Code thread, which the user starts.
+  pull request needs a separate T3 Code thread. Create one with T3's explicit
+  workspace strategy only when the user asks for separate top-level work;
+  ordinary subagent parallelism stays in the caller's worktree.
 - If upstream is ahead, publish the sync before a pull request is opened
   (T3 Code's own "create pull request" does not check). A branch pushed while
   it sits on an unpublished rebase shows the whole series and conflicts with
   `develop`; `sync-publish` of the validated rebase fixes that.
-- The user merges pull requests (T3 Code or GitHub), with squash. Do not merge
-  one unless the user says so in that thread. A pull request whose commits
-  should stay separate can be rebase-merged instead.
-  For the autonomous review session requested on 2026-10-02
-  (`t3code/automated-feature-review`), the user explicitly authorized selecting
-  work, assigning sub-agents, implementing, validating and merging it without
-  further intervention. That session may squash-merge its validated personal
-  fork pull request. Keep the existing offline EPUB/X4 Pro focus and defer
-  feedback-dependent decisions; this is not standing merge permission for
-  unrelated threads or permission to publish upstream or release tags.
+- Squash-merge once the checks and reviews required for the diff have passed,
+  with no material objection or essential decision open. Fetch and verify head
+  and base first; use `gh pr merge <n> --repo endqwerty/crosspoint-reader
+  --squash --match-head-commit <reviewed-SHA>` without `--delete-branch`
+  (GitHub deletes the remote branch; T3 needs the local branch). If the base
+  moved, restack and rerun affected checks. Rebase merge is available when
+  human commits should stay separate. Leave the PR open when the user asks
+  to review before merge or a real blocker remains.
 - After the merge GitHub deletes the remote branch, the thread settles and the
   user archives it. The worktree is T3 Code's to remove; see "Worktree
   lifecycle". Never delete a thread's local branch: T3 Code recreates the
@@ -215,7 +240,7 @@ origin/develop            downstream integration branch
 - SDK changes are not reviewed through pull requests. Commit them on the SDK
   fork's `develop`, push that (with a lease after an SDK rebase), and let the
   reader pull request carry the new submodule commit, which must already be on
-  the SDK fork so CI and other checkouts can fetch it.
+  the SDK fork so other checkouts can fetch it.
 
 ### Local checks
 
@@ -232,14 +257,14 @@ run here before a pull request is opened or updated:
   upstream sync that changed source, and for changes to shared code that other
   boards compile.
 - `check --fast` is formatting and Release host tests only.
-- Documentation-only changes need review and a diff check, not `check`.
+- Documentation-only changes need an agent-reviewed diff and
+  `git diff --check`, not `check` or device testing.
 
 It keeps its build directories and logs outside the worktree, under
 `~/.local/share/crosspoint-build/ci/<worktree>/`, and reports each step as ok
 or FAILED with the log to read. Put the result (commit checked, which mode,
-test counts, RAM and flash lines) in the pull request body: it is the only
-record of the checks. The pull request title is the squash commit's subject, so
-it must follow the `AGENTS.md` commit format; nothing checks that automatically.
+test counts, RAM and flash lines) in the pull request body and preserve the
+logs in the firmware package or external evidence directory.
 
 ### Worktree lifecycle
 
@@ -283,8 +308,9 @@ moved meanwhile. `scripts/fork-workflow.sh status` shows whether upstream is
 ahead.
 
 1. In the task worktree, `git fetch official` and `git rebase official/develop`.
-   Before the task has commits of its own, the branch is `develop`, so this
-   rebases the downstream series; with task commits, they ride on top of it.
+   The thread stays on its task branch. Before task commits it has the same
+   baseline as `origin/develop`, so this rebases the downstream series; with
+   task commits, they ride on top of it. Identify the sync candidate separately.
    Resolve conflicts by the "Upstream first" rules.
 2. Validate the rebased series with `scripts/fork-workflow.sh check` (`--full`
    when upstream changed source), unless upstream changed only files the build
@@ -297,23 +323,97 @@ ahead.
    `refs/fork-backup/`, force-pushes
    with a lease on the inspected remote tip, moves local `develop`, and lists
    the open pull requests.
-4. Each open pull request is now based on the old `develop`. In its worktree run
+4. Each open pull request is now based on the old `develop`. Coordinate with
+   its owning thread; do not mutate another active worktree. The owner runs
    `scripts/fork-workflow.sh restack`, which finds the old base in
    `origin/develop`'s reflog, rebases the task commits onto the new `develop`
    and updates the pull request.
 
-With no conflicts and nothing to revalidate this is the plain sequence in the
-permanent checkout (`git fetch official`, `git rebase official/develop`, `git
-push --force-with-lease origin develop`); `sync-publish` is the same thing with
-the checks and the backup ref. The standing authorization covers this force
-push of the personal `develop`, verified by URL
-(`https://github.com/endqwerty/crosspoint-reader.git` or its SSH equivalent). It
-does not cover pushes to the official project, release publication, or closing
-or merging pull requests.
+Use `sync-publish` for the lease-push, checks and backup ref. Standing
+upstream-sync authorization covers personal reader `develop`, verified by URL
+(`https://github.com/endqwerty/crosspoint-reader.git` or its SSH equivalent),
+and SDK fork `develop` (`https://github.com/endqwerty/freeink-sdk.git`) under
+"Branches and pull requests". It does not cover official-project pushes or
+release publication. Personal-fork PR integration uses the authorization above.
 
 After an upstream update, confirm `AGENTS.md` still directs agents here and
 review this file for rules or patches superseded by upstream. File placement
 alone does not enforce linear history.
+
+## Daily review
+
+A daily review is an on-demand maintenance pass when requested; it does not
+create a scheduled task. Use this order so new work is based on the current
+upstream implementation and a validated integration branch. Read-only PR
+research can run in parallel with the sync; choose implementations against the
+final baseline and serialize shared builds and Git operations.
+
+1. **Preflight and ownership.** Run `uname -s`; read `AGENTS.md`, this file,
+   the live issue queue (#15) and upstream watch (#13). Inspect the branch,
+   remote URLs, worktrees, tracked/untracked changes and open personal-fork
+   pull requests. Preserve other threads' work and local overrides. Confirm
+   the shared artifact destination is mounted before promising a handoff.
+2. **Refresh and inspect upstream first.** Fetch `official` and `origin`, run
+   `scripts/fork-workflow.sh status`, and inspect commits since the previous
+   upstream base, including upstream instructions, the pinned SDK, cache
+   formats, build configuration and CI target matrix. Map upstream cache bumps
+   to the fork's numbering before resolving conflicts. Review maintainer
+   decisions and merged PRs before choosing a local implementation. Record
+   exact reader/SDK/base hashes; do not treat a previous review as live state.
+3. **Rebase the baseline before new task work.** Create backup refs before
+   rewriting reader or SDK history. Prepare and verify the reader-pinned SDK.
+   If the official reader changes its SDK pin, replay SDK-only patches onto that
+   exact revision, not the latest SDK branch. Run relevant SDK host suites, then rebase the reader's downstream
+   series onto `official/develop`, reconcile overlaps using upstream's interfaces
+   and behavior, and drop superseded patches. A previously validated fork feature is still disposable:
+   replace, simplify or remove it when upstream takes a conflicting direction
+   or implements its purpose differently. Apply "Upstream first" and bump
+   any affected persisted cache version. Keep adaptation fixes
+   together in the sync candidate; only its final tree is the validated build.
+   Keep task commits separate from the sync candidate;
+   never publish them directly to `develop`. Check upstream ancestry, SDK
+   ancestry and zero downstream merge commits.
+4. **Validate and publish the upstream sync.** Use `check --full` when source
+   changed, plus relevant SDK host suites and any newly added upstream CI
+   target not yet covered by the local helper. Review conflict resolutions,
+   including changes that merged without conflicts. Collect the independent
+   review before the full gate when possible to avoid redundant builds. Update
+   the helper's CI matrix in the sync itself when upstream adds a board.
+   Publish a changed SDK revision before the reader that pins it; use the
+   documented leases and
+   `sync-publish <baseline-commit>`. If upstream moves during validation,
+   rebase again and rerun checks affected by the new source. Restack existing
+   PRs through their owning threads; do not mutate another active worktree.
+   When upstream is already contained, record that no rebase was needed.
+5. **Review PRs, refactoring and updates against that baseline.** Inspect the
+   current open/recently merged upstream PRs, their head SHAs, source diffs,
+   reviews and dependencies. Compare candidates with existing fork code and
+   tests: a matching title is not proof that a fix is missing. Prioritize
+   offline EPUB correctness, bounded heap, storage reliability and the
+   Calibre library workflow on X4 Pro. Record an adopt/wait/skip decision and
+   its evidence. Keep drafts, new UI, speculative prefetch/power work and
+   feedback-dependent issues deferred under the existing rules. Prefer
+   deterministic refactors with fixtures and operation/allocation evidence;
+   a review need not invent a code change. Review toolchain and dependency
+   updates against upstream pins; never blindly upgrade to newest versions.
+6. **Implement and review scoped maintenance.** Claim an eligible issue before
+   edits; verify paths/lines and preserve human authorship for adapted PRs.
+   Delegate under "Autonomous agents and delegation". Update this file for
+   durable
+   workflow changes, affected `docs/fork-*.md` for design changes, and issues
+   for dated findings. Run the checks required by the final diff, with `--full`
+   for shared source/build changes.
+7. **Recheck and hand off.** Fetch and verify upstream/fork tips again before
+   opening or updating the single personal-fork PR. Sync any new upstream
+   baseline before publishing task work, then restack and revalidate as
+   needed. Commit/push authorized task work, open and link the fork PR, and
+   merge its reviewed, validated head under the standing authorization.
+   Record selected/deferred PRs, exact checked commit and SDK, test counts,
+   target RAM/flash and remaining limits in the issue/PR. For changed firmware,
+   export a dated checksum-verified package and update `FLASH-LATEST.md` after
+   all gates pass. Preserve logs outside the worktree; retain the thread's
+   branch and use native cleanup rules. Never claim device timing, ghosting,
+   peak heap or power-loss validation from host/build results.
 
 ## Starting a task
 
@@ -346,25 +446,26 @@ alone does not enforce linear history.
 ## Finishing a task
 
 - Run the local checks ("Local checks") before opening or updating the pull
-  request for source changes. Record physical-device checks separately as
-  pending when unavailable; do not claim device validation or hold the pull
-  request back solely on that absence. Documentation-only changes require review
-  and diff checks, not a firmware rebuild or device test.
+  request for source changes. Record physical-device checks separately
+  as unverified when unavailable; do not claim device validation or hold the pull
+  request back solely on that absence.
 - Update the task issue and affected `docs/fork-*.md`; link the issue from the
-  pull request. After the authorized merge and artifact handoff, verify issue
+  pull request. After merge and artifact handoff, verify issue
   closure explicitly (the integration branch is `develop`). Close with actual
   validation results and remaining limits, then remove `in-progress`.
-- A firmware handoff is built from the pull request's head. Record the pull
-  request number and head commit in `build-info.json` and the issue/PR: after a
-  squash merge that commit is no longer on `develop`, but GitHub keeps it at
-  `refs/pull/<number>/head`, and the squash commit has the same tree as long as
-  `develop` did not move in between.
+- Build changed task firmware from the reviewed pull request's head. An
+  upstream-sync handoff can use the validated sync candidate directly. Record
+  the actual build commit, SDK and version; do not rebuild solely to change a
+  Git hash when firmware source bytes are identical. Record the pull request
+  number and head commit when applicable in `build-info.json` and the issue/PR.
+  After squash merge, verify the integration tree matches the reviewed head;
+  GitHub retains that head at `refs/pull/<number>/head`.
 - Report any genuine blocker instead of claiming unfinished work is complete. As
   the last step, check and report:
-  - the pull request URL, the local check results, and that the pull request is
-    linked to the thread;
-  - the branch is pushed, and `origin/develop` contains the upstream tip;
-  - temporary git worktrees or scratch clones created for the task are removed;
+  - the pull request URL, linked to the thread, and local check results;
+  - the PR is merged, `origin/develop` has the reviewed head's tree and contains
+    the upstream tip, or the reason it was left open;
+  - no extra worktrees or scratch clones remain;
   - the thread's branch is retained for native PR/Settle handling; report any
     optional build/SDK cleanup performed or deferred under "Worktree lifecycle".
     Do not equate a "released" filesystem with native removal eligibility.
@@ -413,7 +514,7 @@ alone does not enforce linear history.
   evidence to the share at `/Volumes/workspace/builds/crosspoint-reader/`, not
   to the repository's `build/`.
 - All development work runs in isolated, disposable worktrees. Do not rely on
-  a worktree surviving a handoff. Before deleting it, deliver the completed
+  a worktree surviving a handoff. Before it can be removed, deliver the completed
   firmware and its build evidence to a new dated folder under the shared
   output directory above. PlatformIO normally writes to the worktree's local
   `.pio/build/x4pro-gh_release/`; it does not automatically export to SMB.
