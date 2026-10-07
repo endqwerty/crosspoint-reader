@@ -39,20 +39,6 @@ constexpr StrId PUBLISHER_FONTS_IDS[] = {StrId::STR_STATE_OFF, StrId::STR_PUBLIS
                                          StrId::STR_PUBLISHER_FONTS_ALL};
 #endif
 
-int findCurrentFontIndex(const SdCardFontRegistry* registry, const char* sdFontFamilyName, uint8_t fontFamily) {
-  if (sdFontFamilyName[0] != '\0' && registry) {
-    const auto& families = registry->getFamilies();
-    const auto family = std::find_if(families.begin(), families.end(), [sdFontFamilyName](const auto& candidate) {
-      return candidate.name == sdFontFamilyName;
-    });
-    if (family != families.end()) {
-      return CrossPointSettings::BUILTIN_FONT_COUNT + static_cast<int>(family - families.begin());
-    }
-  }
-
-  return fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? fontFamily : 0;
-}
-
 constexpr StrId WORD_SPACING_IDS[] = {StrId::STR_SPACING_50_PERCENT,  StrId::STR_SPACING_75_PERCENT,
                                       StrId::STR_SPACING_100_PERCENT, StrId::STR_SPACING_125_PERCENT,
                                       StrId::STR_SPACING_150_PERCENT, StrId::STR_SPACING_175_PERCENT,
@@ -88,18 +74,11 @@ void TextSettingsActivity::onEnter() {
   previewHeight = usableHeight * metrics_.previewHeightPercent / 100;
 
   fonts_.clear();
-  fonts_.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + (registry_ ? registry_->getFamilyCount() : 0));
-  fonts_.push_back({I18N.get(StrId::STR_NOTO_SANS), true, static_cast<uint8_t>(CrossPointSettings::NOTOSANS)});
-  if (registry_) {
-    const auto& families = registry_->getFamilies();
-    for (int i = 0; i < static_cast<int>(families.size()); i++) {
-      fonts_.push_back({families[i].name, false, static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + i)});
-    }
-  }
-
+  fonts_.reserve(1);
+  fonts_.push_back({tr(STR_LIBRON), true, static_cast<uint8_t>(CrossPointSettings::LIBRON)});
+  SETTINGS.enforceReaderFont();
   rebuildSizeList();
-
-  currentFamilyIndex_ = findCurrentFontIndex(registry_, SETTINGS.sdFontFamilyName, SETTINGS.fontFamily);
+  currentFamilyIndex_ = 0;
   // Per-tab ring positions (0 = tab bar, 1..N = row). The base reset each
   // tab's nav with followOnBuild armed, so each tab's first build shows its
   // remembered selection (Family/Size open on the current item).
@@ -331,22 +310,10 @@ void TextSettingsActivity::render(RenderLock&& lock) {
 // arrays out from under prewarmStyle() (crash: null s.miniGlyphs mid-read/sort).
 void TextSettingsActivity::applyFamily(int listIndex) {
   RenderLock lock;
-  const auto& font = fonts_[listIndex];
-  if (font.isBuiltin) {
-    SETTINGS.fontFamily = font.settingIndex;
-    SETTINGS.sdFontFamilyName[0] = '\0';
-    sdFontSystem.ensureLoaded(renderer, /*retryUnavailable=*/false);
-    currentFamilyIndex_ = listIndex;
-  } else if (registry_) {
-    if (registry_->findFamily(font.name)) {
-      strncpy(SETTINGS.sdFontFamilyName, font.name.c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
-      SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
-      sdFontSystem.ensureLoaded(renderer, /*retryUnavailable=*/false);
-      currentFamilyIndex_ = listIndex;
-    }
-  }
-
-  if (currentFamilyIndex_ != listIndex) return;  // switch failed — keep the old size list
+  if (listIndex != 0) return;
+  SETTINGS.enforceReaderFont();
+  sdFontSystem.ensureLoaded(renderer, /*retryUnavailable=*/false);
+  currentFamilyIndex_ = 0;
 
   // The new family ships its own set of point sizes, and ensureLoaded() may have
   // snapped the selection into it, so the Size tab's list and its nav position
