@@ -13,6 +13,7 @@ class ReaderOverlayTest : public testing::Test {
 
   void SetUp() override {
     xteinkPanel = true;
+    eegoA4Panel = false;
     SETTINGS.frequency = 15;
     ASSERT_EQ(RenderLock::held, 0);
     renderer.begin();
@@ -335,4 +336,14 @@ TEST_F(ReaderOverlayTest, PushedScreenCannotInheritParentHeaderBackTarget) {
   ASSERT_TRUE(HeaderBackTapTarget::contains(15, 25));
   manager.transitionForTest();
   EXPECT_FALSE(HeaderBackTapTarget::contains(15, 25));
+}
+
+TEST_F(ReaderOverlayTest, A4AlwaysRerendersAfterOverlayWithScheduledCleanup) {
+  eegoA4Panel = true;
+  snapshot(false);
+  reader.closeOverlayToPage();
+  EXPECT_EQ(reader.updateRequests, 1);
+  EXPECT_EQ(renderer.restores, 0);
+  EXPECT_EQ(reader.pagesUntilFullRefresh, 1);
+  expectClosed();
 }
