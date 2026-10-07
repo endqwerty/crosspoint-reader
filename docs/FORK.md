@@ -244,8 +244,9 @@ origin/develop            downstream integration branch
 
 ### Local checks
 
-GitHub Actions is off for the fork, so the checks upstream's CI would run are
-run here before a pull request is opened or updated:
+GitHub Actions is off for the fork. Run local checks before a pull request is
+opened or updated, scoped to the X4 Pro and any specific upstream-compatibility
+risk in the diff:
 
 - `scripts/fork-workflow.sh check`: formatting (the whole tree through
   `bin/clang-format-fix`, then no diff), host tests in Release and under the
@@ -253,9 +254,11 @@ run here before a pull request is opened or updated:
   to source, tests or build files.
 - `check --full` adds `pio check` (cppcheck) and the seven firmware targets CI
   builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`, `metalio_eink4`,
-  `eego_a4`): eight builds including `x4pro-gh_release`. Use it after an
-  upstream sync that changed source, and for changes to shared code that other
-  boards compile.
+  `eego_a4`): eight builds including `x4pro-gh_release`. This is an optional
+  compatibility matrix, not the default gate for shared changes or upstream
+  syncs. Use it only when a concrete compatibility risk warrants all targets;
+  otherwise run only the relevant additional `pio run -e <target>` builds.
+  Run `pio check` separately when static analysis is needed without the matrix.
 - `check --fast` is formatting and Release host tests only.
 - Documentation-only changes need an agent-reviewed diff and
   `git diff --check`, not `check` or device testing.
@@ -312,9 +315,10 @@ ahead.
    baseline as `origin/develop`, so this rebases the downstream series; with
    task commits, they ride on top of it. Identify the sync candidate separately.
    Resolve conflicts by the "Upstream first" rules.
-2. Validate the rebased series with `scripts/fork-workflow.sh check` (`--full`
-   when upstream changed source), unless upstream changed only files the build
-   and tests do not read.
+2. Validate the rebased series with `scripts/fork-workflow.sh check`, unless
+   upstream changed only files the build and tests do not read. Add static
+   analysis or targeted compatibility builds as required by the diff under
+   "Local checks"; changed shared source alone does not require `--full`.
 3. Publish it with `scripts/fork-workflow.sh sync-publish <commit>`, where
    `<commit>` is the rebased series without the task's own commits (`HEAD` when
    the task has none yet). The script checks that the commit contains the
@@ -373,12 +377,13 @@ final baseline and serialize shared builds and Git operations.
    Keep task commits separate from the sync candidate;
    never publish them directly to `develop`. Check upstream ancestry, SDK
    ancestry and zero downstream merge commits.
-4. **Validate and publish the upstream sync.** Use `check --full` when source
-   changed, plus relevant SDK host suites and any newly added upstream CI
-   target not yet covered by the local helper. Review conflict resolutions,
-   including changes that merged without conflicts. Collect the independent
-   review before the full gate when possible to avoid redundant builds. Update
-   the helper's CI matrix in the sync itself when upstream adds a board.
+4. **Validate and publish the upstream sync.** Use `check` when source changed,
+   plus relevant SDK host suites and additional checks justified by a specific
+   compatibility risk. Review conflict resolutions, including changes that
+   merged without conflicts. Collect the independent review before the build
+   gate when possible to avoid redundant builds. Keep the helper's optional
+   compatibility matrix aligned with upstream when its target list changes;
+   a new board alone does not require building or validating that device.
    Publish a changed SDK revision before the reader that pins it; use the
    documented leases and
    `sync-publish <baseline-commit>`. If upstream moves during validation,
@@ -401,8 +406,8 @@ final baseline and serialize shared builds and Git operations.
    Delegate under "Autonomous agents and delegation". Update this file for
    durable
    workflow changes, affected `docs/fork-*.md` for design changes, and issues
-   for dated findings. Run the checks required by the final diff, with `--full`
-   for shared source/build changes.
+   for dated findings. Run the checks required by the final diff under "Local
+   checks"; use additional targets only for a concrete compatibility concern.
 7. **Recheck and hand off.** Fetch and verify upstream/fork tips again before
    opening or updating the single personal-fork PR. Sync any new upstream
    baseline before publishing task work, then restack and revalidate as
@@ -481,10 +486,16 @@ final baseline and serialize shared builds and Git operations.
   font's reserved-name license. See
   [the font policy](fork-libron-font.md) for provenance and resource details.
 
-- Focus on offline EPUB reading for Xteink X4 Pro (`x4pro-gh_release`). The X4 Pro
-  is the only device the user owns or tests. Other targets still have to build,
-  and shared changes must respect C3 memory limits and upstream HAL interfaces.
-  Do not spend effort optimizing or validating other devices beyond that.
+- Device scope (2026-10-06): focus on offline EPUB reading for Xteink X4 Pro
+  (`x4pro-gh_release`), the only device the user owns or tests. Other devices
+  are not feature, optimization or validation targets for this personal fork.
+  Check them only when necessary to maintain upstream compatibility, such as
+  a changed HAL interface, platform-specific code or shared build configuration;
+  record the specific reason and use the smallest relevant set of checks.
+  Shared code must retain upstream interfaces and respect C3 memory constraints
+  where needed for compatibility. A shared change alone does not require all
+  boards to build or work, and unrelated other-device failures do not block
+  X4 Pro delivery.
 - Remote file loading (web server upload/WebDAV, OPDS, Calibre wireless) is
   unused. Do not remove, hide or compile it out, because that would diverge from
   upstream. Do not invest in it, prioritize upstream PRs that only touch it, or
