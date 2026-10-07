@@ -80,33 +80,37 @@ constexpr unsigned long X4PRO_POWER_CLICK_MAX_HOLD_MS = 300;
 static bool wakePowerReleasePending = false;
 
 // Fonts
-EpdFont notosans14RegularFont(&notosans_14_regular);
-EpdFont notosans14BoldFont(&notosans_14_bold);
-EpdFont notosans14ItalicFont(&notosans_14_italic);
-EpdFont notosans14BoldItalicFont(&notosans_14_bolditalic);
-EpdFontFamily notosans14FontFamily(14, &notosans14RegularFont, &notosans14BoldFont, &notosans14ItalicFont,
-                                   &notosans14BoldItalicFont);
+EpdFont libron14RegularFont(&libron_14_regular);
+EpdFont libron14BoldFont(&libron_14_bold);
+EpdFont libron14ItalicFont(&libron_14_italic);
+EpdFont libron14BoldItalicFont(&libron_14_bolditalic);
+EpdFontFamily libron14FontFamily(14, &libron14RegularFont, &libron14BoldFont, &libron14ItalicFont, &libron14BoldItalicFont);
 #ifndef OMIT_FONTS
-EpdFont notosans12RegularFont(&notosans_12_regular);
-EpdFont notosans12BoldFont(&notosans_12_bold);
-EpdFont notosans12ItalicFont(&notosans_12_italic);
-EpdFont notosans12BoldItalicFont(&notosans_12_bolditalic);
-EpdFontFamily notosans12FontFamily(12, &notosans12RegularFont, &notosans12BoldFont, &notosans12ItalicFont,
-                                   &notosans12BoldItalicFont);
-EpdFont notosans16RegularFont(&notosans_16_regular);
-EpdFont notosans16BoldFont(&notosans_16_bold);
-EpdFont notosans16ItalicFont(&notosans_16_italic);
-EpdFont notosans16BoldItalicFont(&notosans_16_bolditalic);
-EpdFontFamily notosans16FontFamily(16, &notosans16RegularFont, &notosans16BoldFont, &notosans16ItalicFont,
-                                   &notosans16BoldItalicFont);
+EpdFont libron12RegularFont(&libron_12_regular);
+EpdFont libron12BoldFont(&libron_12_bold);
+EpdFont libron12ItalicFont(&libron_12_italic);
+EpdFont libron12BoldItalicFont(&libron_12_bolditalic);
+EpdFontFamily libron12FontFamily(12, &libron12RegularFont, &libron12BoldFont, &libron12ItalicFont, &libron12BoldItalicFont);
+EpdFont libron16RegularFont(&libron_16_regular);
+EpdFont libron16BoldFont(&libron_16_bold);
+EpdFont libron16ItalicFont(&libron_16_italic);
+EpdFont libron16BoldItalicFont(&libron_16_bolditalic);
+EpdFontFamily libron16FontFamily(16, &libron16RegularFont, &libron16BoldFont, &libron16ItalicFont, &libron16BoldItalicFont);
+EpdFont libron18RegularFont(&libron_18_regular);
+EpdFont libron18BoldFont(&libron_18_bold);
+EpdFont libron18ItalicFont(&libron_18_italic);
+EpdFont libron18BoldItalicFont(&libron_18_bolditalic);
+EpdFontFamily libron18FontFamily(18, &libron18RegularFont, &libron18BoldFont, &libron18ItalicFont, &libron18BoldItalicFont);
+#endif
+
+#ifndef OMIT_FONTS
 EpdFont notosans18RegularFont(&notosans_18_regular);
 EpdFont notosans18BoldFont(&notosans_18_bold);
 EpdFont notosans18ItalicFont(&notosans_18_italic);
 EpdFont notosans18BoldItalicFont(&notosans_18_bolditalic);
 EpdFontFamily notosans18FontFamily(18, &notosans18RegularFont, &notosans18BoldFont, &notosans18ItalicFont,
                                    &notosans18BoldItalicFont);
-
-#endif  // OMIT_FONTS
+#endif
 
 EpdFont smallFont(&ubuntu_8_regular);
 EpdFontFamily smallFontFamily(8, &smallFont);
@@ -541,12 +545,15 @@ void setupDisplayAndFonts(bool seamless = false) {
   }
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
-  renderer.insertFont(NOTOSANS_14_FONT_ID, notosans14FontFamily);
+  renderer.insertFont(LIBRON_14_FONT_ID, libron14FontFamily);
 #ifndef OMIT_FONTS
-  renderer.insertFont(NOTOSANS_12_FONT_ID, notosans12FontFamily);
-  renderer.insertFont(NOTOSANS_16_FONT_ID, notosans16FontFamily);
+  renderer.insertFont(LIBRON_12_FONT_ID, libron12FontFamily);
+  renderer.insertFont(LIBRON_16_FONT_ID, libron16FontFamily);
+  renderer.insertFont(LIBRON_18_FONT_ID, libron18FontFamily);
+#endif
+#ifndef OMIT_FONTS
   renderer.insertFont(NOTOSANS_18_FONT_ID, notosans18FontFamily);
-#endif  // OMIT_FONTS
+#endif
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
