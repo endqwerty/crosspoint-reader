@@ -25,6 +25,9 @@ struct GfxRenderer {
   int getScreenWidth() const { return width; }
   int getScreenHeight() const { return height; }
   Orientation getOrientation() const { return orientation; }
+  void getOrientedViewableTRBL(int* top, int* right, int* bottom, int* left) const {
+    *top = *right = *bottom = *left = 0;
+  }
   void clearScreen() { lines.clear(); }
   void displayBuffer() { ++frames; }
 };
