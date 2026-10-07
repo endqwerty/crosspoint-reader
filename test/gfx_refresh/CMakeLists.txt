@@ -58,7 +58,7 @@ add_test(NAME GlyphRasterParity COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SO
   $<TARGET_FILE:GfxGlyphReferenceProbe> $<TARGET_FILE:GfxGlyphProbe>)
 
 add_executable(GfxRefreshTest BitmapOverlayTest.cpp GfxRefreshTest.cpp RealFontPageTest.cpp TextGrayscaleTrackingTest.cpp
-  RefreshCommitTest.cpp TextSpacingTest.cpp)
+  RefreshCommitTest.cpp TextSpacingTest.cpp LibronCoverageTest.cpp)
 target_link_libraries(GfxRefreshTest PRIVATE GfxRefreshHost GTest::gtest_main)
 gtest_discover_tests(GfxRefreshTest)
 

@@ -474,6 +474,13 @@ final baseline and serialize shared builds and Git operations.
 
 ## Development and validation preferences
 
+- Personal reader font (2026-10-06): embed Libron and enforce it over saved
+  built-in, SD bitmap and vector font selections. Keep the selected font size
+  at the nearest supported built-in size; preserve other typography settings.
+  Font controls show the enforced family as Reader Serif, honoring the source
+  font's reserved-name license. See
+  [the font policy](fork-libron-font.md) for provenance and resource details.
+
 - Focus on offline EPUB reading for Xteink X4 Pro (`x4pro-gh_release`). The X4 Pro
   is the only device the user owns or tests. Other targets still have to build,
   and shared changes must respect C3 memory limits and upstream HAL interfaces.
