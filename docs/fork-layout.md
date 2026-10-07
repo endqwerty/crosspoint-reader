@@ -183,8 +183,9 @@ The logic is in `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp`:
 Known gap: the upstream deferred-`<br>` spacing rework is not included. Restored
 text still follows the converter's line break. This behavior defines
 `section.bin` version 51. Version 52 also preserves paragraph continuity and
-top spacing across soft flushes, with partial sentinel 230 and the same byte
-layout. See
+top spacing across soft flushes. Version 53 incorporates upstream's redaction
+glyph widths and retires older version 52 layouts, with partial sentinel 229
+and the same byte layout. See
 [file-formats.md](file-formats.md).
 
 ## Limits and known gaps
