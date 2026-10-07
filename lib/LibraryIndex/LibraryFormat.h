@@ -49,7 +49,8 @@ inline constexpr size_t CLIX_UUID_BYTES = 16;
 // 4: fingerprint complete author identities before spelling reconciliation.
 // 5: order arrivals by modification time, with firstSeen breaking ties.
 // 6: preserve leading words in title and series sorting and search.
-inline constexpr uint8_t CLIX_FOLD_VERSION = 6;
+// 7: reparse series using upstream explicitly typed collection selection.
+inline constexpr uint8_t CLIX_FOLD_VERSION = 7;
 
 inline constexpr uint32_t CLIX_ALIGN = 512;
 inline constexpr size_t CLIX_FOLD_BYTES = 96;
