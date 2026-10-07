@@ -15,7 +15,7 @@ SDK_PATH="freeink-sdk"
 BUILD_ROOT="${CROSSPOINT_BUILD_ROOT:-$HOME/.local/share/crosspoint-build}"
 TOOL_BIN="${CROSSPOINT_TOOL_BIN:-$BUILD_ROOT/venv/bin}"
 LLVM_BIN="${CROSSPOINT_LLVM_BIN:-/opt/homebrew/opt/llvm@22/bin}"
-CI_ENVS="default sticky x4pro x4c papermono metalio_eink4"
+CI_ENVS="default sticky x4pro x4c papermono metalio_eink4 eego_a4"
 
 die() {
   echo "fork-workflow: $*" >&2
