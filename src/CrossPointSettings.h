@@ -106,8 +106,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   };
 
   // Font family options (built-in fonts only; SD card fonts use sdFontFamilyName)
-  enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, FONT_FAMILY_COUNT };
-  static constexpr uint8_t LEGACY_OPENDYSLEXIC = 2;
+  enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, LIBRON = 2, FONT_FAMILY_COUNT };
   static constexpr uint8_t BUILTIN_FONT_COUNT = FONT_FAMILY_COUNT;
   // Reader font size is a point size, not an enum slot — see fontPointSize.
   // Legacy 1.4-and-earlier files stored a 0..3 SMALL/MEDIUM/LARGE/EXTRA_LARGE
@@ -290,7 +289,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t frontButtonLeft = FRONT_HW_LEFT;
   uint8_t frontButtonRight = FRONT_HW_RIGHT;
   // Reader font settings
-  uint8_t fontFamily = NOTOSERIF;
+  uint8_t fontFamily = LIBRON;
   // Point size of the reader font. Only sizes the active family actually ships
   // are selectable; SdCardFontSystem::ensureLoaded() snaps this to the nearest
   // available size (and persists the snap) whenever the family changes.
@@ -402,6 +401,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // the only set a built-in family ships — otherwise the settings UI would keep
   // offering a size nothing renders at. Both fields are persisted in one write.
   void clearSdFontFamily();
+  // Personal firmware pins the reader family while retaining the nearest size.
+  bool enforceReaderFont();
 
   // Resolved status-bar composition. Consumers read the spec; only settings
   // editors read the raw fields.
