@@ -3,7 +3,6 @@
 #include <Print.h>
 
 #include <algorithm>
-#include <deque>
 #include <optional>
 #include <vector>
 
@@ -62,6 +61,8 @@ class ContentOpfParser final : public Print {
   bool titleClamped = false;
   bool authorClamped = false;
   bool languageClamped = false;
+  bool identifierClamped = false;
+  bool metaClamped = false;
 
   StagedCreator creators[MAX_CREATORS];
   size_t creatorCount = 0;
@@ -80,6 +81,7 @@ class ContentOpfParser final : public Print {
   std::string metaProperty;
   std::string metaRefines;
   std::string metaId;
+  bool metaRefinesLocal = false;
   struct CollectionMetadata {
     std::string id;
     std::string title;
@@ -138,8 +140,6 @@ class ContentOpfParser final : public Print {
   std::string guideCoverPageHref;  // Guide reference with type="cover" or "cover-page" (points to XHTML wrapper)
   std::string textReferenceHref;
   std::vector<std::string> cssFiles;  // CSS stylesheet paths
-  // Text representation of the selected numeric position for the Library index.
-  std::string seriesIndexText;
 
   // Sort forms curated in Calibre ("Hobbit, The"; "Tolkien, J. R. R."), empty
   // when the book names none. The author sort is the first creator's, and only

@@ -282,3 +282,87 @@ TEST(EpubColdOpen, ProfilesColdIndexAndWarmMetadataLoads) {
         cached.readBytes, cached.seeks);
   }
 }
+
+TEST(EpubMetadata, LibraryRejectsOversizedSyncSeriesPrefixes) {
+  for (const size_t bytes : {255u, 256u, 1000u}) {
+    prepare(false, false);
+    index_test::documents["OEBPS/content.opf"] =
+        "<package><metadata><meta name='calibre:series' content='" + std::string(bytes, 'S') +
+        "'/><meta name='calibre:series_index' content='3'/></metadata></package>";
+    Epub book;
+    BookMetadataCache::BookMetadata metadata;
+    Epub::LibraryMetadata library;
+    ASSERT_TRUE(book.parseContentOpf(metadata, false, true, nullptr, &library));
+    EXPECT_EQ(library.series.size(), bytes <= 255 ? bytes : 0u);
+    EXPECT_EQ(library.seriesIndexText, bytes <= 255 ? "3" : "");
+    expectNoXmlLeaks();
+  }
+}
+
+TEST(EpubMetadata, SyncRetainsUpstreamSeriesAndIdentifierBehavior) {
+  prepare(false, false);
+  index_test::documents["OEBPS/content.opf"] =
+      "<package><metadata><identifier scheme='ISBN'>978123</identifier>"
+      "<identifier scheme='ASIN'>B123</identifier><meta name='calibre:series' content='" +
+      std::string(1000, 'S') + "'/><meta name='calibre:series_index' content='3.5'/></metadata></package>";
+  Epub book;
+  Epub::SyncMetadata sync;
+  ASSERT_TRUE(book.loadSyncMetadata(sync));
+  EXPECT_EQ(sync.isbn, "978123");
+  EXPECT_EQ(sync.asin, "B123");
+  EXPECT_EQ(sync.series, std::string(512, 'S'));
+  ASSERT_TRUE(sync.seriesIndex.has_value());
+  EXPECT_FLOAT_EQ(*sync.seriesIndex, 3.5f);
+  expectNoXmlLeaks();
+}
+
+TEST(EpubMetadata, LibraryNormalizesSeriesAndBoundsNumericPositions) {
+  struct Case {
+    const char* name;
+    const char* index;
+    const char* expectedName;
+    const char* expectedIndex;
+  };
+  const Case cases[] = {
+      {"  Saga   Books  ", "3", "Saga Books", "3"},
+      {"  ", "3", "", ""},
+      {"Saga", "1e9", "Saga", "655.34"},
+      {"Saga", "2024010112", "Saga", "655.34"},
+      {"Saga", "0.00005", "Saga", "0"},
+      {"Saga", "2.567", "Saga", "2.57"},
+      {"Saga", "-1", "Saga", ""},
+      {"Saga", "3,5", "Saga", ""},
+      {"Saga", "3 of 7", "Saga", ""},
+      {"Saga", "1.0 ", "Saga", ""},
+      {"Saga", "NaN", "Saga", ""},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(item.index);
+    prepare(false, false);
+    index_test::documents["OEBPS/content.opf"] =
+        std::string("<package><metadata><meta name='calibre:series' content='") + item.name +
+        "'/><meta name='calibre:series_index' content='" + item.index + "'/></metadata></package>";
+    Epub book;
+    BookMetadataCache::BookMetadata metadata;
+    Epub::LibraryMetadata library;
+    ASSERT_TRUE(book.parseContentOpf(metadata, false, true, nullptr, &library));
+    EXPECT_EQ(library.series, item.expectedName);
+    EXPECT_EQ(library.seriesIndexText, item.expectedIndex);
+    expectNoXmlLeaks();
+  }
+}
+
+TEST(EpubMetadata, LibraryRejectsOversizedTypedCollection) {
+  prepare(false, false);
+  index_test::documents["OEBPS/content.opf"] =
+      "<package><metadata><meta property='belongs-to-collection' id='s'>" + std::string(256, 'S') +
+      "</meta><meta property='collection-type' refines='#s'>series</meta>"
+      "<meta property='group-position' refines='#s'>3</meta></metadata></package>";
+  Epub book;
+  BookMetadataCache::BookMetadata metadata;
+  Epub::LibraryMetadata library;
+  ASSERT_TRUE(book.parseContentOpf(metadata, false, true, nullptr, &library));
+  EXPECT_TRUE(library.series.empty());
+  EXPECT_TRUE(library.seriesIndexText.empty());
+  expectNoXmlLeaks();
+}

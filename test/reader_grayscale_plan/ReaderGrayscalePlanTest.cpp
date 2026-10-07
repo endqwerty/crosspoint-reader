@@ -102,3 +102,13 @@ TEST(ReaderGrayscalePlan, BinaryBodyDoesNotChangeImageCompositing) {
     }
   }
 }
+
+TEST(ReaderGrayscalePlan, MonochromeImagePolicyKeepsPhysicalImagePagesOutOfOverlap) {
+  const GrayscaleCapabilities caps{GrayscaleEncoding::OverlayMasks, GrayscaleBase::Combined, true, true, false};
+  expectDisabled(ReaderGrayscalePlan::forPage(false, true, caps, false, false));
+  const auto aa = ReaderGrayscalePlan::forPage(true, true, caps, false, false);
+  EXPECT_TRUE(aa.enabled);
+  EXPECT_TRUE(aa.text);
+  EXPECT_FALSE(aa.combinedBase);
+  EXPECT_FALSE(aa.overlap);
+}
