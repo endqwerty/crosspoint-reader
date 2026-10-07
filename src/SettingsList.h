@@ -23,59 +23,17 @@
 #include "util/DictionaryRegistry.h"
 #include "util/SlideSwitch.h"
 
-// Build the font family setting dynamically. When registry is non-null, SD card fonts
-// are appended after the built-in fonts. Otherwise only built-in fonts are listed.
-inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
-  // The render code checks enumStringValues first, then enumValues, so with SD
-  // fonts present every option (built-in first) is listed as a string.
-  std::vector<std::string> allStringValues;
-  if (registry && registry->getFamilyCount() > 0) {
-    const auto& families = registry->getFamilies();
-    allStringValues.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + families.size());
-    allStringValues.push_back(I18N.get(StrId::STR_NOTO_SANS));
-    std::transform(families.begin(), families.end(), std::back_inserter(allStringValues),
-                   [](const SdCardFontFamilyInfo& f) { return f.name; });
-  }
-
+// This personal firmware exposes only the enforced reader family.
+inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry*) {
   SettingInfo s;
   s.nameId = StrId::STR_FONT_FAMILY;
   s.type = SettingType::ENUM;
-  s.enumValues = {StrId::STR_NOTO_SANS};
-  s.enumStringValues = std::move(allStringValues);
+  s.enumValues = {StrId::STR_LIBRON};
   s.key = "fontFamily";
   s.category = StrId::STR_CAT_READER;
-  s.inTextSettings = true;  // matches the static font-family entry it replaces
-
-  // The lambdas read the registry instead of copying the names: it is only
-  // rescanned while no list built from it is in use, so the indexes match.
-  s.valueGetter = [registry]() -> uint8_t {
-    // If an SD card font is selected, find its index
-    if (registry && SETTINGS.sdFontFamilyName[0] != '\0') {
-      const auto& families = registry->getFamilies();
-      for (size_t i = 0; i < families.size(); i++) {
-        if (families[i].name == SETTINGS.sdFontFamilyName) {
-          return static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + i);
-        }
-      }
-      // SD font name not found in registry — fall through to built-in
-    }
-    return SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
-  };
-
-  s.valueSetter = [registry](uint8_t v) {
-    if (v < CrossPointSettings::BUILTIN_FONT_COUNT) {
-      SETTINGS.fontFamily = v;
-      SETTINGS.sdFontFamilyName[0] = '\0';
-    } else if (registry) {
-      const size_t sdIdx = v - CrossPointSettings::BUILTIN_FONT_COUNT;
-      const auto& families = registry->getFamilies();
-      if (sdIdx < families.size()) {
-        strncpy(SETTINGS.sdFontFamilyName, families[sdIdx].name.c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
-        SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
-      }
-    }
-  };
-
+  s.inTextSettings = true;
+  s.valueGetter = []() -> uint8_t { return 0; };
+  s.valueSetter = [](uint8_t) { SETTINGS.enforceReaderFont(); };
   return s;
 }
 
@@ -85,10 +43,10 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
 // in SETTINGS.fontPointSize (saved/loaded manually in CrossPointSettings::
 // toJson/fromJson — the generic loop skips dynamic entries), while the ENUM
 // contract shared with the web UI stays index-based.
-inline SettingInfo buildFontSizeSetting(const SdCardFontRegistry* registry) {
-  // Captured by copy so the indexes keep matching the option labels built here,
-  // even if the family changes later.
-  const std::vector<uint8_t> sizes = readerFontPointSizes(registry, SETTINGS.sdFontFamilyName);
+inline SettingInfo buildFontSizeSetting(const SdCardFontRegistry*) {
+  // Captured by copy: getSettingsList() returns by value and the lambdas outlive
+  // this call, so they must not reference the registry.
+  const std::vector<uint8_t> sizes = readerFontPointSizes(nullptr, "");
 
   // "pt" is deliberately not translated — see the matching note in
   // TextSettingsActivity::rebuildSizeList().
@@ -334,7 +292,7 @@ inline bool isHiddenOnDevice(const SettingInfo& s) {
 // Replaces the font family and size entries with options built from the fonts
 // present; other entries are left unchanged.
 inline void buildFontOptions(SettingInfo& s, const SdCardFontRegistry* registry) {
-  if (s.nameId == StrId::STR_FONT_FAMILY && registry && registry->getFamilyCount() > 0) {
+  if (s.nameId == StrId::STR_FONT_FAMILY) {
     s = buildFontFamilySetting(registry);
   } else if (s.nameId == StrId::STR_FONT_SIZE) {
     // Unconditional: even with no SD fonts installed the sizes come from the
