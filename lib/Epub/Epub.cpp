@@ -10,6 +10,7 @@
 #include <Utf8.h>
 #include <ZipFile.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
@@ -106,8 +107,36 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata, const 
   bookMetadata.author = utf8ComposeNfc(opfParser.author);
   bookMetadata.language = opfParser.language;
   if (libraryOut != nullptr) {
-    libraryOut->series = utf8ComposeNfc(opfParser.series);
-    libraryOut->seriesIndexText = opfParser.seriesIndexText;
+    constexpr size_t LIBRARY_SERIES_MAX_BYTES = 255;
+    // Library identities must fit without inheriting the sync parser's clamped prefix.
+    if (opfParser.series.size() <= LIBRARY_SERIES_MAX_BYTES) {
+      libraryOut->series = utf8ComposeNfc(opfParser.series);
+      size_t written = 0;
+      bool spacePending = false;
+      for (const char c : libraryOut->series) {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+          spacePending = true;
+          continue;
+        }
+        if (spacePending && written != 0) libraryOut->series[written++] = ' ';
+        spacePending = false;
+        libraryOut->series[written++] = c;
+      }
+      libraryOut->series.resize(written);
+      if (!libraryOut->series.empty() && opfParser.seriesIndex.has_value() && *opfParser.seriesIndex >= 0) {
+        // The Library stores hundredths in uint16_t, reserving 0xFFFF for no position.
+        constexpr uint32_t MAX_POSITION = UINT16_MAX - 1u;
+        const double scaled = static_cast<double>(*opfParser.seriesIndex) * 100.0;
+        const uint32_t position = scaled >= MAX_POSITION ? MAX_POSITION : static_cast<uint32_t>(scaled + 0.5);
+        char text[12];
+        snprintf(text, sizeof(text), "%u.%02u", static_cast<unsigned>(position / 100u),
+                 static_cast<unsigned>(position % 100u));
+        size_t length = strlen(text);
+        while (length != 0 && text[length - 1] == '0') text[--length] = '\0';
+        if (length != 0 && text[length - 1] == '.') text[--length] = '\0';
+        libraryOut->seriesIndexText = text;
+      }
+    }
     libraryOut->titleSort = utf8ComposeNfc(opfParser.titleSort);
     libraryOut->authorSort = utf8ComposeNfc(opfParser.authorSort);
     libraryOut->uuid = opfParser.uuid;
@@ -741,20 +770,25 @@ bool Epub::loadSyncMetadata(SyncMetadata& metadata) {
   }
 
   const std::string basePath = contentOpfFilePath.substr(0, contentOpfFilePath.find_last_of('/') + 1);
-  ContentOpfParser parser(cachePath, basePath, contentOpfSize, nullptr, true);
-  if (!parser.setup()) {
+  auto parser = makeUniqueNoThrow<ContentOpfParser>(cachePath, basePath, contentOpfSize, nullptr, true);
+  if (!parser) {
+    LOG_ERR("EBP", "Could not allocate sync metadata parser");
+    zip.close();
+    return false;
+  }
+  if (!parser->setup()) {
     zip.close();
     return false;
   }
 
-  const bool read = zip.readFileToStream(contentOpfFilePath.c_str(), parser, 1024, true);
+  const bool read = zip.readFileToStream(contentOpfFilePath.c_str(), *parser, 1024, true);
   zip.close();
   if (!read) return false;
 
-  metadata.isbn = std::move(parser.isbn);
-  metadata.asin = std::move(parser.asin);
-  metadata.series = std::move(parser.series);
-  metadata.seriesIndex = parser.seriesIndex;
+  metadata.isbn = std::move(parser->isbn);
+  metadata.asin = std::move(parser->asin);
+  metadata.series = std::move(parser->series);
+  metadata.seriesIndex = parser->seriesIndex;
   return true;
 }
 
