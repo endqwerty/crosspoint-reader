@@ -261,7 +261,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 52
+#define EXPECTED_VERSION 53
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 256
@@ -496,6 +496,9 @@ The index migration does not change EPUB reading-position or section-cache files
 Fold/sort revision 6 preserves leading words in title and series sorting and search,
 adopting upstream fold revision 4 while retaining the local author and arrival rules.
 Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
+Fold/sort revision 7 reparses series metadata using upstream's explicitly typed
+EPUB 3 collection selection and finite numeric positions; untyped collections
+are no longer inferred to be series. Arrival history and reading state survive.
 
 ### Layout
 
