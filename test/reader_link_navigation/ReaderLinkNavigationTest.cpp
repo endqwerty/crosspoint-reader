@@ -1,3 +1,4 @@
+#include "../../lib/Epub/Epub/ReferencePages.h"
 #include "ReaderLinkNavigationFixture.h"
 
 using Jump = ReaderNavigationHistory::Jump;
@@ -97,6 +98,42 @@ TEST_F(ReaderLinkNavigationTest, ExplicitPercentJumpRetiresTheTemporaryFootnoteO
   EXPECT_EQ(reader.savedPage, 3);
   EXPECT_TRUE(reader.navigationHistory.empty());
   EXPECT_TRUE(reader.pendingAnchor.empty());
+}
+
+TEST_F(ReaderLinkNavigationTest, PercentJumpKeepsStartAndFinalByteEndpoints) {
+  reader.jumpToPercent(-1);
+  EXPECT_EQ(reader.currentSpineIndex, 0);
+  EXPECT_FLOAT_EQ(reader.pendingSpineProgress, 0);
+  reader.jumpToPercent(100);
+  EXPECT_EQ(reader.currentSpineIndex, 9);
+  EXPECT_FLOAT_EQ(reader.pendingSpineProgress, 0.999f);
+  reader.jumpToPercent(101);
+  EXPECT_EQ(reader.currentSpineIndex, 9);
+  EXPECT_FLOAT_EQ(reader.pendingSpineProgress, 0.999f);
+}
+
+TEST_F(ReaderLinkNavigationTest, ReferencePageJumpUsesSharedDeferredBytePosition) {
+  reader.navigateToHref("notes.xhtml#one", Jump::Footnote);
+  const auto bytes = reader.epub->getBookSize();
+  reader.jumpToByteOffset(ReferencePages::startOffset(3, bytes, ReferencePages::count(bytes)));
+  EXPECT_EQ(reader.currentSpineIndex, 4);
+  EXPECT_FLOAT_EQ(reader.pendingSpineProgress, 0);
+  EXPECT_TRUE(reader.pendingPercentJump);
+  EXPECT_EQ(reader.nextPageNumber, 0);
+  EXPECT_FALSE(reader.section);
+  EXPECT_TRUE(reader.navigationHistory.empty());
+  EXPECT_TRUE(reader.pendingAnchor.empty());
+}
+
+TEST_F(ReaderLinkNavigationTest, ByteJumpClampsAtBookEndAndIgnoresEmptyBook) {
+  reader.jumpToByteOffset(20000);
+  EXPECT_EQ(reader.currentSpineIndex, 9);
+  EXPECT_FLOAT_EQ(reader.pendingSpineProgress, 0.999f);
+  const int updates = reader.updates;
+  reader.epub->bookSize = 0;
+  reader.jumpToByteOffset(0);
+  EXPECT_EQ(reader.updates, updates);
+  EXPECT_EQ(reader.currentSpineIndex, 9);
 }
 
 TEST_F(ReaderLinkNavigationTest, ReturningFromFootnoteRestoresContentOffsetAndPageCount) {
