@@ -30,6 +30,7 @@ struct ChapterResult {
 
 struct PercentResult {
   int percent = 0;
+  int page = 0;
 };
 
 struct IntervalResult {
