@@ -62,6 +62,7 @@ struct ActivityResult {
 };
 struct PercentResult {
   int percent;
+  int page = 0;
 };
 struct IntervalResult {
   uint32_t value;
@@ -102,6 +103,7 @@ struct SliderHost {
   bool hasResult = false;
   bool cancelled = false;
   int resultValue = -1;
+  int resultPage = 0;
 
   TouchRoute routeTouch(const MappedInputManager&, bool, bool held) {
     EXPECT_EQ(RenderLock::held, 1);
@@ -131,6 +133,7 @@ struct SliderHost {
     EXPECT_EQ(RenderLock::held, 1);
     hasResult = true;
     resultValue = result.percent;
+    resultPage = result.page;
   }
   void setResult(IntervalResult result) {
     EXPECT_EQ(RenderLock::held, 1);
@@ -140,8 +143,10 @@ struct SliderHost {
 };
 
 struct EpubReaderPercentSelectionActivity : SliderHost {
-  int percent = 50;
-  int selection() const { return percent; }
+  int value = 50;
+  bool bookPages = false;
+  int maxPage = 1;
+  int selection() const { return value; }
   void loop();
   void adjustPercent(int);
   void setPercent(int);
