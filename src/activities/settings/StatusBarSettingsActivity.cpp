@@ -20,6 +20,7 @@ namespace {
 // System > Clock.
 enum MenuItem {
   ITEM_CHAPTER_PAGE_COUNT = 0,
+  ITEM_PAGE_NUMBERS,
   ITEM_BOOK_PROGRESS_PERCENTAGE,
   ITEM_PROGRESS_BAR,
   ITEM_PROGRESS_BAR_THICKNESS,
@@ -37,6 +38,7 @@ static_assert(FULL_MENU_ITEMS == StatusBarSettingsActivity::MAX_STATUS_BAR_ITEMS
 
 const StrId menuNames[FULL_MENU_ITEMS] = {
     StrId::STR_CHAPTER_PAGE_COUNT,
+    StrId::STR_PAGE_NUMBERS,
     StrId::STR_BOOK_PROGRESS_PERCENTAGE,
     StrId::STR_PROGRESS_BAR,
     StrId::STR_PROGRESS_BAR_THICKNESS,
@@ -47,6 +49,8 @@ const StrId menuNames[FULL_MENU_ITEMS] = {
 };
 
 constexpr int PROGRESS_BAR_ITEMS = 3;
+constexpr int PAGE_NUMBERS_ITEMS = CrossPointSettings::STATUS_BAR_PAGE_NUMBERS_COUNT;
+constexpr StrId pageNumbersNames[PAGE_NUMBERS_ITEMS] = {StrId::STR_CHAPTER, StrId::STR_BOOK};
 const StrId progressBarNames[PROGRESS_BAR_ITEMS] = {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE};
 
 constexpr int PROGRESS_BAR_THICKNESS_ITEMS = 3;
@@ -72,6 +76,10 @@ void StatusBarSettingsActivity::onEnter() {
   UiListActivity::onEnter();
 
   visibleItemCount = halClock.isAvailable() ? FULL_MENU_ITEMS : BASE_MENU_ITEMS;
+
+  if (SETTINGS.statusBarPageNumbers >= PAGE_NUMBERS_ITEMS) {
+    SETTINGS.statusBarPageNumbers = CrossPointSettings::CHAPTER_PAGE_NUMBERS;
+  }
 
   // Clamp statusBarProgressBar and statusBarTitle in case of corrupt/migrated data
   if (SETTINGS.statusBarProgressBar >= PROGRESS_BAR_ITEMS) {
@@ -121,6 +129,13 @@ void StatusBarSettingsActivity::handleSelection() {
     case ITEM_CHAPTER_PAGE_COUNT:
       SETTINGS.statusBarChapterPageCount = (SETTINGS.statusBarChapterPageCount + 1) % 2;
       break;
+    case ITEM_PAGE_NUMBERS:
+      optionPopup.show(StrId::STR_PAGE_NUMBERS, pageNumbersNames, PAGE_NUMBERS_ITEMS, SETTINGS.statusBarPageNumbers,
+                       [this](int idx) {
+                         SETTINGS.statusBarPageNumbers = idx;
+                         SETTINGS.saveToFile();
+                       });
+      return;
     case ITEM_BOOK_PROGRESS_PERCENTAGE:
       SETTINGS.statusBarBookProgressPercentage = (SETTINGS.statusBarBookProgressPercentage + 1) % 2;
       break;
@@ -165,6 +180,8 @@ void StatusBarSettingsActivity::handleSelection() {
 
 std::string StatusBarSettingsActivity::rowValueText(const int index) {
   switch (index) {
+    case ITEM_PAGE_NUMBERS:
+      return I18N.get(pageNumbersNames[SETTINGS.statusBarPageNumbers]);
     case ITEM_PROGRESS_BAR:
       return I18N.get(progressBarNames[SETTINGS.statusBarProgressBar]);
     case ITEM_PROGRESS_BAR_THICKNESS:
