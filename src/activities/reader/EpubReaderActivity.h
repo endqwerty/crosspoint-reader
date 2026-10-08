@@ -109,7 +109,7 @@ class EpubReaderActivity final : public ReaderActivity {
   bool overlayRefreshPending = false;
   void pushOverlayRefresh();
   void settleOverlayRefresh();
-  int autoTurnOption = 0;  // current auto page-turn rate index (More panel)
+  int autoTurnOption = 0;  // current auto page-turn interval index (More panel)
   std::vector<EpubReaderMenuActivity::MenuItem> moreItems;
   EpubReaderMenuActivity::MenuAction selectedMenuAction = EpubReaderMenuActivity::MenuAction::SELECT_CHAPTER;
 
@@ -172,6 +172,7 @@ class EpubReaderActivity final : public ReaderActivity {
   bool saveProgress(int spineIndex, int currentPage, int pageCount,
                     std::optional<uint32_t> visibleTextOffset = std::nullopt);
   void jumpToPercent(int percent);
+  void jumpToByteOffset(size_t targetSize);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);
   int currentTocIndex() const;
   // Live section position, or the values cached before a child screen
