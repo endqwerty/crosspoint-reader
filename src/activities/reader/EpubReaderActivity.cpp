@@ -986,7 +986,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       const float chapterProgress =
           position.hasTotal() ? static_cast<float>(position.displayPage()) / position.totalPages : 0;
       const int initialValue =
-          bookPages ? ReferencePages::pageFor(epub->calculateProgress(currentSpineIndex, chapterProgress), pageCount)
+          bookPages ? ReferencePages::pageForEnd(epub->calculateProgress(currentSpineIndex, chapterProgress), pageCount)
                     : bookPercentFor(position);
       auto selector = makeUniqueNoThrow<EpubReaderPercentSelectionActivity>(renderer, mappedInput, initialValue,
                                                                             bookPages, pageCount);
@@ -2066,7 +2066,7 @@ void EpubReaderActivity::renderStatusBar() const {
   int textYOffset = 0;
   const auto sb = SETTINGS.statusBarSpec();
   const int displayPageCount = sb.bookPageNumbers && epub ? ReferencePages::count(epub->getBookSize()) : 0;
-  const int displayPage = ReferencePages::pageFor(bookProgress01, displayPageCount);
+  const int displayPage = ReferencePages::pageForEnd(bookProgress01, displayPageCount);
 
   if (automaticPageTurnActive) {
     title = tr(STR_AUTO_TURN_ENABLED) + std::to_string(pageTurnDuration / 1000) + " s";

@@ -66,7 +66,11 @@ The total and reference intervals do not depend on font size, margins, spacing
 or orientation. Position within the current chapter still follows its layout
 pages, so repagination or an estimated chapter total can move the displayed
 reference page slightly. Page jumps use the existing deferred chapter-position
-path and land on a layout page near the requested reference position.
+path and land on the layout page that contains the requested page's first
+byte. The displayed page is the reference page holding the last text on the
+screen (`ReferencePages::pageForEnd`; a boundary belongs to the earlier page),
+so a jump shows the requested page, or a later one when a layout page spans
+several reference pages.
 
 ## Page turns
 

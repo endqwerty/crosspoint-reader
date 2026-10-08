@@ -73,9 +73,34 @@ TEST(ReferencePagesTest, PageStartsRoundTrip) {
   }
 }
 
+TEST(ReferencePagesTest, EndPageOwnsItsUpperBoundary) {
+  EXPECT_EQ(ReferencePages::pageForEnd(0.5, 0), 0);
+  EXPECT_EQ(ReferencePages::pageForEnd(-1, 4), 1);
+  EXPECT_EQ(ReferencePages::pageForEnd(0, 4), 1);
+  EXPECT_EQ(ReferencePages::pageForEnd(0.1, 4), 1);
+  EXPECT_EQ(ReferencePages::pageForEnd(0.25, 4), 1);
+  EXPECT_EQ(ReferencePages::pageForEnd(0.2500001, 4), 2);
+  EXPECT_EQ(ReferencePages::pageForEnd(1, 4), 4);
+  EXPECT_EQ(ReferencePages::pageForEnd(std::numeric_limits<double>::quiet_NaN(), 4), 1);
+}
+
+TEST(ReferencePagesTest, JumpingToAPageNeverShowsAnEarlierPage) {
+  // A screen page that starts at the page's first byte and holds at least that
+  // byte ends at or after startOffset + 1.
+  for (uint32_t bytes : {1u, 3072u, 5001u, 204800u, 1000003u, std::numeric_limits<uint32_t>::max() - 1}) {
+    const auto pages = ReferencePages::count(bytes);
+    for (uint32_t page = 1; page <= pages; ++page) {
+      const auto offset = ReferencePages::startOffset(page, bytes, pages);
+      ASSERT_EQ(ReferencePages::pageForEnd((static_cast<double>(offset) + 1) / bytes, pages), page)
+          << "bytes=" << bytes << " page=" << page;
+    }
+  }
+}
+
 TEST(ReferencePagesTest, EvaluatesAtCompileTime) {
   static_assert(ReferencePages::count(0) == 0);
   static_assert(ReferencePages::count(3072) == 2);
   static_assert(ReferencePages::pageFor(0.5, 2) == 2);
+  static_assert(ReferencePages::pageForEnd(0.5, 2) == 1);
   static_assert(ReferencePages::startOffset(2, 5001, 2) == 2501);
 }
