@@ -131,6 +131,14 @@ Both personal forks use a single long-lived `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
+A third remote, `crossink` (`https://github.com/uxjulia/CrossInk.git`, fetch
+only, created by `scripts/fork-workflow.sh setup`), is a feature source, never a
+base: CrossInk is a single-maintainer fork of CrossPoint that diverges by
+roughly 130k lines. Read its code with `git show crossink/main:<path>` and port
+wanted behavior as small patches on this `develop`. What was evaluated, ported
+and declined is in [fork-crossink.md](fork-crossink.md); update it with every
+CrossInk-derived change and re-check its release notes when syncing.
+
 The fork is the project. In the maintained checkout
 (`~/workspace/crosspoint-reader`) `origin` is the personal fork, local `develop`
 tracks `origin/develop`, and `origin/HEAD` points to `origin/develop`, so T3
@@ -479,6 +487,15 @@ final baseline and serialize shared builds and Git operations.
 
 ## Development and validation preferences
 
+- Licensing (2026-10-08): this is a private personal fork with no other users or
+  distribution. Do not spend effort on license files, notices or compliance
+  tracking for adapted code (CrossInk is MIT). Still add the original human
+  author as `Co-Authored-By` when a commit adapts their code, as `AGENTS.md`
+  requires.
+- Delegation budget (2026-10-08): prefer GPT 6.1 Sol children while Codex
+  allowance remains above 5%, then prefer Claude children. Read the allowance
+  with `codex-usage` (see the global `AGENTS.md`) before and after a large
+  delegation; it reports Codex only.
 - Personal reader font (2026-10-06): embed Libron and enforce it over saved
   built-in, SD bitmap and vector font selections. Keep the selected font size
   at the nearest supported built-in size; preserve other typography settings.
