@@ -109,3 +109,60 @@ TYPED_TEST(SliderInputTest, IdleTickReleasesLockWithoutRequestingPaint) {
   EXPECT_EQ(RenderLock::acquisitions, 1);
   EXPECT_EQ(RenderLock::held, 0);
 }
+
+TEST(PageSliderInputTest, PageStepsClampAtBothEnds) {
+  EpubReaderPercentSelectionActivity activity;
+  activity.bookPages = true;
+  activity.maxPage = 3;
+  activity.value = 1;
+  RenderLock lock;
+  activity.adjustPercent(-10);
+  EXPECT_EQ(activity.value, 1);
+  activity.adjustPercent(10);
+  EXPECT_EQ(activity.value, 3);
+}
+
+TEST(PageSliderInputTest, DragUsesFullPageRangeWithoutOverflow) {
+  EpubReaderPercentSelectionActivity activity;
+  activity.bookPages = true;
+  activity.maxPage = 2097152;
+  RenderLock lock;
+  activity.onSliderEvent({0, 0}, &activity);
+  EXPECT_EQ(activity.value, 1);
+  activity.onSliderEvent({0, 500}, &activity);
+  EXPECT_EQ(activity.value, 1048577);
+  activity.onSliderEvent({0, 1000}, &activity);
+  EXPECT_EQ(activity.value, activity.maxPage);
+  activity.confirm();
+  EXPECT_EQ(activity.resultPage, activity.maxPage);
+  EXPECT_EQ(activity.resultValue, 0);
+}
+
+TEST(PageSliderInputTest, SinglePageBookAlwaysSelectsPageOne) {
+  EpubReaderPercentSelectionActivity activity;
+  activity.bookPages = true;
+  activity.maxPage = 1;
+  activity.value = 1;
+  RenderLock lock;
+  activity.adjustPercent(10);
+  activity.onSliderEvent({0, 1000}, &activity);
+  EXPECT_EQ(activity.value, 1);
+  activity.confirm();
+  EXPECT_EQ(activity.resultPage, 1);
+}
+
+TEST(PageSliderInputTest, PercentWrappingKeepsExistingEndpoints) {
+  EpubReaderPercentSelectionActivity activity;
+  RenderLock lock;
+  activity.setPercent(90);
+  activity.adjustPercent(10);
+  EXPECT_EQ(activity.value, 100);
+  activity.adjustPercent(1);
+  EXPECT_EQ(activity.value, 1);
+  activity.setPercent(0);
+  activity.adjustPercent(-1);
+  EXPECT_EQ(activity.value, 99);
+  activity.confirm();
+  EXPECT_EQ(activity.resultValue, 99);
+  EXPECT_EQ(activity.resultPage, 0);
+}
