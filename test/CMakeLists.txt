@@ -81,6 +81,7 @@ add_subdirectory(content_opf_parser)
 add_subdirectory(chapter_position)
 add_subdirectory(book_metadata_cache)
 add_subdirectory(book_metadata_cache_windows)
+add_subdirectory(reference_pages)
 add_subdirectory(home_button)
 add_subdirectory(button_press_navigation)
 
