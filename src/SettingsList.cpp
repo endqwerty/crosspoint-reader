@@ -327,6 +327,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   // --- Status Bar Settings (web-only, uses StatusBarSettingsActivity) ---
   emit(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                            "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR));
+  emit(SettingInfo::Enum(StrId::STR_PAGE_NUMBERS, &CrossPointSettings::statusBarPageNumbers,
+                         {StrId::STR_CHAPTER, StrId::STR_BOOK}, "statusBarPageNumbers", StrId::STR_CUSTOMISE_STATUS_BAR));
   emit(SettingInfo::Toggle(StrId::STR_BOOK_PROGRESS_PERCENTAGE, &CrossPointSettings::statusBarBookProgressPercentage,
                            "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR));
   emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR, &CrossPointSettings::statusBarProgressBar,

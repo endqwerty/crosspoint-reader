@@ -7,9 +7,9 @@
 
 class EpubReaderPercentSelectionActivity final : public Activity, private UiAppHost {
  public:
-  // Slider-style percent selector for jumping within a book.
-  explicit EpubReaderPercentSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                              int initialPercent);
+  // Slider selector for percentages or book reference pages.
+  explicit EpubReaderPercentSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, int initialValue,
+                                              bool bookPages = false, int maxPage = 1);
 
   void onEnter() override;
   void onExit() override;
@@ -27,8 +27,9 @@ class EpubReaderPercentSelectionActivity final : public Activity, private UiAppH
   void cancel();
   void confirm();
 
-  // Current percent value (0-100) shown on the slider.
-  int percent = 0;
+  int value = 0;
+  bool bookPages = false;
+  int maxPage = 1;
 
   ButtonNavigator buttonNavigator;
 
@@ -36,8 +37,8 @@ class EpubReaderPercentSelectionActivity final : public Activity, private UiAppH
   // the back gesture and cancel the dialog, or step the percent as a swipe.
   bool draggingSlider = false;
 
-  // Change the current percent by a delta and wrap within bounds.
+  // Step the selection, wrapping percentages and clamping pages.
   void adjustPercent(int delta);
-  // Absolute percent (clamped 0-100), from slider drag/tap positions.
+  // Selection from slider drag/tap positions.
   void setPercent(int value);
 };
