@@ -258,6 +258,7 @@ class EpubReaderActivity {
   void restoreSavedPosition();
   void clearPendingNavigation();
   void jumpToPercent(int percent);
+  void jumpToByteOffset(size_t targetSize);
   void loadSavedProgress();
   void returnFromProgress(const ActivityResult& result);
   void returnFromChapter(const ActivityResult& result);
