@@ -259,7 +259,8 @@ subsequent imports carry their validation in the task issue and pull request.
   local scheduling patch is retired), unreadable-book wake recovery (#3724: clear
   the remembered book before parsing, restore it only after rendering), Quick
   Resume display polarity and FAST moon refresh, removal of the startup loading
-  icon (#3671).
+  icon (#3671), batched visible-offset lookup reads (#3899; the local 16-entry
+  chunk loop is retired).
 - Display: UC8279 RC02 text-AA waveform restoration, absolute image-bank selection
   and lifecycle resets; UC8179 distinct light/dark gray waveforms (custom overlay
   exception retired); UC8279 X4 whole-screen FAST fallback (custom regional
