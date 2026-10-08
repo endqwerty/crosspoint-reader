@@ -25,8 +25,13 @@ constexpr int kLargeStep = 10;
 
 EpubReaderPercentSelectionActivity::EpubReaderPercentSelectionActivity(GfxRenderer& renderer,
                                                                        MappedInputManager& mappedInput,
-                                                                       const int initialPercent)
-    : Activity("EpubReaderPercentSelection", renderer, mappedInput), UiAppHost(renderer), percent(initialPercent) {}
+                                                                       const int initialValue, const bool bookPages,
+                                                                       const int maxPage)
+    : Activity("EpubReaderPercentSelection", renderer, mappedInput),
+      UiAppHost(renderer),
+      value(std::clamp(initialValue, bookPages ? 1 : 0, bookPages ? std::max(1, maxPage) : 100)),
+      bookPages(bookPages),
+      maxPage(std::max(1, maxPage)) {}
 
 void EpubReaderPercentSelectionActivity::onEnter() {
   Activity::onEnter();
@@ -42,28 +47,33 @@ void EpubReaderPercentSelectionActivity::onEnter() {
 void EpubReaderPercentSelectionActivity::onExit() { Activity::onExit(); }
 
 void EpubReaderPercentSelectionActivity::adjustPercent(const int delta) {
+  if (bookPages) {
+    setPercent(value + delta);
+    return;
+  }
   // Wrap using a 100-value ring (0% and 100% are the same wrap point), but keep 100 as the
   // natural landing value when reached without crossing the boundary (e.g. 90 + 10 = 100).
-  const int raw = percent + delta;
+  const int raw = value + delta;
   if (raw > 0 && raw % 100 == 0) {
-    percent = 100;
+    value = 100;
   } else {
-    percent = ((raw % 100) + 100) % 100;
+    value = ((raw % 100) + 100) % 100;
   }
   requestUpdate();
 }
 
 void EpubReaderPercentSelectionActivity::setPercent(const int value) {
-  const int clamped = std::clamp(value, 0, 100);
-  if (clamped == percent) return;
-  percent = clamped;
+  const int clamped = std::clamp(value, bookPages ? 1 : 0, bookPages ? maxPage : 100);
+  if (clamped == this->value) return;
+  this->value = clamped;
   requestUpdate();
 }
 
 void EpubReaderPercentSelectionActivity::onSliderEvent(const fui::ActionEvent& event, void* user) {
   auto* self = static_cast<EpubReaderPercentSelectionActivity*>(user);
   if (event.dragPermille < 0) return;
-  self->setPercent((static_cast<int>(event.dragPermille) * 100 + 500) / 1000);
+  const int range = self->bookPages ? self->maxPage - 1 : 100;
+  self->setPercent((static_cast<int64_t>(event.dragPermille) * range + 500) / 1000 + (self->bookPages ? 1 : 0));
 }
 
 void EpubReaderPercentSelectionActivity::onStepEvent(const fui::ActionEvent& event, void* user) {
@@ -84,7 +94,7 @@ void EpubReaderPercentSelectionActivity::cancel() {
 }
 
 void EpubReaderPercentSelectionActivity::confirm() {
-  setResult(PercentResult{percent});
+  setResult(PercentResult{bookPages ? 0 : value, bookPages ? value : 0});
   finish();
 }
 
@@ -154,20 +164,26 @@ void EpubReaderPercentSelectionActivity::percentScreen(UiScreen& screen, void* u
 }
 
 void EpubReaderPercentSelectionActivity::buildPercentScreen(UiScreen& screen) {
-  char readout[16];
-  snprintf(readout, sizeof(readout), "%d%%", percent);
+  char readout[32];
+  if (bookPages) {
+    snprintf(readout, sizeof(readout), tr(STR_PAGE_NUMBER_FORMAT), value, maxPage);
+  } else {
+    snprintf(readout, sizeof(readout), "%d%%", value);
+  }
   char hint1[64];
-  snprintf(hint1, sizeof(hint1), "%s %d%%", I18N.get(StrId::STR_STEP_HINT_FRONT), kSmallStep);
+  snprintf(hint1, sizeof(hint1), "%s %d%s", tr(STR_STEP_HINT_FRONT), kSmallStep, bookPages ? "" : "%");
   char hint2[64];
-  snprintf(hint2, sizeof(hint2), "%s %d%%", I18N.get(StrId::STR_STEP_HINT_SIDE), kLargeStep);
+  snprintf(hint2, sizeof(hint2), "%s %d%s", tr(STR_STEP_HINT_SIDE), kLargeStep, bookPages ? "" : "%");
+  char maxLabel[12];
+  snprintf(maxLabel, sizeof(maxLabel), "%d", maxPage);
 
   UiSliderDialogSpec spec;
-  spec.title = tr(STR_GO_TO_PERCENT);
+  spec.title = bookPages ? tr(STR_GO_TO_PAGE) : tr(STR_GO_TO_PERCENT);
   spec.readout = readout;
-  spec.value = percent;
-  spec.max = 100;
-  spec.minLabel = "0%";
-  spec.maxLabel = "100%";
+  spec.value = bookPages ? value - 1 : value;
+  spec.max = bookPages ? maxPage - 1 : 100;
+  spec.minLabel = bookPages ? "1" : "0%";
+  spec.maxLabel = bookPages ? maxLabel : "100%";
   spec.sliderAction = ACTION_SLIDER;
   spec.stepAction = ACTION_STEP;
   spec.okAction = ACTION_OK;

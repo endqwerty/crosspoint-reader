@@ -787,7 +787,8 @@ void BaseTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
 
 void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage,
                               const int pageCount, std::string title, const int paddingBottom, const int textYOffset,
-                              const bool fillMargin, const bool isPageBookmarked, const bool pageCountEstimated) {
+                              const bool fillMargin, const bool isPageBookmarked, const bool pageCountEstimated,
+                              const int displayPage, const int displayPageCount) {
   auto metrics = UITheme::getInstance().getMetrics();
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
@@ -809,14 +810,16 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
     char progressStr[32];
 
     // Draw the estimate marker separately so it can use the next UI font size.
-    const bool showEstimate = pageCountEstimated && sb.showChapterPageCount;
+    const bool showEstimate = pageCountEstimated && sb.showChapterPageCount && displayPageCount <= 0;
+    const int textPage = displayPageCount > 0 ? displayPage : currentPage;
+    const int textPageCount = displayPageCount > 0 ? displayPageCount : pageCount;
 
     if (sb.showBookProgressPercent && sb.showChapterPageCount) {
-      snprintf(progressStr, sizeof(progressStr), "%d/%d  %.0f%%", currentPage, pageCount, bookProgress);
+      snprintf(progressStr, sizeof(progressStr), "%d/%d  %.0f%%", textPage, textPageCount, bookProgress);
     } else if (sb.showBookProgressPercent) {
       snprintf(progressStr, sizeof(progressStr), "%.0f%%", bookProgress);
     } else {
-      snprintf(progressStr, sizeof(progressStr), "%d/%d", currentPage, pageCount);
+      snprintf(progressStr, sizeof(progressStr), "%d/%d", textPage, textPageCount);
     }
 
     int progressTextWidth = renderer.getTextWidth(SMALL_FONT_ID, progressStr);
