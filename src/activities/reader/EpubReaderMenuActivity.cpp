@@ -4,12 +4,16 @@
 #include <HalFrontlight.h>
 #include <I18n.h>
 
+#include "AutoTurnIntervals.h"
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "ReaderUtils.h"
 #include "components/UITheme.h"
 
 namespace fui = freeink::ui;
+
+// pageTurnLabels (EpubReaderMenuActivity.h) must list one label per AutoTurn option.
+static_assert(AutoTurn::OPTION_COUNT == 10, "update pageTurnLabels");
 
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                const std::string& title, const int currentPage, const int totalPages,
@@ -55,8 +59,10 @@ void EpubReaderMenuActivity::buildMenuItems(std::vector<MenuItem>& items, bool h
   items.push_back({MenuAction::DICTIONARY, StrId::STR_LOOKUP});
   items.push_back({MenuAction::FIND_IN_BOOK, StrId::STR_FIND_IN_BOOK});
   items.push_back({MenuAction::ROTATE_SCREEN, StrId::STR_ORIENTATION});
-  items.push_back({MenuAction::AUTO_PAGE_TURN, StrId::STR_AUTO_TURN_PAGES_PER_MIN});
-  items.push_back({MenuAction::GO_TO_PERCENT, StrId::STR_GO_TO_PERCENT});
+  items.push_back({MenuAction::AUTO_PAGE_TURN, StrId::STR_AUTO_TURN_SECONDS_PER_PAGE});
+  items.push_back({MenuAction::GO_TO_PERCENT, SETTINGS.statusBarPageNumbers == CrossPointSettings::BOOK_PAGE_NUMBERS
+                                                  ? StrId::STR_GO_TO_PAGE
+                                                  : StrId::STR_GO_TO_PERCENT});
   items.push_back({MenuAction::SCREENSHOT, StrId::STR_SCREENSHOT_BUTTON});
   items.push_back({MenuAction::DISPLAY_QR, StrId::STR_DISPLAY_QR});
   items.push_back({MenuAction::GO_HOME, StrId::STR_GO_HOME_BUTTON});
@@ -102,7 +108,7 @@ void EpubReaderMenuActivity::activateIndex(const int index) {
   }
 
   if (selectedAction == MenuAction::AUTO_PAGE_TURN) {
-    optionPopup.show(I18N.get(StrId::STR_AUTO_TURN_PAGES_PER_MIN), pageTurnLabels.data(),
+    optionPopup.show(I18N.get(StrId::STR_AUTO_TURN_SECONDS_PER_PAGE), pageTurnLabels.data(),
                      static_cast<int>(pageTurnLabels.size()), selectedPageTurnOption, [this](int idx) {
                        selectedPageTurnOption = idx;
                        requestUpdate();

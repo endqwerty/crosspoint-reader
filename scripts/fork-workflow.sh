@@ -15,6 +15,9 @@ SDK_PATH="freeink-sdk"
 BUILD_ROOT="${CROSSPOINT_BUILD_ROOT:-$HOME/.local/share/crosspoint-build}"
 TOOL_BIN="${CROSSPOINT_TOOL_BIN:-$BUILD_ROOT/venv/bin}"
 LLVM_BIN="${CROSSPOINT_LLVM_BIN:-/opt/homebrew/opt/llvm@22/bin}"
+# Community fork read as a feature source (docs/fork-crossink.md); never a base.
+CROSSINK_REMOTE="crossink"
+CROSSINK_URL="https://github.com/uxjulia/CrossInk.git"
 CI_ENVS="default sticky x4pro x4c papermono metalio_eink4 eego_a4"
 
 die() {
@@ -116,11 +119,14 @@ cmd_setup() {
   # gh resolves a fork's default repository to its parent unless told otherwise.
   gh repo set-default "$FORK_REPO"
   git remote set-url --push "$OFFICIAL_REMOTE" DISABLED-fetch-only
+  git remote get-url "$CROSSINK_REMOTE" >/dev/null 2>&1 || git remote add "$CROSSINK_REMOTE" "$CROSSINK_URL"
+  git remote set-url --push "$CROSSINK_REMOTE" DISABLED-fetch-only
   git config rerere.enabled true
   git config remote.pushDefault origin
   git config fetch.prune true
   echo "origin   = $FORK_REPO (pull requests target $BASE_BRANCH here)"
   echo "$OFFICIAL_REMOTE = $OFFICIAL_REPO (fetch only)"
+  echo "$CROSSINK_REMOTE = $CROSSINK_URL (fetch only, feature source)"
   gh api "repos/$FORK_REPO" --jq \
     '"merge commits allowed: \(.allow_merge_commit)\nsquash allowed: \(.allow_squash_merge)\nrebase allowed: \(.allow_rebase_merge)\ndelete branch on merge: \(.delete_branch_on_merge)"'
 }

@@ -2,6 +2,7 @@
 
 #include <Epub/Page.h>
 #include <Epub/PagePrefetchPolicy.h>
+#include <Epub/ReferencePages.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
 #include <FsHelpers.h>
@@ -25,6 +26,7 @@
 #include <iterator>
 
 #include "../../util/BookmarkFile.h"
+#include "AutoTurnIntervals.h"
 #include "BookmarkEntry.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -67,7 +69,6 @@ bool xteinkClassPanel() {
   return gpio.isXteinkDevice() || BoardConfig::isX4Pro() || BoardConfig::isX4Classic() || BoardConfig::isEegoA4();
 }
 
-constexpr int PAGE_TURN_RATES[] = {1, 1, 3, 6, 12};
 constexpr size_t initialBookmarkCacheCapacity = 16;
 constexpr float bookmarkProgressEpsilon = 0.0001f;
 
@@ -801,6 +802,15 @@ void EpubReaderActivity::jumpToPercent(int percent) {
       (bookSize / 100) * static_cast<size_t>(percent) + (bookSize % 100) * static_cast<size_t>(percent) / 100;
   if (percent >= 100) targetSize = bookSize - 1;
 
+  jumpToByteOffset(targetSize);
+}
+
+void EpubReaderActivity::jumpToByteOffset(size_t targetSize) {
+  if (!epub) return;
+  const size_t bookSize = epub->getBookSize();
+  if (bookSize == 0) return;
+  targetSize = std::min(targetSize, bookSize - 1);
+
   const int spineCount = epub->getSpineItemsCount();
   if (spineCount == 0) return;
 
@@ -965,16 +975,39 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       // Handled in-place by EpubReaderMenuActivity using the live frontlight HAL.
       break;
     case EpubReaderMenuActivity::MenuAction::GO_TO_PERCENT: {
-      const int initialPercent = bookPercentFor(chapterPosition());
-      startActivityForResult(
-          std::make_unique<EpubReaderPercentSelectionActivity>(renderer, mappedInput, initialPercent),
-          [this](const ActivityResult& result) {
-            if (result.isCancelled) {
-              openReaderMenu();
-            } else {
-              jumpToPercent(std::get<PercentResult>(result.data).percent);
-            }
-          });
+      const bool bookPages = SETTINGS.statusBarPageNumbers == CrossPointSettings::BOOK_PAGE_NUMBERS;
+      const auto position = chapterPosition();
+      const int pageCount = bookPages && epub ? ReferencePages::count(epub->getBookSize()) : 0;
+      if (bookPages && pageCount == 0) {
+        LOG_ERR("ERS", "No reference pages in empty book");
+        requestUpdate();
+        break;
+      }
+      const float chapterProgress =
+          position.hasTotal() ? static_cast<float>(position.displayPage()) / position.totalPages : 0;
+      const int initialValue =
+          bookPages ? ReferencePages::pageFor(epub->calculateProgress(currentSpineIndex, chapterProgress), pageCount)
+                    : bookPercentFor(position);
+      auto selector = makeUniqueNoThrow<EpubReaderPercentSelectionActivity>(renderer, mappedInput, initialValue,
+                                                                            bookPages, pageCount);
+      if (!selector) {
+        LOG_ERR("ERS", "OOM: page/percent selector");
+        requestUpdate();
+        break;
+      }
+      startActivityForResult(std::move(selector), [this](const ActivityResult& result) {
+        if (result.isCancelled) {
+          openReaderMenu();
+        } else {
+          const auto& selection = std::get<PercentResult>(result.data);
+          if (selection.page > 0 && epub) {
+            const auto bookSize = epub->getBookSize();
+            jumpToByteOffset(ReferencePages::startOffset(selection.page, bookSize, ReferencePages::count(bookSize)));
+          } else {
+            jumpToPercent(selection.percent);
+          }
+        }
+      });
       break;
     }
     case EpubReaderMenuActivity::MenuAction::DICTIONARY: {
@@ -1176,13 +1209,13 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
 }
 
 void EpubReaderActivity::toggleAutoPageTurn(const uint8_t selectedPageTurnOption) {
-  if (selectedPageTurnOption == 0 || selectedPageTurnOption >= std::size(PAGE_TURN_RATES)) {
+  if (!AutoTurn::isActive(selectedPageTurnOption)) {
     automaticPageTurnActive = false;
     return;
   }
 
   lastPageTurnTime = millis();
-  pageTurnDuration = (1UL * 60 * 1000) / PAGE_TURN_RATES[selectedPageTurnOption];
+  pageTurnDuration = AutoTurn::durationMs(selectedPageTurnOption);
   automaticPageTurnActive = true;
 
   const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
@@ -2026,14 +2059,17 @@ void EpubReaderActivity::renderStatusBar() const {
   const int currentPage = section ? section->currentPage + 1 : 1;
   const float pageCount = section ? section->estimatedTotalPages() : 1;
   const float sectionChapterProg = (pageCount > 0) ? (static_cast<float>(currentPage) / pageCount) : 0;
-  const float bookProgress = epub ? (epub->calculateProgress(currentSpineIndex, sectionChapterProg) * 100) : 0;
+  const float bookProgress01 = epub ? epub->calculateProgress(currentSpineIndex, sectionChapterProg) : 0;
+  const float bookProgress = bookProgress01 * 100;
 
   std::string title;
   int textYOffset = 0;
   const auto sb = SETTINGS.statusBarSpec();
+  const int displayPageCount = sb.bookPageNumbers && epub ? ReferencePages::count(epub->getBookSize()) : 0;
+  const int displayPage = ReferencePages::pageFor(bookProgress01, displayPageCount);
 
   if (automaticPageTurnActive) {
-    title = tr(STR_AUTO_TURN_ENABLED) + std::to_string(60 * 1000 / pageTurnDuration);
+    title = tr(STR_AUTO_TURN_ENABLED) + std::to_string(pageTurnDuration / 1000) + " s";
     const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
     if (statusBarHeight == 0 || statusBarHeight == UITheme::getInstance().getProgressBarHeight()) {
       textYOffset += UITheme::getInstance().getMetrics().statusBarVerticalMargin;
@@ -2052,7 +2088,7 @@ void EpubReaderActivity::renderStatusBar() const {
   }
 
   GUI.drawStatusBar(renderer, bookProgress, currentPage, pageCount, title, 0, textYOffset, true, currentPageBookmarked,
-                    section ? section->isBuilding() : false);
+                    section ? section->isBuilding() : false, displayPage, displayPageCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -2700,9 +2736,8 @@ std::string EpubReaderActivity::moreRowValue(int row) const {
     case MA::ROTATE_SCREEN:
       return I18N.get(kOrient[SETTINGS.orientation % CrossPointSettings::ORIENTATION_COUNT]);
     case MA::AUTO_PAGE_TURN:
-      return (autoTurnOption == 0 || autoTurnOption >= static_cast<int>(std::size(PAGE_TURN_RATES)))
-                 ? std::string(tr(STR_STATE_OFF))
-                 : std::to_string(PAGE_TURN_RATES[autoTurnOption]);
+      return AutoTurn::isActive(autoTurnOption) ? std::to_string(AutoTurn::SECONDS[autoTurnOption])
+                                                : std::string(tr(STR_STATE_OFF));
     default:
       return "";
   }
@@ -2735,10 +2770,10 @@ void EpubReaderActivity::activateMoreRow(int row) {
     }
     case MA::AUTO_PAGE_TURN: {
       std::vector<std::string> labels;
-      labels.reserve(std::size(PAGE_TURN_RATES));
+      labels.reserve(AutoTurn::OPTION_COUNT);
       labels.emplace_back(tr(STR_STATE_OFF));
-      for (size_t i = 1; i < std::size(PAGE_TURN_RATES); ++i) labels.push_back(std::to_string(PAGE_TURN_RATES[i]));
-      overlayPopup.show(StrId::STR_AUTO_TURN_PAGES_PER_MIN, labels, autoTurnOption, [this](int idx) {
+      for (size_t i = 1; i < AutoTurn::OPTION_COUNT; ++i) labels.push_back(std::to_string(AutoTurn::SECONDS[i]));
+      overlayPopup.show(StrId::STR_AUTO_TURN_SECONDS_PER_PAGE, labels, autoTurnOption, [this](int idx) {
         autoTurnOption = idx;
         toggleAutoPageTurn(static_cast<uint8_t>(idx));
       });
