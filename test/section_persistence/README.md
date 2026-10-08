@@ -42,9 +42,9 @@ They are not skipped, inverted, or registered with `WILL_FAIL`.
 
 `SectionLookupTest.cpp` tests the production visible-offset lookup used when
 restoring a reading position or resolving search results. On a 1,024-page
-chapter, sequential 16-entry reads reduce the complete lookup from 1,027 HAL
-read calls to 67, keeping the same 4,103 bytes, three seeks and one open. The
-64-byte stack buffer adds no owned heap storage. Tests cover first/last ties
+chapter, sequential 32-entry reads (upstream #3899) reduce the complete lookup
+from 1,027 HAL read calls to 35, keeping the same 4,103 bytes, three seeks and
+one open. The 128-byte stack buffer adds no owned heap storage. Tests cover first/last ties
 across chunk boundaries, the maximum 65,535-page count, partial-cache limits,
 in-memory build results with no SD access, and fallback to a longer partial.
 Every negative read error, short read and failed seek returns no position;
