@@ -290,11 +290,15 @@ no other cleanup job.
 
 - Run `scripts/fork-workflow.sh prepare` before building or testing. It checks
   out the pinned SDK, borrowing objects from the permanent checkout.
-- `scripts/fork-workflow.sh release` is optional, explicit build/SDK cleanup
-  when finished with this workspace and cleanup is needed for native removal.
-  Never run it merely because a thread settles or reaches a handoff. First
-  commit/push authorized work and preserve/export wanted firmware, check logs
-  and ignored local overrides such as `platformio.local.ini`. The command
+- `scripts/fork-workflow.sh release` drops build output and the SDK checkout.
+  Run it yourself as the last command of the turn that ends the task, every
+  time, including on a resumed thread (the Mac mini has little disk; the global
+  `AGENTS.md` requires it). Never defer it or offer it as an option. Run it only
+  once the work is delivered: commit/push authorized work and preserve/export
+  wanted firmware, check logs and ignored local overrides such as
+  `platformio.local.ini` first. State the final `du -sh .` in the last message.
+  A thread that is only investigating or has undelivered work does not release
+  until that is resolved. The command
   deinitializes the SDK, runs `git clean -ffdX` (including `.pio`, generated
   headers and ignored overrides), and deletes the external per-worktree check
   directories under `~/.local/share/crosspoint-build/ci/`. It checks SDK state
