@@ -46,6 +46,32 @@ allocation counts, command sequences). They do not measure optical ghosting,
 panel response, SD latency, peak device heap or physical input, and no
 Kindle-parity or speed claim rests on them.
 
+## Stable page numbers
+
+Settings > Customise Status Bar > Page Numbers selects Chapter (the default)
+or Book. Book shows a reference page and fixed book-wide total without the
+chapter estimate marker. The reader menu uses Go to Page with a 1..N slider;
+Chapter keeps Go to %. The chapter progress bar always tracks chapter pages.
+
+Reference pages use the uncompressed spine byte sizes already in `book.bin`,
+the same basis as book progress. `ReferencePages::BYTES_PER_PAGE` is 2,048;
+the total is the book size divided by that constant, rounded to the nearest
+integer (halves upward), with at least one page for a nonempty book and zero
+for an empty book. No optimizer metadata, new cache or persistent heap state
+is required. Jump offsets use 64-bit arithmetic and round upward to the first
+byte inside a reference page's interval.
+
+These numbers approximate position, not publisher or printed page numbers.
+The total and reference intervals do not depend on font size, margins, spacing
+or orientation. Position within the current chapter still follows its layout
+pages, so repagination or an estimated chapter total can move the displayed
+reference page slightly. Page jumps use the existing deferred chapter-position
+path and land on the layout page that contains the requested page's first
+byte. The displayed page is the reference page holding the last text on the
+screen (`ReferencePages::pageForEnd`; a boundary belongs to the earlier page),
+so a jump shows the requested page, or a later one when a layout page spans
+several reference pages.
+
 ## Page turns
 
 ### Input queue and ordering
