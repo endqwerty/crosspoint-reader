@@ -34,6 +34,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     INVERTED_BLACK_AND_WHITE = 2,
     SLEEP_SCREEN_COVER_FILTER_COUNT
   };
+  enum STATUS_BAR_PAGE_NUMBERS : uint8_t {
+    CHAPTER_PAGE_NUMBERS = 0,
+    BOOK_PAGE_NUMBERS = 1,
+    STATUS_BAR_PAGE_NUMBERS_COUNT
+  };
   enum STATUS_BAR_PROGRESS_BAR {
     BOOK_PROGRESS = 0,
     CHAPTER_PROGRESS = 1,
@@ -232,6 +237,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t sleepScreenCoverFilter = NO_FILTER;
   // Status bar settings
   uint8_t statusBarChapterPageCount = 1;
+  uint8_t statusBarPageNumbers = CHAPTER_PAGE_NUMBERS;
   uint8_t statusBarBookProgressPercentage = 1;
   uint8_t statusBarProgressBar = HIDE_PROGRESS;
   uint8_t statusBarProgressBarThickness = PROGRESS_BAR_NORMAL;
@@ -415,6 +421,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // stall it behind the SD write inside saveToFile(). Don't add one back.
   struct StatusBarSpec {
     bool showChapterPageCount = false;
+    bool bookPageNumbers = false;
     bool showBookProgressPercent = false;
     uint8_t titleMode = HIDE_TITLE;  // STATUS_BAR_TITLE
     bool showBattery = false;
