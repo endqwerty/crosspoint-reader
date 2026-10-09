@@ -34,4 +34,4 @@ home rather than restoring `.skills/` or duplicating the root policy.
 - `review-embedded`
 - `review-i18n-docs`
 
-The main agent verifies and fixes their findings before asking the human to review the diff and architecture.
+The main agent verifies and fixes their findings before the handoff to the human.

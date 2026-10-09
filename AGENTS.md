@@ -1,7 +1,8 @@
 # CrossPoint Reader agent guide
 
-Read [docs/FORK.md](docs/FORK.md) before working in this fork. It defines the
-fork-specific workflow and preferences alongside the upstream guidance below.
+Personal fork: read [docs/FORK.md](docs/FORK.md) first. It is short and says which
+fork pages the task needs. Rules below that its standing authorization changes have
+been edited to match.
 
 CrossPoint Reader is open-source e-reader firmware for Xteink and other FreeInk-supported devices. Its mission is a lightweight, high-performance reading experience focused on EPUB rendering. The X3/X4's ESP32-C3 remains the resource baseline: roughly 380 KB usable RAM, no PSRAM, and a single framebuffer sized for the selected panel. Other board profiles have different CPUs, display sizes, input, and memory capabilities; check the selected profile before assuming them.
 
@@ -43,14 +44,13 @@ Repository-local skills live under `.agents/skills/`. Load a skill when its fron
 
 A PR is a long-term maintenance commitment. Working code is not enough: prefer the simplest design that meets the real requirement, fits `SCOPE.md`, and can be understood and maintained by its human owner.
 
-Fully autonomous end-to-end agents are forbidden. Review subagents under the main
-agent's supervision may inspect code, diffs, history, and build metadata only; they may
-not edit, commit, push, open/close PRs, post reviews, release, deploy, or flash.
-
-The human must write PR descriptions; agents may give concise factual notes and test
-results, never ready-to-paste PR prose. Creating/amending local commits requires
-explicit human approval. Push only on an explicit human instruction to push;
-edit/commit approval does not authorize it. Never open or close a PR.
+The owner's standing authorization (docs/FORK.md) lets agents work end to end on the
+fork: commit, push to `origin`, open and describe fork PRs, and merge their own.
+Contributions to the official project stay human-owned: agents do not push or open
+PRs there without explicit approval, and the human writes the description. Review
+subagents under the main agent's supervision may inspect code, diffs, history, and
+build metadata only; they may not edit, commit, push, open/close PRs, post reviews,
+release, deploy, or flash.
 
 Repository-facing prose: use plain English for non-native readers and standard
 technical terms when clearest. Code comments must be short and useful after merge; follow the
@@ -67,9 +67,8 @@ This concise handoff checklist is a hard requirement:
 - [ ] Relevant tests and `./bin/clang-format-fix -g` completed; firmware built once after the final code edit.
 - [ ] Read-only reviews completed for correctness, architecture, embedded constraints, and i18n/user documentation.
 - [ ] The main agent verified, deduplicated, and fixed findings, then reran affected reviews after material fixes.
-- [ ] The main agent explained the behavior and architecture in plain English to someone unfamiliar with the codebase.
-- [ ] The human was told to review the diff and explicitly confirmed understanding of the behavior and architecture and ownership of maintenance.
-- [ ] The agent gave a concrete hardware test plan and reminded the human that hardware testing is required before a PR can be opened.
-- [ ] The agent did not claim hardware verification and did not write a PR description.
+- [ ] The main agent explained the behavior and architecture in plain English to someone unfamiliar with the codebase, in the PR and the final message.
+- [ ] Device checks that could not run are listed as unverified with a concrete hardware test plan (what to test, expected results, failure signs). The PR is not held for them.
+- [ ] The agent did not claim hardware verification.
 
-If the human rejects the architecture, stop the handoff, ask what must change, and revise before calling the work ready. Hardware testing is entirely the human's responsibility; explain what to test and what failures to watch for.
+If the human rejects the architecture, stop the handoff, ask what must change, and revise before calling the work ready. Hardware testing is the human's responsibility, not a gate: explain what to test and what failures to watch for.
