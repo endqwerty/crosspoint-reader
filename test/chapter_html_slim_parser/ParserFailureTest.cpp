@@ -524,7 +524,8 @@ struct AllocationCase {
 void PrintTo(const AllocationCase& parameter, std::ostream* output) { *output << parameter.name; }
 
 // TextBlock stores word offset, X, style, and a NUL-terminated word in its arena.
-constexpr size_t LOST_WORD_ARENA_BYTES = sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t) + sizeof("lostword");
+constexpr size_t LOST_WORD_ARENA_BYTES =
+    sizeof(TextBlock::SourceRange) + sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t) + sizeof("lostword");
 constexpr size_t FOCUS_WORD_ARENA_BYTES = LOST_WORD_ARENA_BYTES + sizeof(uint16_t) + sizeof(uint8_t);
 
 class ParserAllocationFailureTest : public ParserFailureTest, public ::testing::WithParamInterface<AllocationCase> {};
