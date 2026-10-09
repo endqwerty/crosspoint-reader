@@ -6,7 +6,7 @@ execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/extrac
 if(NOT extract_result EQUAL 0)
   message(FATAL_ERROR "File Browser production extraction failed")
 endif()
-add_executable(FileBrowserTest FileBrowserTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/FileBrowserProduction.cpp
+add_executable(FileBrowserTest FileBrowserTest.cpp ClippingStoreStub.cpp ${CMAKE_CURRENT_BINARY_DIR}/FileBrowserProduction.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryBookState.cpp ${REPO_ROOT}/lib/LibraryIndex/LibraryText.cpp
   ${REPO_ROOT}/lib/FsHelpers/FsHelpers.cpp ${REPO_ROOT}/lib/Utf8/Utf8.cpp
   ${REPO_ROOT}/src/util/BookmarkUtil.cpp ${REPO_ROOT}/src/util/BookStateMove.cpp
