@@ -2,7 +2,8 @@ set(LINK_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
 crosspoint_extract_between(methods ${LINK_SOURCE}
   "void EpubReaderActivity::navigateToHref("
   "void EpubReaderActivity::loadCachedBookmarks()")
-crosspoint_extract_between(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openDictionaryWordSelect(" "void EpubReaderActivity::loop()")
+crosspoint_extract_between(dictionary_select ${LINK_SOURCE} "void EpubReaderActivity::openDictionaryWordSelect(" "void EpubReaderActivity::startClipSelection(")
+crosspoint_extract_between(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openFootnoteSelect(" "void EpubReaderActivity::openClippings()")
 crosspoint_extract_between(percent_jump ${LINK_SOURCE} "void EpubReaderActivity::jumpToPercent(" "void EpubReaderActivity::onReaderMenuConfirm(")
 crosspoint_extract_between(progress_load ${LINK_SOURCE} "  bool hasSavedProgress = false;\n  HalFile f;"
   "  loadLinkStack();")
@@ -14,7 +15,7 @@ crosspoint_extract_between(chapter_result ${LINK_SOURCE} "          [this](const
 crosspoint_extract_between(toc_select ${LINK_SOURCE} "      const auto item = epub->getTocItem(panelIndex);"
   "    } else if (overlay == Overlay::More) {")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderLinkNavigationProduction.cpp
-  "#include \"ReaderLinkNavigationFixture.h\"\n${methods}\n${footnote_select}\n${percent_jump}\n${clear_pending}\n"
+  "#include \"ReaderLinkNavigationFixture.h\"\n${methods}\n${dictionary_select}\n${footnote_select}\n${percent_jump}\n${clear_pending}\n"
   "void EpubReaderActivity::loadSavedProgress() {\n${progress_load}\n}\n"
   "void EpubReaderActivity::returnFromProgress(const ActivityResult& result) {\n${progress_result}\nprogressChangeResultHandler(result);\n}\n"
   "void EpubReaderActivity::returnFromChapter(const ActivityResult& result) {\nauto handler = ${chapter_result}\n};\nhandler(result);\n}\n"

@@ -9,7 +9,7 @@ endif()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/I18nTranslationMacro.h "#pragma once\n${translation_macro}\n")
 
 crosspoint_extract_between(matching ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "struct ProgressRange {" "std::string buildReadFolderDestination(")
-crosspoint_extract_between(epsilon ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr float bookmarkProgressEpsilon =" "int clampPercent(")
+crosspoint_extract_between(epsilon ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr float bookmarkProgressEpsilon =" "constexpr int CLIP_SELECTION_PAGE_WINDOW =")
 crosspoint_extract_between(capacity ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr size_t initialBookmarkCacheCapacity =" "constexpr float bookmarkProgressEpsilon =")
 crosspoint_extract_between(add ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::addBookmark()" "void EpubReaderActivity::updateBookmarkFlag()")
 crosspoint_extract_between(load ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::loadCachedBookmarks()" "void EpubReaderActivity::addBookmark()")
