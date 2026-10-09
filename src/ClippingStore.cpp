@@ -67,7 +67,8 @@ bool moveStoreFiles(const std::string& from, const std::string& to, const MovePh
   const std::string source = storeFilePathForBook(from, "epub");
   const std::string target = storeFilePathForBook(to, "epub");
   if (source == target) return true;
-  return std::all_of(std::begin(STORE_SUFFIXES), std::end(STORE_SUFFIXES), [&](const char* suffix) {
+  bool ok = true;
+  for (const char* suffix : STORE_SUFFIXES) {
     const std::string oldPath = source + suffix;
     const std::string newPath = target + suffix;
     if (phase == MovePhase::Check) {
@@ -80,11 +81,13 @@ bool moveStoreFiles(const std::string& from, const std::string& to, const MovePh
       const auto& dst = phase == MovePhase::Move ? newPath : oldPath;
       if (Storage.exists(src.c_str()) && !Storage.rename(src.c_str(), dst.c_str())) {
         LOG_ERR("CLIP", "Failed moving clipping state: %s -> %s", src.c_str(), dst.c_str());
-        return false;
+        // A rollback restores every file it still can; a move stops at the first failure.
+        if (phase == MovePhase::Move) return false;
+        ok = false;
       }
     }
-    return true;
-  });
+  }
+  return ok;
 }
 
 struct MoveDirectory {
@@ -661,6 +664,26 @@ bool ClippingStore::deleteForFilePath(const std::string& filePath, const std::st
     }
   }
   return ok;
+}
+
+bool ClippingStore::hasStores(const std::string& filePath) {
+  const std::string path = storeFilePathForBook(filePath, "epub");
+  return std::any_of(std::begin(STORE_SUFFIXES), std::end(STORE_SUFFIXES),
+                     [&](const char* suffix) { return Storage.exists((path + suffix).c_str()); });
+}
+
+bool ClippingStore::moveStores(const std::string& from, const std::string& to) {
+  if (from == to) return true;
+  if (instance.loaded && (instance.bookFilePath == from || instance.bookFilePath == to)) {
+    LOG_ERR("CLIP", "Not moving clippings of the open book: %s", from.c_str());
+    return false;
+  }
+  if (!moveStoreFiles(from, to, MovePhase::Check)) return false;
+  if (moveStoreFiles(from, to, MovePhase::Move)) return true;
+  if (!moveStoreFiles(from, to, MovePhase::Rollback)) {
+    LOG_ERR("CLIP", "Clipping store move rollback failed: %s -> %s", from.c_str(), to.c_str());
+  }
+  return false;
 }
 
 bool ClippingStore::moveBook(const std::string& from, const std::string& to) {
