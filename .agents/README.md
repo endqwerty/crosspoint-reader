@@ -9,7 +9,7 @@ match. Reuse instructions already in context. Firmware handoff is the only fixed
 multi-skill bundle; load it after implementation and main-agent self-review.
 Read-only inquiries and reviewers do not run implementation handoff.
 
-`CLAUDE.md` links to the root guide. Each skill lives in a directory containing
+Each skill lives in a directory containing
 `SKILL.md`, with a matching frontmatter `name`. Descriptions identify when an
 agent should load a skill; contributors can also name it explicitly. Skills
 provide decision procedures and self-review checklists; those checklists also
@@ -39,4 +39,5 @@ home rather than restoring `.skills/` or duplicating the root policy.
 
 The [handoff skill](skills/firmware-handoff/SKILL.md) owns the workflow and
 completion criteria. Each reviewer task carries the inspection-only scope;
-the main agent owns test execution, builds, and diagnostic code.
+the main agent owns test execution, builds, and diagnostic code, and verifies
+and fixes the reviewers' findings before the handoff.
