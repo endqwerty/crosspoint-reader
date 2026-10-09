@@ -96,6 +96,8 @@ to this list.
 | `AGENTS.md` | Human ownership | The standing authorization replaces "fully autonomous agents are forbidden", ask-first commits, push-on-instruction, never opening a PR and human-written PR descriptions for fork work. The original rules are restated for the official project. Review subagents stay read-only. |
 | `AGENTS.md` | Mandatory firmware handoff | Checklist items for human confirmation, the hardware test plan and "did not write a PR description" follow the authorization for fork PRs. |
 | `.agents/rules/git-workflow.md` | Repository Detection Protocol | Roles of `origin`, `official`, `upstream`. |
+| `.agents/rules/git-workflow.md` | Branch Naming Convention | Notes that T3-assigned names are kept and `feature/`, `codex/` are accepted. |
+| `.agents/rules/environment.md` | formatting | Exception for `scripts/fork-workflow.sh check`. |
 | `.agents/rules/git-workflow.md` | Git Operation Rules 2–3 | Replaced by the authorization; `origin` instead of `fork`. |
 | `.agents/rules/git-workflow.md` | When to Commit | Ask-first and hardware-tested conditions replaced by the authorization. |
 | `.agents/rules/testing-debugging.md` | Testing Checklist, CI/CD | Local checks replace the GitHub Actions gate. |

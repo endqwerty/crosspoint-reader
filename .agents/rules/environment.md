@@ -12,7 +12,9 @@ Run `uname -s` once at session start and select tools/commands for the host:
 - Linux/WSL: full bash, Unix paths, native glob support.
 
 For formatting on every host, use `./bin/clang-format-fix -g` exclusively.
-Never invoke or probe `clang-format` directly.
+Never invoke or probe `clang-format` directly. The fork's `scripts/fork-workflow.sh check`
+is the one exception: it formats the whole tree through `bin/clang-format-fix` and needs
+a committed tree.
 
 ### Build in an existing environment
 

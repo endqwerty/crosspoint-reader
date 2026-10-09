@@ -24,8 +24,8 @@ to the X4 Pro and any specific upstream-compatibility risk in the diff:
 - `check --fast` is formatting and Release host tests only.
 - `check` formats the whole tree and compares it with the committed state, so on
   a dirty tree it skips formatting and fails ("commit first"). While editing,
-  run `./bin/clang-format-fix -g` as `.agents/rules/environment.md` says, then
-  commit and run `check`.
+  run `./bin/clang-format-fix -g` as `.agents/rules/environment.md` says, and
+  the relevant tests, build and reviews; then commit and run `check` before the PR.
 - Documentation-only changes need an agent-reviewed diff and
   `git diff --check`, not `check` or device testing.
 - Investigate new warnings caused by the diff; record existing dependency

@@ -48,8 +48,8 @@ The owner's standing authorization (docs/FORK.md) lets agents work end to end on
 fork: commit, push to `origin`, open and describe fork PRs, and merge their own. For the
 official project the original rules apply: agents are not fully autonomous; commits need
 explicit human approval; push only on explicit instruction; the human opens the PR, writes
-its description, confirms understanding of the behavior and architecture, and tests on
-hardware before it. Review subagents under the main agent's supervision may inspect
+its description, confirms understanding of the behavior and architecture and accepts maintenance
+ownership, and tests on hardware before it. Review subagents under the main agent's supervision may inspect
 code, diffs, history, and build metadata only; they may not edit, commit, push, open/close
 PRs, post reviews, release, deploy, or flash.
 

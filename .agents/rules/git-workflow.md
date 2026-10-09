@@ -15,7 +15,7 @@ project, fetch only; no remote is named `upstream`.
 ### Git Operation Rules
 
 1. Integration branches and PR comparisons target `develop`, not `master` or the remote's symbolic HEAD.
-2. The standing authorization (docs/FORK.md) covers pushing the task branch to `origin` and opening and merging this thread's PR on the fork. Never push to or open a PR against the official project without explicit approval from the human. Closing a PR unmerged is not covered.
+2. The standing authorization (docs/FORK.md) covers pushing the task branch to `origin` and opening and merging this thread's PR on the fork. Never push to the official project without explicit approval from the human, who also opens any PR against it. Closing a PR unmerged is not covered.
 3. Before a push, inspect remotes again and use `origin` for the feature branch unless the human specifies otherwise.
 4. Never add Claude, Codex, or assistant self-attribution as a commit co-author or generated-by trailer.
 5. When a change supersedes or adapts another person's PR, verify the original human author from Git/GitHub and add that person as `Co-Authored-By`; skip bot authors.
@@ -24,6 +24,7 @@ project, fetch only; no remote is named `upstream`.
 
 Use `<type>/<short-description>` for new branches, with the same type prefix as
 PR titles: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, or `perf`.
+In this fork a T3-assigned branch name is kept as is, and `feature/` and `codex/` are also accepted.
 
 ```text
 feat/<short-description>          # New features

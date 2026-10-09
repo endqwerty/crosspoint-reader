@@ -43,10 +43,10 @@ Collapse duplicates by root cause. Verify every finding against reachable code a
 
 ## 5. Hand off to the human
 
-Explain the old behavior, new behavior, architecture, affected files, and remaining risks in plain English for someone unfamiliar with the codebase. State checks run and any unresolved disagreement. Point the human to the diff (the PR) and this explanation.
+Explain the old behavior, new behavior, architecture, affected files, and remaining risks in plain English for someone unfamiliar with the codebase. State checks run and any unresolved disagreement. Prepare this explanation and the test plan below before the commit; for a fork PR, publish them in the PR body and point the human to that diff.
 
-Give a concrete hardware test plan: actions, expected results, relevant orientations, resource or cache observations, and likely failure signs. List the device checks as unverified; hardware testing is the human's responsibility and the PR is not held for it. Never claim hardware verification yourself.
+Give a concrete hardware test plan: actions, expected results, relevant orientations, resource or cache observations, and likely failure signs. For fork PRs, list the device checks as unverified: hardware testing is the human's responsibility and the PR is not held for it. For the official project, hardware testing comes before the PR. Never claim hardware verification yourself.
 
-For a reader task change, commit, push to `origin` and open the fork PR under the standing authorization (docs/FORK.md), and write the PR description yourself. Upstream syncs and SDK changes follow their own flow in docs/fork/. For the official project, the original rules in `AGENTS.md` apply. Follow the [Git rule](../../rules/git-workflow.md) for remote selection.
+After the checks, reviews and explanation above, for a reader task change commit, push to `origin` and open the fork PR under the standing authorization (docs/FORK.md), and write the PR description yourself. Upstream syncs and SDK changes follow their own flow in docs/fork/. For the official project, the original rules in `AGENTS.md` apply, including the human's confirmation of understanding and acceptance of maintenance ownership. Follow the [Git rule](../../rules/git-workflow.md) for remote selection.
 
 **Done when:** every hard checklist item in the root `AGENTS.md` is satisfied. If the human rejects the architecture, stop and revise it before calling the work ready.
