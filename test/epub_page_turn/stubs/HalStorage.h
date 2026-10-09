@@ -104,6 +104,7 @@ class HalFile {
   }
   size_t size() const { return bytes_ ? bytes_->size() : 0; }
   size_t position() const { return position_; }
+  int available() const { return bytes_ ? static_cast<int>(bytes_->size() - std::min(position_, bytes_->size())) : -1; }
   explicit operator bool() const { return bytes_ != nullptr; }
   bool close() {
     ++epub_page_test::io.closes;

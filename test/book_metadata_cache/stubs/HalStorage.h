@@ -55,6 +55,7 @@ class HalFile {
   explicit operator bool() const { return bytes; }
   bool isOpen() const { return bytes; }
   size_t position() const { return offset; }
+  int available() const { return static_cast<int>(size() - std::min(size(), offset)); }
   size_t size() const { return bytes ? bytes->size() : 0; }
   uint64_t fileSize64() const { return cache_test::reportedSize ? cache_test::reportedSize : size(); }
   bool seek(size_t at) {
