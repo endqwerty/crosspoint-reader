@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Fork workflow helper: task branches reach develop through pull requests on
 # the personal fork; develop itself moves only by rebasing onto the official
-# project. docs/FORK.md ("Branches and pull requests") says when to use each
-# command.
+# project. docs/FORK.md and docs/fork/ say when to use each command.
 set -euo pipefail
 
 OFFICIAL_REPO="crosspoint-reader/crosspoint-reader"
@@ -11,7 +10,7 @@ OFFICIAL_REPO="crosspoint-reader/crosspoint-reader"
 OFFICIAL_REMOTE="official"
 BASE_BRANCH="develop"
 SDK_PATH="freeink-sdk"
-# Local toolchain and build area (docs/FORK.md, "Development and validation preferences").
+# Local toolchain and build area (docs/fork/builds.md).
 BUILD_ROOT="${CROSSPOINT_BUILD_ROOT:-$HOME/.local/share/crosspoint-build}"
 TOOL_BIN="${CROSSPOINT_TOOL_BIN:-$BUILD_ROOT/venv/bin}"
 LLVM_BIN="${CROSSPOINT_LLVM_BIN:-/opt/homebrew/opt/llvm@22/bin}"
