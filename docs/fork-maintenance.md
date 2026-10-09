@@ -4,7 +4,7 @@ This document covers two maintenance concerns of the X4 Pro reading fork: the
 host test policy that guards local changes, and the record of how upstream
 CrossPoint `develop` work has been imported, adapted, deferred or rejected.
 Repository workflow (linear patch series, rebasing, publication rules) lives in
-`docs/FORK.md`; open planning lives in the
+`docs/FORK.md` and `docs/fork/`; open planning lives in the
 [fork issue queue](https://github.com/endqwerty/crosspoint-reader/issues/15).
 Current firmware and its evidence live in the build share's `FLASH-LATEST.md`.
 Byte layouts are in `docs/file-formats.md`.
@@ -214,7 +214,7 @@ upstream interfaces, not an alternate core.
    reading background task; failure paths for allocation, read and write; input
    and refresh state transitions tested.
 7. Build the X4 Pro image once after the final executable edit and publish only
-   after every gate passes against the same source (see `docs/FORK.md`).
+   after every gate passes against the same source (see `docs/fork/builds.md`).
    Compatibility with future upstream revisions is a recurring review, not a
    property any build can prove.
 8. Local planning does not change the maintainers' `ROADMAP.md` or `SCOPE.md`.
