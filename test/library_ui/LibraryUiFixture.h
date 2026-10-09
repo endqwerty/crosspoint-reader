@@ -117,6 +117,11 @@ struct StorageFake {
   bool exists(const char*) const { return true; }
 };
 inline StorageFake Storage;
+inline bool removeBookFile(const std::string& path) {
+  if (!Storage.remove(path.c_str())) return false;
+  clearBookCache(path);
+  return true;
+}
 namespace library {
 enum class SortOrder : uint8_t {
   AddedAsc,

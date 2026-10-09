@@ -2,8 +2,8 @@ set(LINK_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
 crosspoint_extract_between(methods ${LINK_SOURCE}
   "void EpubReaderActivity::navigateToHref("
   "void EpubReaderActivity::loadCachedBookmarks()")
-crosspoint_extract_between(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openDictionaryWordSelect(" "void EpubReaderActivity::loop()")
-crosspoint_extract_between(percent_jump ${LINK_SOURCE} "void EpubReaderActivity::jumpToPercent(" "void EpubReaderActivity::onReaderMenuConfirm(")
+crosspoint_extract_between(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openFootnoteSelect(" "void EpubReaderActivity::openClippings()")
+crosspoint_extract_between(percent_jump ${LINK_SOURCE} "void EpubReaderActivity::jumpToPercent(" "int EpubReaderActivity::currentTocIndex() const")
 crosspoint_extract_between(progress_load ${LINK_SOURCE} "  bool hasSavedProgress = false;\n  HalFile f;"
   "  loadLinkStack();")
 crosspoint_extract_between(clear_pending ${LINK_SOURCE} "void EpubReaderActivity::clearPendingNavigation()" "bool EpubReaderActivity::saveProgress(")
