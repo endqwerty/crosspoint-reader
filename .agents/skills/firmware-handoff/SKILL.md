@@ -85,7 +85,10 @@ or missing verification is explicitly reported and handoff remains incomplete.
 
 Explain old and new behavior, state/resource ownership, affected files, the
 important tradeoff, checks, and remaining risks in plain English. Point to the
-diff. Ask the human to accept the specific behavior and design tradeoff just
+diff. For a fork PR, prepare this explanation before the commit and publish it in
+the PR body under the standing authorization (docs/FORK.md); upstream syncs and
+SDK changes follow their own flow in docs/fork/. The rest of this paragraph applies
+to the official project. Ask the human to accept the specific behavior and design tradeoff just
 explained, including responsibility for maintaining it. Name the relevant choice:
 for example, bounded temporary storage and a fallback when allocation fails.
 For a straightforward fix, ask whether the new behavior and its state ownership
@@ -97,12 +100,14 @@ does not establish understanding and ownership.
 
 Give applicable hardware steps with expected results and likely failure signs,
 including orientations, resources, and caches when affected. Hardware testing is
-the human's responsibility and must happen before a PR is opened. Never claim
-hardware verification yourself. Publication follows the root guide's human
+the human's responsibility. For the official project it must happen before a PR
+is opened; for fork PRs, list the device checks as unverified and do not hold the
+PR for them. Never claim hardware verification yourself. Publication follows the root guide's human
 ownership policy and the [Git rule](../../rules/git-workflow.md).
 
 **Done when:** checks and independent reviews cover the final change, no verified
-finding remains, and explicit human acceptance covers the described behavior,
-architecture, and maintenance responsibility. The hardware test plan is provided.
+finding remains, and the described behavior, architecture, and maintenance
+responsibility are published in the fork PR (or, for the official project,
+covered by explicit human acceptance). The hardware test plan is provided.
 If the human rejects the architecture, ask what must change and revise before
 calling it ready.
