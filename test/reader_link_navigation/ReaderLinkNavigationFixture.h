@@ -118,7 +118,6 @@ struct ReaderRenderer {
 };
 inline struct {
   int screenMargin = 7;
-  char dictionaryName[16] = "dictionary";
 } SETTINGS;
 inline unsigned long millis() { return 1234; }
 struct EpubReaderFootnoteSelectActivity {
@@ -128,9 +127,6 @@ struct EpubReaderFootnoteSelectActivity {
   int top;
   EpubReaderFootnoteSelectActivity(ReaderRenderer&, int, std::unique_ptr<Page> p, int left, int top)
       : page(std::move(p)), count(page->count), left(left), top(top) {}
-};
-struct DictionaryWordSelectActivity : EpubReaderFootnoteSelectActivity {
-  using EpubReaderFootnoteSelectActivity::EpubReaderFootnoteSelectActivity;
 };
 inline bool failPickerAllocation = false;
 template <typename T, typename... Args>
@@ -248,9 +244,6 @@ class EpubReaderActivity {
     savedOffset = offset;
     return true;
   }
-  bool showDictionaryMessage = false;
-  unsigned long dictionaryMessageTime = 0;
-  void openDictionaryWordSelect();
   void openFootnoteSelect(bool returnToMenuOnCancel);
   void navigateToHref(const std::string& href, Jump jump);
   void saveLinkStack() const;
@@ -259,6 +252,7 @@ class EpubReaderActivity {
   void clearPendingNavigation();
   void jumpToPercent(int percent);
   void jumpToByteOffset(size_t targetSize);
+  void applyProgressChange(const ProgressChangeResult& sync);
   void loadSavedProgress();
   void returnFromProgress(const ActivityResult& result);
   void returnFromChapter(const ActivityResult& result);

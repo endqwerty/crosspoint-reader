@@ -11,6 +11,15 @@
 
 namespace {
 
+// Adapts a void line inspector (ASSERT_* needs a void function) to the layout callback.
+template <typename Inspect>
+auto keepLines(Inspect inspect) {
+  return [inspect](std::unique_ptr<TextBlock> block, uint32_t offset) {
+    inspect(std::move(block), offset);
+    return true;
+  };
+}
+
 struct Line {
   std::vector<std::string> words;
   std::vector<int16_t> xpos;
@@ -109,16 +118,17 @@ TEST(ClippingAnchors, SourceCoverageSurvivesWrappingAndHyphenation) {
       text.addWord("다라마바사아", EpdFontFamily::REGULAR, false, false, 103);
       text.addWord("자", EpdFontFamily::REGULAR, false, false, 110);
       unsigned coverage[11] = {};
-      text.layoutAndExtractLines(renderer, 0, width, [&](std::unique_ptr<TextBlock> block, auto) {
-        ASSERT_TRUE(block->valid());
-        for (uint16_t i = 0; i < block->wordCount(); ++i) {
-          const auto range = block->wordSourceRange(i);
-          ASSERT_GE(range.start, 100u);
-          ASSERT_LE(range.end, 111u);
-          ASSERT_LT(range.start, range.end);
-          for (uint32_t offset = range.start; offset < range.end; ++offset) ++coverage[offset - 100];
-        }
-      });
+      text.layoutAndExtractLines(renderer, 0, width, keepLines([&](std::unique_ptr<TextBlock> block, auto) {
+                                   ASSERT_TRUE(block->valid());
+                                   for (uint16_t i = 0; i < block->wordCount(); ++i) {
+                                     const auto range = block->wordSourceRange(i);
+                                     ASSERT_GE(range.start, 100u);
+                                     ASSERT_LE(range.end, 111u);
+                                     ASSERT_LT(range.start, range.end);
+                                     for (uint32_t offset = range.start; offset < range.end; ++offset)
+                                       ++coverage[offset - 100];
+                                   }
+                                 }));
       for (unsigned i = 0; i < 11; ++i) {
         EXPECT_EQ(coverage[i], i == 2 || i == 9 ? 0u : 1u) << "width=" << width << " offset=" << i;
       }
@@ -137,7 +147,7 @@ TEST(ClippingAnchors, NfcSourceCoverageSurvivesSplitsAndPartialExtraction) {
     text.addWord("Cafe\xCC\x81!中\xE1\x84\x92\xE1\x85\xA1\xE1\x86\xAB國", EpdFontFamily::REGULAR, false, false, 100);
     text.addWord("끝", EpdFontFamily::REGULAR, false, false, 112);
     unsigned coverage[13] = {};
-    auto inspect = [&](std::unique_ptr<TextBlock> block, auto) {
+    auto inspect = keepLines([&](std::unique_ptr<TextBlock> block, auto) {
       ASSERT_TRUE(block->valid());
       for (uint16_t i = 0; i < block->wordCount(); ++i) {
         const auto range = block->wordSourceRange(i);
@@ -146,7 +156,7 @@ TEST(ClippingAnchors, NfcSourceCoverageSurvivesSplitsAndPartialExtraction) {
         ASSERT_LT(range.start, range.end);
         for (uint32_t offset = range.start; offset < range.end; ++offset) ++coverage[offset - 100];
       }
-    };
+    });
     text.layoutAndExtractLines(renderer, 0, 32, inspect, false);
     text.layoutAndExtractLines(renderer, 0, 32, inspect);
     for (unsigned i = 0; i < 13; ++i) EXPECT_EQ(coverage[i], i == 11 ? 0u : 1u) << "offset=" << i;
@@ -160,14 +170,14 @@ TEST(ClippingAnchors, NfcFocusSegmentsKeepOriginalOffsets) {
   const uint32_t starts[] = {100, 105, 106};
   const uint32_t ends[] = {105, 106, 109};
   unsigned words = 0;
-  text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> block, auto) {
-    for (uint16_t i = 0; i < block->wordCount(); ++i) {
-      ASSERT_LT(words, 3u);
-      EXPECT_EQ(block->wordSourceRange(i).start, starts[words]);
-      EXPECT_EQ(block->wordSourceRange(i).end, ends[words]);
-      ++words;
-    }
-  });
+  text.layoutAndExtractLines(renderer, 0, 200, keepLines([&](std::unique_ptr<TextBlock> block, auto) {
+                               for (uint16_t i = 0; i < block->wordCount(); ++i) {
+                                 ASSERT_LT(words, 3u);
+                                 EXPECT_EQ(block->wordSourceRange(i).start, starts[words]);
+                                 EXPECT_EQ(block->wordSourceRange(i).end, ends[words]);
+                                 ++words;
+                               }
+                             }));
   EXPECT_EQ(words, 3u);
 }
 
@@ -182,25 +192,26 @@ TEST(ClippingAnchors, NfcHyphenationMarksSurviveCacheRoundTrip) {
     text.addWord("cafe\xCC\x81teria", EpdFontFamily::REGULAR, false, false, 100);
     uint32_t previousEnd = 100;
     unsigned hyphens = 0;
-    text.layoutAndExtractLines(renderer, 0, 40, [&](std::unique_ptr<TextBlock> block, auto) {
-      {
-        HalFile file;
-        ASSERT_TRUE(file.open(path.c_str(), "wb"));
-        ASSERT_TRUE(block->serialize(file));
-      }
-      HalFile file;
-      ASSERT_TRUE(file.open(path.c_str(), "rb"));
-      auto restored = TextBlock::deserialize(file);
-      ASSERT_NE(restored, nullptr);
-      for (uint16_t i = 0; i < restored->wordCount(); ++i) {
-        const auto range = restored->wordSourceRange(i);
-        EXPECT_EQ(range.start, previousEnd);
-        previousEnd = range.end;
-        EXPECT_EQ(restored->wordStyle(i), block->wordStyle(i));
-        EXPECT_EQ(restored->wordHasDiscretionaryHyphen(i), block->wordHasDiscretionaryHyphen(i));
-        if (restored->wordHasDiscretionaryHyphen(i)) ++hyphens;
-      }
-    });
+    text.layoutAndExtractLines(renderer, 0, 40, keepLines([&](std::unique_ptr<TextBlock> block, auto) {
+                                 {
+                                   HalFile file;
+                                   ASSERT_TRUE(file.open(path.c_str(), "wb"));
+                                   ASSERT_TRUE(block->serialize(file));
+                                 }
+                                 HalFile file;
+                                 ASSERT_TRUE(file.open(path.c_str(), "rb"));
+                                 auto restored = TextBlock::deserialize(file);
+                                 ASSERT_NE(restored, nullptr);
+                                 for (uint16_t i = 0; i < restored->wordCount(); ++i) {
+                                   const auto range = restored->wordSourceRange(i);
+                                   EXPECT_EQ(range.start, previousEnd);
+                                   previousEnd = range.end;
+                                   EXPECT_EQ(restored->wordStyle(i), block->wordStyle(i));
+                                   EXPECT_EQ(restored->wordHasDiscretionaryHyphen(i),
+                                             block->wordHasDiscretionaryHyphen(i));
+                                   if (restored->wordHasDiscretionaryHyphen(i)) ++hyphens;
+                                 }
+                               }));
     EXPECT_EQ(previousEnd, 110u);
     EXPECT_GT(hyphens, 0u);
   }
@@ -215,7 +226,7 @@ TEST(ClippingAnchors, DenseNfdHangulSurvivesChunkRetirement) {
   for (int i = 0; i < 22; ++i) word += "\xE1\x84\x92\xE1\x85\xA1\xE1\x86\xAB";
   for (uint32_t i = 0; i < 6; ++i) text.addWord(word, EpdFontFamily::REGULAR, false, false, 100 + i * 67);
   uint32_t covered = 0;
-  auto inspect = [&](std::unique_ptr<TextBlock> block, auto) {
+  auto inspect = keepLines([&](std::unique_ptr<TextBlock> block, auto) {
     for (uint16_t i = 0; i < block->wordCount(); ++i) {
       const auto range = block->wordSourceRange(i);
       if (range.start >= 100000) {
@@ -227,7 +238,7 @@ TEST(ClippingAnchors, DenseNfdHangulSurvivesChunkRetirement) {
       }
       covered += range.end - range.start;
     }
-  };
+  });
   text.layoutAndExtractLines(renderer, 0, 80, inspect, false);
   text.addWord("Cafe\xCC\x81", EpdFontFamily::REGULAR, false, false, 100000);
   text.layoutAndExtractLines(renderer, 0, 80, inspect);
