@@ -1,7 +1,8 @@
 # CrossPoint Reader agent guide
 
-Read [docs/FORK.md](docs/FORK.md) before working in this fork. It defines the
-fork-specific workflow and preferences alongside the upstream guidance below.
+Personal fork: read [docs/FORK.md](docs/FORK.md) first. It is short and says which
+fork pages the task needs. Rules below that its standing authorization changes have
+been edited to match.
 
 CrossPoint Reader is open-source e-reader firmware for Xteink and other FreeInk-supported devices. Its mission is a lightweight, high-performance reading experience focused on EPUB rendering. The X3/X4's ESP32-C3 remains the resource baseline: roughly 380 KB usable RAM, no PSRAM, and a single framebuffer sized for the selected panel. Other board profiles have different CPUs, display sizes, input, and memory capabilities; check the selected profile before assuming them.
 
@@ -53,15 +54,17 @@ Repository-local skills live under `.agents/skills/`. Their descriptions identif
 
 A PR is a long-term maintenance commitment. Working code is not enough: prefer the simplest design that meets the real requirement, fits `SCOPE.md`, and can be understood and maintained by its human owner.
 
-Fully autonomous end-to-end agents are forbidden. Review subagents inspect code,
-diffs, history, and recorded checks only. The main agent owns verification:
-reviewers may not write files (including temporary diagnostics), run tests/builds,
-commit, publish, deploy, or flash.
+The owner's standing authorization (docs/FORK.md) lets agents work end to end on the
+fork: commit, push to `origin`, open and describe fork PRs, and merge their own. For the
+official project the original rules apply: fully autonomous end-to-end agents are
+forbidden; the human writes PR descriptions (agents may give concise factual notes and
+test results, never ready-to-paste PR prose); creating or amending local commits needs
+explicit human approval; push only on an explicit human instruction; never open or close
+a PR.
 
-The human must write PR descriptions; agents may give concise factual notes and test
-results, never ready-to-paste PR prose. Creating/amending local commits requires
-explicit human approval. Push only on an explicit human instruction to push;
-edit/commit approval does not authorize it. Never open or close a PR.
+Review subagents inspect code, diffs, history, and recorded checks only. The main agent
+owns verification: reviewers may not write files (including temporary diagnostics), run
+tests/builds, commit, publish, deploy, or flash.
 
 Repository-facing prose: use plain English for non-native readers and standard
 technical terms when clearest. Code comments must be short and useful after merge; follow the
@@ -69,6 +72,6 @@ technical terms when clearest. Code comments must be short and useful after merg
 
 ## Mandatory firmware handoff
 
-For every logical change that can affect shipped firmware or its build—including C/C++, build configuration, partitions, code-generation sources, translations, and release scripts—the main agent must complete [firmware-handoff](.agents/skills/firmware-handoff/SKILL.md) before declaring the work ready or making an approved local commit. That skill owns the required checks, four independent reviews, bounded follow-up, and explicit human acceptance of behavior, architecture, and maintenance ownership.
+For every logical change that can affect shipped firmware or its build—including C/C++, build configuration, partitions, code-generation sources, translations, and release scripts—the main agent must complete [firmware-handoff](.agents/skills/firmware-handoff/SKILL.md) before declaring the work ready or making a commit. That skill owns the required checks, four independent reviews, bounded follow-up, and the explanation of behavior, architecture, and maintenance ownership (explicit human acceptance for the official project; for fork PRs the explanation goes in the PR body).
 
-Read-only inquiries, audits, and reviewers do not run implementation handoff. Pure tests, diagnostics, documentation, and host-only Python scripts use a lighter review unless they alter firmware output or its build. Hardware testing remains the human's responsibility and is required before a PR is opened.
+Read-only inquiries, audits, and reviewers do not run implementation handoff. Pure tests, diagnostics, documentation, and host-only Python scripts use a lighter review unless they alter firmware output or its build. Hardware testing remains the human's responsibility. It is required before a PR to the official project; a fork PR is not held for it and lists the device checks as unverified with a concrete test plan.
