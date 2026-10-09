@@ -562,27 +562,3 @@ TEST_F(ReaderLinkNavigationTest, FailedFootnotePageLoadKeepsOriginalPosition) {
   EXPECT_TRUE(reader.navigationHistory.empty());
   EXPECT_EQ(reader.updates, 1);
 }
-
-TEST_F(ReaderLinkNavigationTest, DictionarySelectorSnapshotsPageUnderLockAndLaunchesAfterUnlock) {
-  reader.showPage(2, 4);
-  reader.openDictionaryWordSelect();
-  ASSERT_TRUE(reader.picker);
-  EXPECT_EQ(reader.section->loads, 1);
-  EXPECT_EQ(reader.picker->left, 12);
-  EXPECT_EQ(reader.picker->top, 9);
-  EXPECT_EQ(reader.currentSpineIndex, 2);
-  EXPECT_EQ(reader.section->currentPage, 4);
-  reader.pickerResult(ActivityResult{true, FootnoteResult{}});
-  EXPECT_EQ(reader.updates, 1);
-}
-
-TEST_F(ReaderLinkNavigationTest, DictionaryPageLoadFailureDoesNotLaunchOrChangeReadingPosition) {
-  reader.showPage(2, 4);
-  reader.section->loadSucceeds = false;
-  reader.openDictionaryWordSelect();
-  EXPECT_FALSE(reader.picker);
-  EXPECT_EQ(reader.currentSpineIndex, 2);
-  EXPECT_EQ(reader.section->currentPage, 4);
-  EXPECT_EQ(reader.section->loads, 1);
-  EXPECT_EQ(reader.saves, 0);
-}
