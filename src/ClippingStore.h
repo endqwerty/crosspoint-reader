@@ -78,6 +78,12 @@ class ClippingStore {
   static bool deleteForFilePath(const std::string& filePath, const std::string& bookType);
   // Move a book or folder together with its clipping stores and deletion journals.
   static bool moveBook(const std::string& from, const std::string& to);
+  // True when any clipping store file exists for the book at filePath.
+  static bool hasStores(const std::string& filePath);
+  // Moves only the clipping stores, for a book that was renamed outside the device.
+  // Refuses when either path's store is loaded or the target already has one; a
+  // failed move is rolled back as far as the card allows (every file is retried).
+  static bool moveStores(const std::string& from, const std::string& to);
 
  private:
   static ClippingStore instance;
