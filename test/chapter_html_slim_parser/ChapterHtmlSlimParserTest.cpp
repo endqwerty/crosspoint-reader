@@ -22,6 +22,15 @@
 
 namespace {
 
+// Adapts a void line inspector (ASSERT_* needs a void function) to the layout callback.
+template <typename Inspect>
+auto keepLines(Inspect inspect) {
+  return [inspect](std::unique_ptr<TextBlock> block, uint32_t offset) {
+    inspect(std::move(block), offset);
+    return true;
+  };
+}
+
 class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
  protected:
   std::string filepath = "unused.xhtml";
@@ -766,7 +775,7 @@ TEST(TextSpacingLayout, ParagraphMarkerSurvivesBidiAndOnlyMarksFirstExtractedLin
     text.addWord("שני", EpdFontFamily::REGULAR);
     unsigned lines = 0;
     unsigned starts = 0;
-    auto inspect = [&](std::unique_ptr<TextBlock> block, auto) {
+    auto inspect = keepLines([&](std::unique_ptr<TextBlock> block, auto) {
       for (uint16_t i = 0; i < block->wordCount(); ++i) {
         if (!block->wordStartsParagraph(i)) continue;
         EXPECT_EQ(lines, 0u);
@@ -774,7 +783,7 @@ TEST(TextSpacingLayout, ParagraphMarkerSurvivesBidiAndOnlyMarksFirstExtractedLin
         ++starts;
       }
       ++lines;
-    };
+    });
     text.layoutAndExtractLines(renderer, 0, 100, inspect, false);
     ASSERT_GT(lines, 0u);
     ASSERT_GT(text.size(), 0u);
