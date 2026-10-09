@@ -22,6 +22,8 @@ is an environment issue, not a completed firmware build.
 
 Use `./bin/clang-format-fix -g` on every host, including formatter diagnostics;
 never invoke or probe raw `clang-format`. Run `pio check` when relevant.
+The fork's `scripts/fork-workflow.sh check` is the one exception: it formats the
+whole tree through `bin/clang-format-fix` and needs a committed tree.
 
 ### Testing and Verification Workflow
 
@@ -65,7 +67,9 @@ Use serial traces to establish the failure path before changing resources.
 Inspect current matrices under `.github/workflows/` before claiming board
 coverage. Preserve pinned core/packages and patches. Release/RC board-specific
 asset naming must agree with OTA discovery. Fix existing CI failures affecting
-the change before handoff.
+the change before handoff. GitHub Actions is off on this fork: run
+`scripts/fork-workflow.sh check` and fix its failures before a PR is opened or
+updated.
 
 ### Serial Monitor Options
 
