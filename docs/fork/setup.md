@@ -16,13 +16,8 @@ Both personal forks use a single long-lived `develop` branch:
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
-A third remote, `crossink` (`https://github.com/uxjulia/CrossInk.git`, fetch
-only, created by `scripts/fork-workflow.sh setup`), is a feature source, never a
-base: CrossInk is a single-maintainer fork of CrossPoint that diverges by
-roughly 130k lines. Read its code with `git show crossink/main:<path>` and port
-wanted behavior as small patches on this `develop`. What was evaluated, ported
-and declined is in [fork-crossink.md](../fork-crossink.md); update it with every
-CrossInk-derived change and re-check its release notes when syncing.
+A third remote, `crossink`, is fetch only and a feature source, never a base; see
+[scope.md](scope.md#porting-from-crossink).
 
 The fork is the project. In the maintained checkout
 (`~/workspace/crosspoint-reader`) `origin` is the personal fork, local `develop`
@@ -58,10 +53,6 @@ is the CI (see "Local checks" in [builds.md](builds.md#local-checks)).
 use worktrees and leaves the SDK submodule unpopulated in them
 (`worktreeSubmodules: "none"`), because git cannot remove a worktree that has a
 submodule checked out (see [Worktree lifecycle](builds.md#worktree-lifecycle)).
-
-Do not keep bundle or other off-repository backups of the fork's history; the
-user does not want them (2026-10-01). The backup ref that `sync-publish` leaves
-under `refs/fork-backup/` is enough.
 
 ## Instruction-file maintenance
 

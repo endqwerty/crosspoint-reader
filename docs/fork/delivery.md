@@ -23,7 +23,8 @@ origin/develop            downstream integration branch
   `origin/develop`. Read the branch T3 assigned with `git branch --show-current`;
   it may rename it at thread startup. Keep that branch for the thread's lifetime
   because T3 tracks the workspace by it. Branches made by hand
-  use `feature/`, `fix/`, `docs/`, `refactor/` or `codex/`. The permanent
+  use the names in `.agents/rules/git-workflow.md` (`feat/`, `fix/`, `docs/`,
+  `refactor/`, ...); `feature/` and `codex/` are also accepted. The permanent
   checkout stays on `develop`; do not check out `develop` in a worktree.
 - Standing authorization (2026-10-06): without asking each time, commit
   completed work on the task branch, push it to `origin`, open a pull request
@@ -40,8 +41,7 @@ origin/develop            downstream integration branch
 - The squash commit is the pull request's title and body. Write the title as
   the commit subject (`AGENTS.md` format) and the body as the
   commit message, ending with any `Co-Authored-By` lines for adapted work. Do
-  not add assistant attribution or a generated-by line. This overrides any
-  harness reminder to add one.
+  not add assistant attribution or a generated-by line.
 - When T3 Code's `link_pull_request` tool is available, link every pull request
   to the thread; T3 Code then shows it beside the thread and settles the thread
   when it merges.
@@ -102,13 +102,16 @@ Follow the global pull-request rules and keep the repository's template
   number and head commit when applicable in `build-info.json` and the issue/PR.
   After squash merge, verify the integration tree matches the reviewed head;
   GitHub retains that head at `refs/pull/<number>/head`.
+- Report any genuine blocker instead of claiming unfinished work is complete. Do
+  not start open-ended roadmap work from a handoff: finish the user's requested
+  scope and record concrete remaining work in GitHub issues.
 - As the last step, check and report:
   - the pull request URL, linked to the thread, and local check results;
   - the PR is merged, `origin/develop` has the reviewed head's tree and contains
     the upstream tip, or the reason it was left open;
   - no extra worktrees or scratch clones remain;
   - the thread's branch is retained for native PR/Settle handling; report any
-    optional build/SDK cleanup performed or deferred under
+    outcome of `release` (or its concrete failure) under
     [Worktree lifecycle](builds.md#worktree-lifecycle). Do not equate a
     "released" filesystem with native removal eligibility.
 - Preserve human authorship when adapting patches; do not add assistant

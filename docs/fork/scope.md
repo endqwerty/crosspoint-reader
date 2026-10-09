@@ -55,5 +55,13 @@ fork effort goes; they never justify diverging from upstream's design.
   files, and keeping reading state across re-exports. The supported copy step is
   `scripts/sync-calibre-library.sh`; update it rather than documenting another
   procedure.
-- Do not start open-ended roadmap work from a handoff. Finish the user's requested
-  scope and record concrete remaining work in GitHub issues.
+
+## Porting from CrossInk
+
+The remote `crossink` (`https://github.com/uxjulia/CrossInk.git`, fetch
+only, created by `scripts/fork-workflow.sh setup`) is a feature source, never a
+base: CrossInk is a single-maintainer fork of CrossPoint that diverges by
+roughly 130k lines. Read its code with `git show crossink/main:<path>` and port
+wanted behavior as small patches on this `develop`. What was evaluated, ported
+and declined is in [fork-crossink.md](../fork-crossink.md); update it with every
+CrossInk-derived change and re-check its release notes when syncing.

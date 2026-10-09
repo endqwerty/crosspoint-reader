@@ -22,6 +22,10 @@ to the X4 Pro and any specific upstream-compatibility risk in the diff:
   otherwise run only the relevant additional `pio run -e <target>` builds.
   Run `pio check` separately when static analysis is needed without the matrix.
 - `check --fast` is formatting and Release host tests only.
+- `check` formats the whole tree and compares it with the committed state, so on
+  a dirty tree it skips formatting and fails ("commit first"). While editing,
+  run `./bin/clang-format-fix -g` as `.agents/rules/environment.md` says, then
+  commit and run `check`.
 - Documentation-only changes need an agent-reviewed diff and
   `git diff --check`, not `check` or device testing.
 - Investigate new warnings caused by the diff; record existing dependency
@@ -104,8 +108,9 @@ no other cleanup job.
   require it every time). Run it only once the work is delivered or preserved:
   commit/push authorized work and preserve/export wanted firmware, check logs
   and ignored local overrides such as `platformio.local.ini` first. A thread
-  that is only investigating or has undelivered work first commits what it has
-  to the task branch and preserves those files, then releases. The command
+  that is only investigating or has undelivered work copies those files out of
+  the worktree, then releases; it does not commit unfinished work for this
+  (uncommitted edits to tracked files survive `release`). The command
   deinitializes the SDK, runs `git clean -ffdX` (including `.pio`, generated
   headers and ignored overrides), and deletes the external per-worktree check
   directories under `~/.local/share/crosspoint-build/ci/`. It checks SDK state

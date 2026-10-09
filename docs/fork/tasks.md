@@ -53,15 +53,22 @@ the homelab page.
 The global rules and T3 Code's orchestration instructions govern delegation.
 This repository adds:
 
-- Children share the thread's checkout and work inside it. Assign disjoint
-  implementation files; serialize overlapping edits and builds that generate
-  shared files. Preserve existing changes rather than requiring a blanket
-  clean-tree reset. No child creates an unmanaged worktree, deletes branches or
-  publishes independently; the parent handles commits, publishing and
-  integration.
+- Children inherit the parent's runtime mode (omit the override); do not alter
+  permission settings or bypass an approval request.
+- Brief each child with the task, absolute paths, starting HEAD, owned files,
+  allowed actions and completion criteria. Children share the thread's checkout
+  and work inside it. Assign disjoint implementation files; serialize
+  overlapping edits and builds that generate shared files. Preserve existing
+  changes rather than requiring a blanket clean-tree reset.
+- Implementers run the relevant checks and return the diff, results and
+  unresolved findings. The parent reviews it, collects every outcome, and
+  handles commits, publishing and integration. No child creates an unmanaged
+  worktree, deletes branches or publishes independently.
 - Obtain an independent review from another model for memory, rendering or
-  shared-code changes. Reviews complement meaningful host/build checks;
-  unavailable device measurements do not block delivery.
+  shared-code changes. Verify findings against source and resolve material
+  objections. Reviews complement meaningful host/build checks; unavailable
+  device measurements do not block delivery.
 - Delegation budget (2026-10-08): prefer GPT 6.1 Sol children while Codex
   allowance remains above 5%, then prefer Claude children. Read the allowance
-  with `homelab usage` before and after a large delegation.
+  with `codex-usage` (see the global `AGENTS.md`) before and after a large
+  delegation; it reports Codex only.

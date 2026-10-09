@@ -6,7 +6,7 @@ Load all task-matched rules and skills. Firmware handoff is the only fixed
 multi-skill bundle; other tasks require every skill matched by the root routing
 table or its description.
 
-`CLAUDE.md` links to the root guide. Each skill lives in a directory containing
+Each skill lives in a directory containing
 `SKILL.md`, with a matching frontmatter `name`. Descriptions identify when an
 agent should load a skill; contributors can also name it explicitly. Skills
 provide decision procedures and self-review checklists; those checklists also

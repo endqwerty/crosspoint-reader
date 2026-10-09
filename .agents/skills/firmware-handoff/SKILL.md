@@ -47,6 +47,6 @@ Explain the old behavior, new behavior, architecture, affected files, and remain
 
 Give a concrete hardware test plan: actions, expected results, relevant orientations, resource or cache observations, and likely failure signs. List the device checks as unverified; hardware testing is the human's responsibility and the PR is not held for it. Never claim hardware verification yourself.
 
-Commit, push to `origin` and open the fork PR under the standing authorization (docs/FORK.md), and write the PR description yourself. Do not push to or open a PR against the official project without explicit approval. Follow the [Git rule](../../rules/git-workflow.md) for remote selection.
+For a reader task change, commit, push to `origin` and open the fork PR under the standing authorization (docs/FORK.md), and write the PR description yourself. Upstream syncs and SDK changes follow their own flow in docs/fork/. For the official project, the original rules in `AGENTS.md` apply. Follow the [Git rule](../../rules/git-workflow.md) for remote selection.
 
 **Done when:** every hard checklist item in the root `AGENTS.md` is satisfied. If the human rejects the architecture, stop and revise it before calling the work ready.
