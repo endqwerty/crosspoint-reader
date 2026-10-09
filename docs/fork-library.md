@@ -107,7 +107,8 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
 - State is keyed by the raw complete path. Renames performed through Browse Files
   on the device, and the "Move finished books to /Read" move, carry the state
   sidecar (with bookmark/cache files and protected-book `.key`/`.rights` files)
-  and roll back on failure
+  and roll back on failure; the book's clipping store moves with it
+  (`ClippingStore::moveBook`)
   (`moveBookWithState()` in `src/util/BookStateMove.cpp`). The /Read destination
   skips names that already have leftover cache/bookmark files or nondefault
   Library reading/favorite marks. Unreadable marks also block reuse. A readable
@@ -138,12 +139,17 @@ bookmarks and progress.
 
 The handler used by the Library and Home refreshes (`relinkRenamedBook`,
 `src/util/LibraryRelink.cpp`) calls `relinkBookState()`
-(`src/util/BookStateMove.cpp`), which moves the reader cache, the bookmark files
-and the reading state to the new path with rollback on failure, deletes the old
-reading state, repoints the Recent entry and the open-book path. It relinks only
-when the old book is gone, the new book exists, the old path has state and the
-new path has none: state already built at the new path is left alone and the old
-state stays orphaned. The Library entry runs the refresh before pruning missing
+(`src/util/BookStateMove.cpp`), which moves the reader cache, the bookmark files,
+the clipping store (`ClippingStore::moveStores`, all of its `.bak`, `.tmp`,
+`.deleted` and `.migrate.bak` files) and the reading state to the new path with
+rollback on failure (a rollback that itself fails on the card is logged and can
+leave some store files at the new path), deletes the old reading state, repoints the Recent entry and
+the open-book path. It relinks only when the old book is gone, the new book
+exists, the old path has state (clippings count) and the new path has none: state
+already built at the new path, including a clipping store, is left alone and the
+old state stays orphaned. A relink never moves the clippings of the book the
+reader has loaded. `isBookPathFree` also treats leftover clippings as used, so
+the /Read move picks another name. The Library entry runs the refresh before pruning missing
 Recent entries, so a renamed book stays in Recent.
 
 Cost: one journal record per UUID rename (about 20 bytes plus the old path) on SD,
