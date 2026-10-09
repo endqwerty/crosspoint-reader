@@ -29,6 +29,12 @@ where fork effort goes; they never justify diverging from upstream's design.
 If a fork preference conflicts with upstream, follow upstream and note it in
 the task's issue or pull request.
 
+Upstream's `AGENTS.md` (since 2026-10-09) says fully autonomous end-to-end agents
+are forbidden and keeps rules under `.agents/rules/` and `.agents/skills/`. That
+governs contributions to the official project. This fork's work is covered by
+the user's standing authorization above, which ranks first; engineering rules in
+`.agents/rules/` (heap, HAL, formatting, scope) still apply to the code.
+
 ## Shared information
 
 The user works in this repository with several agents (Codex, Claude Code and

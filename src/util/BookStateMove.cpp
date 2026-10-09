@@ -48,9 +48,16 @@ void getStatePaths(const std::string& bookPath, const bool withBookmarks, std::s
 // transaction on the heap avoids a large task-stack frame.
 class RenameState {
  public:
-  RenameState(const std::string& oldPath, const std::string& newPath, const bool includeBookSidecars)
+  // includeClippings moves the clipping stores of a book renamed outside the device;
+  // an on-device move leaves them to ClippingStore::moveBook.
+  RenameState(const std::string& oldPath, const std::string& newPath, const bool includeBookSidecars,
+              const bool includeClippings = false)
       : oldKey(library::bookStateKey(oldPath)), newKey(library::bookStateKey(newPath)) {
     const bool withBookmarks = FsHelpers::hasReflowableBookExtension(std::string_view(oldPath));
+    if (includeClippings && withBookmarks) {
+      oldBook = oldPath;
+      newBook = newPath;
+    }
     getStatePaths(oldPath, withBookmarks, oldPaths);
     getStatePaths(newPath, withBookmarks, newPaths);
     if (includeBookSidecars && withBookmarks) {
@@ -62,6 +69,9 @@ class RenameState {
   }
   ~RenameState() {
     if (committed) return;
+    if (clippingsMoved && !ClippingStore::moveStores(newBook, oldBook)) {
+      LOG_ERR("BookMove", "Failed to roll back clippings: %s", oldBook.c_str());
+    }
     for (size_t i = BOOK_SIDECAR_COUNT; i-- > 0;) {
       if (sidecarsMoved[i] && !Storage.rename(newSidecars[i].c_str(), oldSidecars[i].c_str())) {
         LOG_ERR("BookMove", "Failed to roll back book sidecar: %s", oldSidecars[i].c_str());
@@ -120,6 +130,13 @@ class RenameState {
       }
       sidecarsMoved[i] = true;
     }
+    if (!oldBook.empty() && ClippingStore::hasStores(oldBook)) {
+      if (!ClippingStore::moveStores(oldBook, newBook)) {
+        LOG_ERR("BookMove", "Failed to move clippings: %s", oldBook.c_str());
+        return false;
+      }
+      clippingsMoved = true;
+    }
     return true;
   }
   void commit() { committed = true; }
@@ -129,6 +146,8 @@ class RenameState {
   bool moved[STATE_PATH_COUNT]{};
   std::string oldSidecars[BOOK_SIDECAR_COUNT], newSidecars[BOOK_SIDECAR_COUNT];
   bool sidecarsMoved[BOOK_SIDECAR_COUNT]{};
+  std::string oldBook, newBook;  // set only when the clipping stores move with the state
+  bool clippingsMoved = false;
   uint64_t oldKey, newKey;
   library::BookState previousState;
   bool stateWritten = false;
@@ -151,6 +170,7 @@ bool isBookPathFree(const std::string& path) {
       paths[0].assign(path).append(suffix);
       if (Storage.exists(paths[0].c_str())) return false;
     }
+    if (ClippingStore::hasStores(path)) return false;
   }
   library::BookState state;
   return library::readBookState(library::bookStateKey(path), state) && !hasReadingState(state);
@@ -173,12 +193,16 @@ bool relinkBookState(const std::string& oldPath, const std::string& newPath) {
     hasOldState = hasOldState || (!oldPaths[i].empty() && Storage.exists(oldPaths[i].c_str()));
     newHasState = newHasState || (!newPaths[i].empty() && Storage.exists(newPaths[i].c_str()));
   }
+  if (withBookmarks) {
+    hasOldState = hasOldState || ClippingStore::hasStores(oldPath);
+    newHasState = newHasState || ClippingStore::hasStores(newPath);
+  }
   if (!hasOldState) return false;
   if (newHasState) {
     LOG_DBG("BookMove", "Keeping existing state at %s; not relinking %s", newPath.c_str(), oldPath.c_str());
     return false;
   }
-  auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath, false);
+  auto state = makeUniqueNoThrow<RenameState>(oldPath, newPath, false, true);
   if (!state) {
     LOG_ERR("BookMove", "OOM: relink state");
     return false;
