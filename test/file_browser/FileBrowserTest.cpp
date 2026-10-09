@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <cstdio>
+#include <functional>
 
+#include "ClippingStore.h"
 #include "FileBrowserFixture.h"
 
 class FileBrowserTest : public testing::Test {
@@ -273,6 +275,18 @@ TEST_F(FileBrowserTest, MoveIntoFolderCarriesBookmarksCacheAndReadingState) {
   EXPECT_FALSE(isBookPathFree(newPath));
   // A book added later at the old path starts without the moved book's marks.
   expectState(oldPath, false, library::ReadingState::Unread);
+}
+
+// Where the clipping store keeps a book's data; the hash of the book path names the file.
+static std::string clippingFile(const std::string& bookPath, const char* suffix = "") {
+  return "/.crosspoint/clippings/epub_" + std::to_string(std::hash<std::string>{}(bookPath)) + ".bin" + suffix;
+}
+
+TEST_F(FileBrowserTest, BookPathIsTakenByLeftoverClippings) {
+  const std::string path = "/read/Done.epub";
+  EXPECT_TRUE(isBookPathFree(path));
+  fake::add(clippingFile(path, ".deleted"), "ids");
+  EXPECT_FALSE(isBookPathFree(path));
 }
 
 TEST_F(FileBrowserTest, BookPathIsTakenByLeftoverStateWithoutTheBook) {
@@ -611,4 +625,80 @@ TEST_F(RelinkBookStateTest, FailureRollsEverythingBackAndKeepsTheOldState) {
   EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "primary");
   expectState(oldPath, true, library::ReadingState::Reading);
   expectState(newPath, false, library::ReadingState::Unread);
+}
+
+TEST_F(RelinkBookStateTest, MovesEveryClippingStoreFileAndLeavesNoneBehind) {
+  const char* suffixes[] = {"", ".bak", ".tmp", ".deleted", ".migrate.bak"};
+  for (const char* suffix : suffixes) fake::add(clippingFile(oldPath, suffix), std::string("clip") + suffix);
+  ASSERT_TRUE(relinkBookState(oldPath, newPath));
+  for (const char* suffix : suffixes) {
+    SCOPED_TRACE(suffix);
+    EXPECT_EQ(bytes(clippingFile(newPath, suffix)), std::string("clip") + suffix);
+    EXPECT_FALSE(Storage.exists(clippingFile(oldPath, suffix).c_str()));
+  }
+  EXPECT_EQ(bytes(getBookCachePath(newPath)), "cache");
+}
+
+TEST_F(RelinkBookStateTest, ClippingsAloneAreStateWorthCarrying) {
+  fake::files.erase(getBookCachePath(oldPath));
+  fake::files.erase(BookmarkUtil::getBookmarkPath(oldPath));
+  fake::files.erase(BookmarkUtil::getBookmarkPath(oldPath) + ".bak");
+  ASSERT_TRUE(library::removeBookState(library::bookStateKey(oldPath)));
+  fake::add(clippingFile(oldPath), "clip");
+  ASSERT_TRUE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(clippingFile(newPath)), "clip");
+  EXPECT_FALSE(Storage.exists(clippingFile(oldPath).c_str()));
+}
+
+TEST_F(RelinkBookStateTest, ClippingsAlreadyAtTheNewPathBlockTheRelink) {
+  fake::add(clippingFile(oldPath), "old clip");
+  fake::add(clippingFile(newPath), "new clip");
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(clippingFile(oldPath)), "old clip");
+  EXPECT_EQ(bytes(clippingFile(newPath)), "new clip");
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  expectState(oldPath, true, library::ReadingState::Reading);
+}
+
+TEST_F(RelinkBookStateTest, FailedClippingMoveRollsBackClippingsCacheBookmarksAndState) {
+  fake::add(clippingFile(oldPath), "clip");
+  fake::add(clippingFile(oldPath, ".deleted"), "ids");
+  fake::blockedRenames.push_back({clippingFile(oldPath, ".deleted"), clippingFile(newPath, ".deleted")});
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_EQ(bytes(clippingFile(oldPath)), "clip");
+  EXPECT_EQ(bytes(clippingFile(oldPath, ".deleted")), "ids");
+  EXPECT_FALSE(Storage.exists(clippingFile(newPath).c_str()));
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+  EXPECT_EQ(bytes(BookmarkUtil::getBookmarkPath(oldPath)), "primary");
+  expectState(oldPath, true, library::ReadingState::Reading);
+  expectState(newPath, false, library::ReadingState::Unread);
+}
+
+TEST_F(RelinkBookStateTest, FailedClippingRollbackStillRestoresTheOtherStoreFiles) {
+  for (const char* suffix : {"", ".bak", ".tmp", ".deleted"}) fake::add(clippingFile(oldPath, suffix), suffix);
+  fake::blockedRenames.push_back({clippingFile(oldPath, ".deleted"), clippingFile(newPath, ".deleted")});
+  fake::blockedRenames.push_back({clippingFile(newPath), clippingFile(oldPath)});
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  // The blocked file stays behind, but the rollback goes on to the rest.
+  EXPECT_TRUE(Storage.exists(clippingFile(newPath).c_str()));
+  for (const char* suffix : {".bak", ".tmp", ".deleted"}) {
+    SCOPED_TRACE(suffix);
+    EXPECT_TRUE(Storage.exists(clippingFile(oldPath, suffix).c_str()));
+    EXPECT_FALSE(Storage.exists(clippingFile(newPath, suffix).c_str()));
+  }
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  expectState(oldPath, true, library::ReadingState::Reading);
+}
+
+TEST_F(RelinkBookStateTest, ClippingsOfTheOpenBookAreNeverMovedUnderIt) {
+  ASSERT_TRUE(CLIPPINGS.loadForBook(oldPath, "Old", "Author", "epub"));
+  ASSERT_EQ(CLIPPINGS.addClipping(0, 0, 0, 1, 0, 1, 2, "Chapter", 0, "some text", 1), ClippingStore::AddResult::Added);
+  ASSERT_TRUE(Storage.exists(clippingFile(oldPath).c_str()));
+  EXPECT_FALSE(relinkBookState(oldPath, newPath));
+  EXPECT_TRUE(Storage.exists(clippingFile(oldPath).c_str()));
+  EXPECT_FALSE(Storage.exists(clippingFile(newPath).c_str()));
+  EXPECT_EQ(bytes(getBookCachePath(oldPath)), "cache");
+  expectState(oldPath, true, library::ReadingState::Reading);
+  CLIPPINGS.unload();
 }
