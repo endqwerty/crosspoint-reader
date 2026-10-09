@@ -1446,14 +1446,13 @@ void LibraryListActivity::promptDeleteBook(const std::string& path, const std::s
     if (!restoreIndexAfterChild(reopenIndex)) return;
     if (result.isCancelled) return;
     index.close();
-    if (!Storage.remove(path.c_str())) {
+    if (!removeBookFile(path) && Storage.exists(path.c_str())) {
       LOG_ERR("LIB", "cannot delete %s", path.c_str());
       GUI.drawPopup(renderer, tr(STR_LIBRARY_DELETE_FAILED));
       restoreIndexAfterChild(true);
       requestUpdate();
       return;
     }
-    clearBookCache(path);
     RECENT_BOOKS.removeByPath(path);
     refreshLibrary();
   });

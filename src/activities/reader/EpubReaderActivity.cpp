@@ -435,6 +435,8 @@ void EpubReaderActivity::openDictionaryWordSelect() {
 
 void EpubReaderActivity::startClipSelection(const int initialX, const int initialY,
                                             const ClipSelectionActivity::Mode mode) {
+  // The render task can reset the section or move its file cursor: snapshot the pages under the lock.
+  RenderLock lock;
   if (!section || !epub || section->currentPage < 0 || section->currentPage >= section->pageCount) return;
 
   const int pageNumber = section->currentPage;
@@ -447,7 +449,6 @@ void EpubReaderActivity::startClipSelection(const int initialX, const int initia
     auto page = section->loadPage(pageNumber + pageOffset);
     if (!page) break;
     if (pageOffset == 0 && initialX >= 0 && CLIPPINGS.hasClippings()) {
-      RenderLock lock;
       const int clippingIndex = clippingAtPoint(*page, initialX, initialY);
       if (clippingIndex >= 0) {
         const bool removed = CLIPPINGS.removeClippingAt(static_cast<size_t>(clippingIndex));
@@ -461,6 +462,7 @@ void EpubReaderActivity::startClipSelection(const int initialX, const int initia
     }
     pages.push_back(std::move(page));
   }
+  lock.unlock();
   if (pages.empty()) {
     LOG_ERR("CLIP", "Failed to load page %d for clipping selection", pageNumber);
     requestUpdate();
