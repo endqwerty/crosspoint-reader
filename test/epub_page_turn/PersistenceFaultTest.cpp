@@ -69,9 +69,11 @@ class PersistenceFault : public ::testing::Test {
   }
 
   // The two-word fixture uses the documented arena wire layout from TextBlock.h.
-  static constexpr size_t TEXT_HEADER = sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint16_t);
+  static constexpr size_t TEXT_HEADER = sizeof(uint16_t) + sizeof(uint8_t) + 2 * sizeof(uint16_t);
   static constexpr size_t TEXT_BYTES = sizeof("alpha") + sizeof("beta");
-  static constexpr size_t TEXT_ARENA = 2 * (sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t)) + TEXT_BYTES;
+  static constexpr size_t SOURCE_RANGES = 2 * sizeof(TextBlock::SourceRange);
+  static constexpr size_t TEXT_ARENA =
+      SOURCE_RANGES + 2 * (sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t)) + TEXT_BYTES;
   static constexpr size_t RUBY_LENGTH = TEXT_HEADER + TEXT_ARENA;
   static constexpr size_t STYLE_OFFSET = RUBY_LENGTH + 2 * sizeof(uint32_t);
 };
@@ -577,7 +579,8 @@ TEST_F(PersistenceFault, TextDeserializerRejectsRubyLengthLargerThanRemainingFil
   const std::vector<EpdFontFamily::Style> styles{EpdFontFamily::REGULAR};
   const TextBlock block(words, positions, styles, {}, {});
   auto bytes = encode(block);
-  const size_t rubyLength = TEXT_HEADER + sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t) + sizeof("alpha");
+  const size_t rubyLength = TEXT_HEADER + sizeof(TextBlock::SourceRange) + sizeof(uint16_t) + sizeof(int16_t) +
+                            sizeof(uint8_t) + sizeof("alpha");
   patch(bytes, rubyLength, uint32_t{64 * 1024});
   EXPECT_EQ(nullptr, decodeText(bytes));
 }
@@ -602,13 +605,13 @@ TEST_F(PersistenceFault, TextDeserializerRejectsInvalidArenaOffsetsAndTerminator
     auto bytes = complete;
     switch (corruption) {
       case 0:
-        patch(bytes, TEXT_HEADER, uint16_t{1});
+        patch(bytes, TEXT_HEADER + SOURCE_RANGES, uint16_t{1});
         break;
       case 1:
-        patch(bytes, TEXT_HEADER + sizeof(uint16_t), uint16_t{0});
+        patch(bytes, TEXT_HEADER + SOURCE_RANGES + sizeof(uint16_t), uint16_t{0});
         break;
       case 2:
-        patch(bytes, TEXT_HEADER + sizeof(uint16_t), static_cast<uint16_t>(TEXT_BYTES));
+        patch(bytes, TEXT_HEADER + SOURCE_RANGES + sizeof(uint16_t), static_cast<uint16_t>(TEXT_BYTES));
         break;
       case 3:
         bytes[TEXT_HEADER + TEXT_ARENA - 1] = 'x';
