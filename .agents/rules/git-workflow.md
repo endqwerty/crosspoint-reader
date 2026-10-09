@@ -9,12 +9,14 @@ clone (`origin` main), or multiple collaborators; inspect them rather than
 assuming their roles. A fork may use
 `https://github.com/<your-username>/crosspoint-reader.git` for `origin` and
 `https://github.com/crosspoint-reader/crosspoint-reader.git` for `upstream`.
+In this fork `origin` is the personal fork and `official` is the official
+project, fetch only; no remote is named `upstream`.
 
 ### Git Operation Rules
 
 1. Integration branches and PR comparisons target `develop`, not `master` or the remote's symbolic HEAD.
-2. Push only when the human explicitly instructs you to push. Approval to edit or commit does not authorize a push. Never open or close a PR; the human owns those actions.
-3. Before an explicitly requested push, inspect remotes again and use `fork` for the feature branch unless the human specifies otherwise.
+2. The standing authorization (docs/FORK.md) covers pushing the task branch to `origin` and opening and merging this thread's PR on the fork. Never push to the official project without explicit approval from the human, who also opens any PR against it. Closing a PR unmerged is not covered.
+3. Before a push, inspect remotes again and use `origin` for the feature branch unless the human specifies otherwise.
 4. Never add Claude, Codex, or assistant self-attribution as a commit co-author or generated-by trailer.
 5. When a change supersedes or adapts another person's PR, verify the original human author from Git/GitHub and add that person as `Co-Authored-By`; skip bot authors.
 
@@ -22,6 +24,7 @@ assuming their roles. A fork may use
 
 Use `<type>/<short-description>` for new branches, with the same type prefix as
 PR titles: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, or `perf`.
+In this fork a T3-assigned branch name is kept as is, and `feature/` and `codex/` are also accepted.
 
 ```text
 feat/<short-description>          # New features
@@ -63,22 +66,20 @@ Tested in all 4 orientations with 5MB+ files.
 
 **A local commit may be made when**:
 
-- User explicitly requests: "commit these changes"
-- Feature or bug fix is complete and the human has approved the local commit
+- Feature or bug fix is complete (the standing authorization replaces the human's approval of the commit)
 - Refactoring preserves all functionality
 - All tests pass (`pio run` succeeds)
 
 **DO NOT commit when**:
 
-- Build fails or has warnings
+- Build fails or the diff introduces new warnings
 - Experimenting or debugging in progress
-- User hasn't explicitly requested commit
 - Files excluded by `.gitignore` would be included — always run `git status` and cross-check against `.gitignore` before staging (e.g., `*.generated.h`, `.pio/`, `compile_commands.json`, `platformio.local.ini`)
 
-**Rule**: **If uncertain, ASK before committing.**
+**Rule**: **If uncertain whether the work is complete, verify it before committing.**
 
-Hardware testing is required before a PR is opened, not before an explicitly
-approved local commit. The agent gives the human a concrete device test plan
-and never claims the hardware result itself.
+Hardware testing is the human's and is not a gate for a commit or PR here. The
+agent lists the unverified device checks with a concrete test plan and never
+claims the hardware result itself.
 
 ---

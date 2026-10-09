@@ -118,10 +118,10 @@ Do not run raw `clang-format` or probe it with `command -v`; use the wrapper eve
 1. ✅ **Build**: Build once after the last code edit with the relevant `pio run` target. Do not clean by default, repeat a target that already passed, or rebuild after formatting/comment-only/documentation-only changes.
 2. ✅ **Quality**: `pio check` when relevant + `./bin/clang-format-fix -g`
 3. ✅ **Format**: Commit messages (`feat:`/`fix:`), no `.gitignore`-excluded files staged (e.g., `*.generated.h`, `.pio/`, `platformio.local.ini`)
-4. ✅ **CI**: Fix GitHub Actions failures before review
+4. ✅ **CI**: GitHub Actions is off on this fork; run `scripts/fork-workflow.sh check` and fix its failures before the PR is opened or updated
 5. ✅ **Code review**: Ensure orientation-aware logic is correct in all 4 modes by inspecting switch/case coverage
 
-**Human tester scope** (flag these for the user):
+**Human tester scope** (list these as unverified for the user):
 6. 🔲 **Device**: Test on hardware
 7. 🔲 **Orientations**: Verify all 4 modes (Portrait/Inverted/Landscape CW/CCW)
 8. 🔲 **Heap**: C3 baseline target: > 50KB free, no leaks. Also measure
@@ -134,7 +134,7 @@ Do not run raw `clang-format` or probe it with `command -v`; use the wrapper eve
 
 ### CI/CD Pipeline Awareness
 
-**GitHub Actions** run automatically on pull requests:
+**GitHub Actions** run automatically on pull requests to the official project (disabled on this fork):
 
 | Workflow      | File                                        | Purpose                |
 | ------------- | ------------------------------------------- | ---------------------- |
@@ -151,7 +151,7 @@ that naming. Preserve the pinned pioarduino core/package setup across workflows.
 **Rules**:
 
 - **Fix CI failures BEFORE** requesting review
-- CI runs on: Push to PR, PR updates
+- Official-project CI runs on: Push to PR, PR updates
 - Format check fails → Run `./bin/clang-format-fix -g`
 - Build check fails → Fix compile errors
 
