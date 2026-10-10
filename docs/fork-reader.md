@@ -604,7 +604,7 @@ corresponding adaptations.
   progress guards and failure handling.
 - [PR #3441](https://github.com/crosspoint-reader/crosspoint-reader/pull/3441),
   Find in Book idea (open when reviewed): AmirMohammad Cheraghali
-  (`QuercusCode`), Git commit author address
-  `QuercusCode@users.noreply.github.com`. The engine and
+  (`QuercusCode`); the commit author address is in the PR's Git data and is not a
+  usable email. The engine and
   lifecycle were rewritten to avoid persistent reading instrumentation and to
   bound parser resources.
