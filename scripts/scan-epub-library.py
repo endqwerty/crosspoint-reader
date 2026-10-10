@@ -32,6 +32,16 @@ from urllib.parse import unquote
 from xml.etree import ElementTree
 from xml.parsers import expat
 
+# Largest EPUB entry the scanner reads into memory. ZipFile stops at the
+# declared size, so checking it bounds the read.
+MAX_ENTRY_BYTES = 64 * 1024 * 1024
+
+
+def read_entry(book, name):
+    if book.getinfo(name).file_size > MAX_ENTRY_BYTES:
+        raise OSError(f"{name} is larger than {MAX_ENTRY_BYTES} bytes")
+    return book.read(name)
+
 TEXT_BLOCKS = {"p", "blockquote", "li", "h1", "h2", "h3", "h4", "h5", "h6"}
 VOID_TAG = re.compile(rb"<(br|hr|img|meta|link|input|col|wbr|area|base|source|embed|param|track)\b[^>]*(?<!/)>", re.I)
 IMAGE_EXTENSIONS = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".gif": "gif", ".bmp": "bmp", ".webp": "webp",
@@ -176,10 +186,10 @@ def scan_book(path):
         if len(book.comment) > ZIP_EOCD_SCAN - ZIP_EOCD_SIZE:
             hit("zip-comment", detail=f"{len(book.comment)} byte comment")
         names = set(book.namelist())
-        container = ElementTree.fromstring(book.read("META-INF/container.xml"))
+        container = ElementTree.fromstring(read_entry(book, "META-INF/container.xml"))
         opf_path = container.find(".//container:rootfile", NS).get("full-path")
         opf_dir = posixpath.dirname(opf_path)
-        opf = ElementTree.fromstring(book.read(opf_path))
+        opf = ElementTree.fromstring(read_entry(book, opf_path))
         manifest = {}
         for item in opf.findall(".//opf:manifest/opf:item", NS):
             manifest[item.get("id")] = {"path": resolve(opf_dir, item.get("href", "")),
@@ -209,7 +219,7 @@ def scan_book(path):
                 parser.StartElementHandler = scan.start
                 parser.EndElementHandler = scan.end
                 try:
-                    parser.Parse(book.read(item["path"]), True)
+                    parser.Parse(read_entry(book, item["path"]), True)
                 except expat.ExpatError:
                     continue
                 if scan.nested_landmarks:
@@ -218,7 +228,7 @@ def scan_book(path):
         ncx_id = spine_node.get("toc") if spine_node is not None else None
         if not toc_hrefs and ncx_id in manifest and manifest[ncx_id]["path"] in names:
             ncx_path = manifest[ncx_id]["path"]
-            ncx = ElementTree.fromstring(book.read(ncx_path))
+            ncx = ElementTree.fromstring(read_entry(book, ncx_path))
             toc_hrefs = [(posixpath.dirname(ncx_path), c.get("src", ""))
                          for c in ncx.findall(".//ncx:navPoint/ncx:content", NS)]
         for base, href in toc_hrefs:
@@ -234,7 +244,7 @@ def scan_book(path):
         for chapter in spine:
             if chapter not in names:
                 continue
-            data = book.read(chapter)
+            data = read_entry(book, chapter)
             scan = ChapterScan()
             try:
                 scan.parse(data)
