@@ -40,6 +40,11 @@ code, upstream and these rules.
   concrete upstream-compatibility risk. The user takes no manual device
   measurements: do not ask for or wait on them; report device checks as unverified,
   never validated.
+- **Public repository:** everything committed, and every issue, PR and comment, is
+  public. Do not write credentials, private IPs or host names, home-server details
+  or private paths beyond the existing `/Volumes/workspace` build-share references;
+  point to the homelab repository instead. Security notes live in
+  [SECURITY.md](../SECURITY.md).
 - **Records:** when the user changes how work is done, update these pages in the
   same task.
 
