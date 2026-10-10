@@ -1,3 +1,95 @@
+# CrossPoint Reader: personal Xteink X4 Pro fork
+
+This is one person's fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader),
+the open-source e-reader firmware. It exists to make reading on a single device, the
+**Xteink X4 Pro**, better for its owner. It is public so the work can be read and
+reused, not because it is a product.
+
+**Read this first**
+
+- **Not a distribution.** There are no releases, no support, and no promise that it
+  works on your device. Install it only if you can recover a bad flash yourself. The
+  official project's [web flasher](https://crosspointreader.com/#flash-tools) and
+  releases are the right way to run CrossPoint.
+- **Do not use the on-device update check.** It still points at the official project's
+  releases (`src/network/OtaUpdater.cpp`), so installing from it replaces this fork
+  with stock CrossPoint. Update by flashing a build of this fork.
+- **Only the X4 Pro is a target.** Other boards still build from shared code where
+  upstream does, but they are not tested or tuned here.
+- **Hardware testing is limited.** Changes are judged by host tests, allocation and
+  operation counts, static RAM, and a clean `x4pro-gh_release` build. Nothing here is
+  claimed as validated on a device unless a doc says so.
+- **Issues are the owner's task queue.** Outside issues and pull requests may go
+  unanswered. For anything that is not specific to this fork, please go to
+  [upstream](https://github.com/crosspoint-reader/crosspoint-reader).
+- **Not affiliated** with Xteink, the CrossPoint project or the FreeInk SDK.
+
+## What this fork is for
+
+The goals are fast and cheap page turns, less ghosting, and a Library that refreshes
+quickly with a large collection of books kept offline on the SD card. In practice:
+
+- **Offline EPUB reading.** Web server upload, WebDAV, OPDS and Calibre wireless
+  come from upstream and are left in place, but they are unused and not worked on.
+  Books arrive by SD card reader.
+- **A Calibre library on the card.** The owner exports about 750 books from Calibre
+  ("Save to disk": one folder per book) and copies them over with
+  [`scripts/sync-calibre-library.sh`](scripts/sync-calibre-library.sh). Adding,
+  removing, renaming and re-exporting files must be dependable, and reading position,
+  bookmarks and clippings must survive a re-export.
+  See [Library](docs/fork-library.md).
+- **Page-turn speed and display quality.** Cheaper page turns, idle prefetch of the
+  next page, ghost cleanup and hardened display and storage paths. See
+  [Reader](docs/fork-reader.md), [Layout and prefetch](docs/fork-layout.md) and
+  [Storage and display](docs/fork-storage-display.md).
+- **One reader font.** The built-in [Libron](docs/fork-libron-font.md) serif is
+  enforced for book text, shown in menus as "Reader Serif".
+- **Reading aids.** Stable page numbers, a seconds-based auto page turn, and Find in
+  Book. See [EPUB indexing](docs/fork-epub-indexing.md).
+
+Features the owner does not want, such as time-left estimates or reading statistics,
+are listed as declined in [scope](docs/fork/scope.md) and
+[CrossInk](docs/fork-crossink.md).
+
+## How it relates to upstream
+
+The fork is a linear series of patches rebased onto upstream's `develop`. Upstream's
+design wins any conflict, and patches that upstream replaces are dropped. Some
+features are ported by hand from [CrossInk](https://github.com/uxjulia/CrossInk), a
+feature source and never a base, with the original authors credited as
+`Co-Authored-By`. The SDK comes from a [matching fork](https://github.com/endqwerty/freeink-sdk)
+of the [FreeInk SDK](https://github.com/Free-Ink/freeink-sdk).
+
+## Building
+
+```bash
+git clone --recurse-submodules --branch develop https://github.com/endqwerty/crosspoint-reader.git
+cd crosspoint-reader
+pio run -e x4pro-gh_release
+```
+
+`scripts/fork-workflow.sh check` runs what CI would (formatting, host tests with and
+without sanitizers, the X4 Pro build). GitHub Actions is disabled on this fork, so
+that script is the gate. Flash with the official web flasher's "Custom .bin" option or
+the `esptool` command below.
+
+## Fork documentation
+
+- [Fork instructions](docs/FORK.md): rules for working in this fork, with topic pages
+  under [docs/fork/](docs/fork/).
+- Design notes: [reader](docs/fork-reader.md), [library](docs/fork-library.md),
+  [layout](docs/fork-layout.md), [EPUB indexing](docs/fork-epub-indexing.md),
+  [storage and display](docs/fork-storage-display.md), [Libron font](docs/fork-libron-font.md),
+  [tests and upstream imports](docs/fork-maintenance.md).
+- Security: [SECURITY.md](SECURITY.md).
+
+---
+
+# Upstream README
+
+What follows is the upstream project's README. Parts of it (the web installer, the
+Developer Edition link, release downloads) describe the official firmware, not this fork.
+
 # CrossPoint Reader
 
 [![Fund contributors](https://img.shields.io/badge/%F0%9F%91%91_Fund_contributors-royalty.dev-BB953A?style=for-the-badge&labelColor=1a1a1a)](https://app.royalty.dev/crosspoint-reader/crosspoint-reader)
