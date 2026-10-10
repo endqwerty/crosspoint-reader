@@ -81,7 +81,7 @@ it does not automatically export to SMB.
   source commit/SDK revision, version, build log and flash instructions.
   Re-read the copied image and verify its SHA-256, then update the shared
   `FLASH-LATEST.md` with a relative link and Windows path. Preserve previous
-  builds. Windows opens `\\10.10.0.214\workspace\builds\crosspoint-reader`.
+  builds. The Windows path to the share is in the homelab `workstation.md`.
   Never store the only output under `workspace/projects/crosspoint-reader`;
   that shared source checkout is disposable. A successful compilation does
   not establish physical-device validation.
