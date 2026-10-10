@@ -4,10 +4,11 @@ Read this when choosing, designing or validating a feature or fix. The
 always-read rules are in [../FORK.md](../FORK.md). These preferences narrow where
 fork effort goes; they never justify diverging from upstream's design.
 
-- Licensing (2026-10-08): this is a private personal fork with no other users or
-  distribution. Do not spend effort on license files, notices or compliance
-  tracking for adapted code (CrossInk is MIT). Still add the original human
-  author as `Co-Authored-By` when a commit adapts their code, as
+- Licensing (2026-10-08, revised 2026-10-10): the repository is public but has no
+  other intended users and publishes no releases. Do not spend effort on license
+  files or compliance tracking beyond what already ships: the MIT `LICENSE`
+  and the Libron OFL files stay as they are. Still add the original human author
+  as `Co-Authored-By` when a commit adapts their code (CrossInk is MIT), as
   `.agents/rules/git-workflow.md` requires.
 - Personal reader font (2026-10-06): embed Libron and enforce it over saved
   built-in, SD bitmap and vector font selections. Keep the selected font size
