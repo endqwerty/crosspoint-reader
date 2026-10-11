@@ -20,7 +20,7 @@ A third remote, `crossink`, is fetch only and a feature source, never a base; se
 [scope.md](scope.md#porting-from-crossink).
 
 The fork is the project. In the maintained checkout
-(`~/workspace/crosspoint-reader`) `origin` is the personal fork, local `develop`
+(`/Volumes/SSD/Work/crosspoint-reader`) `origin` is the personal fork, local `develop`
 tracks `origin/develop`, and `origin/HEAD` points to `origin/develop`, so T3
 Code starts each thread's worktree from the fork's `develop`. The official
 project is the remote `official`, fetch only (its push URL is disabled). It is

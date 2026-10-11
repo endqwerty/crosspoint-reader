@@ -42,7 +42,7 @@ code, upstream and these rules.
   never validated.
 - **Public repository:** everything committed, and every issue, PR and comment, is
   public. Do not write credentials, private IPs or host names, home-server details
-  or private paths beyond the existing `/Volumes/workspace` build-share references;
+  or private paths beyond the existing checkout and `/Volumes/workspace` build-share references;
   point to the homelab repository instead. Security notes live in
   [SECURITY.md](../SECURITY.md).
 - **Records:** when the user changes how work is done, update these pages in the
