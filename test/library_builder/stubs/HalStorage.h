@@ -212,7 +212,7 @@ class HalFile {
     if (!node || fake::fail(fake::failRead) || (!fake::failReadPath.empty() && path == fake::failReadPath)) return -1;
     if (size == fake::shortReadSize && path == fake::shortReadPath && fake::fail(fake::shortReadMatch) && size) --size;
     size = std::min(size, node->bytes.size() - std::min(pos, node->bytes.size()));
-    std::memcpy(out, node->bytes.data() + std::min(pos, node->bytes.size()), size);
+    if (size) std::memcpy(out, node->bytes.data() + std::min(pos, node->bytes.size()), size);
     pos += size;
     fake::bytesRead += size;
     return static_cast<int>(size);
