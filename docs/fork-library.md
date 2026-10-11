@@ -169,10 +169,11 @@ existing destination aliases before rejecting source/destination overlap,
 device-cache paths and card roots. A missing final books folder is supported
 when its parent exists. Dry runs do not create that folder.
 
-With `--delete`, rsync uses `--delete-after`: deletion follows the transfer
-phase. Temporary fixtures on Apple openrsync verify that a failed receiver write
-or destination conflict retains the old renamed EPUB, and successful transfers
-precede deletions. This is not a power-loss transaction. Hidden files and
+With `--delete`, deletion is a second rsync pass that copies nothing and runs
+only when the copy pass succeeded (GNU rsync's `--delete-after` deletes even
+after a failed copy). Temporary fixtures on Apple openrsync and GNU rsync verify
+that a failed receiver write or destination conflict retains the old renamed
+EPUB, and successful transfers precede deletions. This is not a power-loss transaction. Hidden files and
 non-EPUB sidecars are excluded; the existing AppleDouble cleanup still runs
 after a successful sync. UUID rename notices describe the firmware's relinking
 conditions, not a guarantee of recovery. Eject the card safely before reading.
