@@ -15,7 +15,7 @@ not engineering, validation or upstream-compatibility requirements.
 fork, replacing upstream's ban on autonomous agents and its ask-first Git rules.
 Without asking, agents may commit finished work on the task branch, push it to
 `origin`, open and write a PR against the fork's `develop`, resolve review findings,
-squash-merge this thread's own PR, and publish validated upstream syncs of the fork's
+rebase-merge this thread's own PR, and publish validated upstream syncs of the fork's
 `develop` (reader and SDK, daily maintenance included). Not covered: the official
 project (push or PR), release tags, closing a PR unmerged, another thread's
 worktree. Ask only when an essential fact or decision cannot be resolved from the
