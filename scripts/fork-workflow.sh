@@ -14,6 +14,10 @@ SDK_PATH="freeink-sdk"
 BUILD_ROOT="${CROSSPOINT_BUILD_ROOT:-$HOME/.local/share/crosspoint-build}"
 TOOL_BIN="${CROSSPOINT_TOOL_BIN:-$BUILD_ROOT/venv/bin}"
 LLVM_BIN="${CROSSPOINT_LLVM_BIN:-/opt/homebrew/opt/llvm@22/bin}"
+# Off the Mac there is no Homebrew LLVM: use the clang on PATH.
+if [ -z "${CROSSPOINT_LLVM_BIN:-}" ] && [ ! -x "$LLVM_BIN/clang++" ] && command -v clang++ >/dev/null 2>&1; then
+  LLVM_BIN=$(dirname "$(command -v clang++)")
+fi
 # Community fork read as a feature source (docs/fork-crossink.md); never a base.
 CROSSINK_REMOTE="crossink"
 CROSSINK_URL="https://github.com/uxjulia/CrossInk.git"
