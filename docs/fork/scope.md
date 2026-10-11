@@ -4,12 +4,17 @@ Read this when choosing, designing or validating a feature or fix. The
 always-read rules are in [../FORK.md](../FORK.md). These preferences narrow where
 fork effort goes; they never justify diverging from upstream's design.
 
-- Licensing (2026-10-08, revised 2026-10-10): the repository is public but has no
-  other intended users and publishes no releases. Do not spend effort on license
-  files or compliance tracking beyond what already ships: the MIT `LICENSE`
-  and the Libron OFL files stay as they are. Still add the original human author
-  as `Co-Authored-By` when a commit adapts their code (CrossInk is MIT), as
-  `.agents/rules/git-workflow.md` requires.
+- Licensing (2026-10-10, replaces the 2026-10-08 "private fork, ignore" rule): the
+  repository is public, so licenses are kept correct. The code stays MIT under the
+  root `LICENSE`, which carries the upstream copyright and one line for this fork's
+  changes. Third-party material the fork adds keeps its own license text beside it
+  and is listed in [NOTICE.md](../../NOTICE.md): add the entry in the same commit
+  that adds the material. Adapted code credits its human author as
+  `Co-Authored-By` (`.agents/rules/git-workflow.md`) and in the matching
+  `docs/fork-*.md` attribution section. Do not copy code from a project without a
+  compatible license; a fork of a copyleft or unlicensed project is a feature
+  idea only. Libron's Reserved Font Name rules are in
+  [the font policy](../fork-libron-font.md).
 - Personal reader font (2026-10-06): embed Libron and enforce it over saved
   built-in, SD bitmap and vector font selections. Keep the selected font size
   at the nearest supported built-in size; preserve other typography settings.
