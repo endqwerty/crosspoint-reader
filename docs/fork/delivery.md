@@ -19,7 +19,7 @@ origin/develop            downstream integration branch
   `develop` to a task branch. It changes in exactly two ways: a merged pull
   request, or an upstream sync.
 - Every task happens on a short-lived branch created from `origin/develop`. A
-  T3 Code thread already has one under `~/.t3/worktrees`, created from
+  T3 Code thread already has one under `/Volumes/SSD/Worktrees`, created from
   `origin/develop`. Read the branch T3 assigned with `git branch --show-current`;
   it may rename it at thread startup. Keep that branch for the thread's lifetime
   because T3 tracks the workspace by it. Branches made by hand
