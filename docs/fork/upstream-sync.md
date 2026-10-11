@@ -15,7 +15,7 @@ fork is a linear series of local patches on top of upstream `develop`.
 - Fetch the official project (remote `official`) and rebase the local patch
   series onto its updated `develop`. Verify remote URLs rather than assuming a
   remote's role from its name. Never merge upstream into the customized branch.
-- Task branches reach `develop` only as squash (or rebase) merges of pull
+- Task branches reach `develop` only as rebase (or squash) merges of pull
   requests on the personal fork; see [delivery.md](delivery.md). Do not
   introduce local merge commits or use `--rebase-merges` to preserve an
   interwoven fork history.
