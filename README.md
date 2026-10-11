@@ -65,7 +65,7 @@ of the [FreeInk SDK](https://github.com/Free-Ink/freeink-sdk).
 `develop` is always upstream's `develop` plus this fork's patches on top. When
 upstream moves, the patches are **rebased and force-pushed**, so commit hashes change
 often and `develop` never merges with upstream. Do not build on this fork's history:
-a clone made earlier will diverge. Pull requests here are squash-merged; to follow
+a clone made earlier will diverge. Pull requests here are rebase-merged; to follow
 the fork, fetch and reset to `origin/develop` rather than merging. Upstream's history
 is never rewritten. The fork's history may also be rewritten to remove sensitive
 information.
