@@ -13,7 +13,7 @@ The always-read rules are in [../FORK.md](../FORK.md).
 | Design, invariants, limits, attributions of fork features | `docs/fork-*.md` |
 | Upstream conventions | `AGENTS.md` and `.agents/` |
 | Current firmware image and build evidence | `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` |
-| Mac, T3 Code worktrees and cleanup, agent tooling, home server | `/Volumes/workspace/homelab/workstation.md` and `README.md` there |
+| Mac, T3 Code worktrees and cleanup, agent tooling, home server | `/Volumes/SSD/Work/homelab/workstation.md` and `README.md` there |
 
 When a user instruction changes how work is done, update the fork's pages in the
 same task. When a fact belongs to the machine rather than the repository, update
