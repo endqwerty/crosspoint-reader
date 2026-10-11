@@ -56,7 +56,11 @@ ahead.
 3. Publish it with `scripts/fork-workflow.sh sync-publish <commit>`, where
    `<commit>` is the rebased series without the task's own commits (`HEAD` when
    the task has none yet). The script checks that the commit contains the
-   upstream tip and no merge commits, that local `develop` is clean and (after
+   upstream tip and no merge commits, that every commit subject of
+   `origin/develop`'s downstream series is still in the candidate's (a pull request merged while the rebase was
+   in progress would otherwise be dropped, as happened on 2026-10-11; set
+   `CROSSPOINT_SYNC_ALLOW_DROPPED=1` when a patch was dropped or retitled on
+   purpose), that local `develop` is clean and (after
    a fast-forward) equals `origin/develop`, keeps the old tip under
    `refs/fork-backup/`, force-pushes
    with a lease on the inspected remote tip, moves local `develop`, and lists
