@@ -341,6 +341,19 @@ cmd_sync_publish() {
   [ "$(git rev-list --count --merges "$official_tip..$candidate")" -eq 0 ] ||
     die "$1 has merge commits above $OFFICIAL_REMOTE/$BASE_BRANCH"
 
+  # A pull request merged after the rebase started is not in the candidate, and
+  # the force push would drop it. Subjects survive a rebase; a patch dropped or
+  # retitled on purpose needs CROSSPOINT_SYNC_ALLOW_DROPPED=1.
+  # One command per assignment, so any that fails stops the script.
+  local old_base old_subjects new_subjects dropped
+  old_base=$(git merge-base "$old" "$official_tip")
+  old_subjects=$(git log --format=%s "$old_base..$old" | LC_ALL=C sort -u)
+  new_subjects=$(git log --format=%s "$official_tip..$candidate" | LC_ALL=C sort -u)
+  dropped=$(LC_ALL=C comm -23 <(printf '%s\n' "$old_subjects") <(printf '%s\n' "$new_subjects"))
+  [ -z "$dropped" ] || [ "${CROSSPOINT_SYNC_ALLOW_DROPPED:-}" = 1 ] ||
+    die "$1 lacks these commits of origin/$BASE_BRANCH (rebase onto it again, or set CROSSPOINT_SYNC_ALLOW_DROPPED=1):
+$dropped"
+
   worktree=$(develop_worktree)
   if [ -n "$worktree" ]; then
     [ -z "$(git -C "$worktree" status --porcelain --ignore-submodules=none)" ] ||
@@ -355,7 +368,7 @@ cmd_sync_publish() {
       die "local $BASE_BRANCH differs from origin/$BASE_BRANCH"
   fi
 
-  echo "downstream commits: $(git rev-list --count "$(git merge-base "$old" "$official_tip")..$old") before, $(git rev-list --count "$official_tip..$candidate") after"
+  echo "downstream commits: $(git rev-list --count "$old_base..$old") before, $(git rev-list --count "$official_tip..$candidate") after"
   backup="refs/fork-backup/$BASE_BRANCH-$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short "$old")"
   git update-ref "$backup" "$old"
   echo "previous $BASE_BRANCH kept at $backup"
