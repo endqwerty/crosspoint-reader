@@ -13,6 +13,8 @@ void* operator new(size_t size) {
   if (!result) std::abort();
   return result;
 }
+// Without this the sanitizer runtime's nothrow new is paired with the free() below.
+void* operator new(size_t size, const std::nothrow_t&) noexcept { return ::operator new(size); }
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete(void* p, size_t) noexcept { std::free(p); }
 
