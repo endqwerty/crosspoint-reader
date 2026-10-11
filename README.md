@@ -60,6 +60,24 @@ feature source and never a base, with the original authors credited as
 `Co-Authored-By`. The SDK comes from a [matching fork](https://github.com/endqwerty/freeink-sdk)
 of the [FreeInk SDK](https://github.com/Free-Ink/freeink-sdk).
 
+## History is rewritten
+
+`develop` is always upstream's `develop` plus this fork's patches on top. When
+upstream moves, the patches are **rebased and force-pushed**, so commit hashes change
+often and `develop` never merges with upstream. Do not build on this fork's history:
+a clone made earlier will diverge. Pull requests here are squash-merged; to follow
+the fork, fetch and reset to `origin/develop` rather than merging. Upstream's history
+is never rewritten. The fork's history may also be rewritten to remove sensitive
+information.
+
+## License
+
+The code is MIT-licensed, as upstream is: see [LICENSE](LICENSE) (copyright upstream
+and this fork). Material the fork adds, such as the Libron font under the SIL Open Font
+License, is listed with its license in [NOTICE.md](NOTICE.md). Authors of adapted
+code are credited as `Co-Authored-By` in the commit and in the `docs/fork-*.md`
+attribution sections.
+
 ## Building
 
 ```bash
@@ -81,7 +99,7 @@ the `esptool` command below.
   [layout](docs/fork-layout.md), [EPUB indexing](docs/fork-epub-indexing.md),
   [storage and display](docs/fork-storage-display.md), [Libron font](docs/fork-libron-font.md),
   [tests and upstream imports](docs/fork-maintenance.md).
-- Security: [SECURITY.md](SECURITY.md).
+- Security: [SECURITY.md](SECURITY.md). Licenses and third-party notices: [NOTICE.md](NOTICE.md).
 
 ---
 
