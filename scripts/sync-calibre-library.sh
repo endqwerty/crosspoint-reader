@@ -168,13 +168,16 @@ args=(-r --checksum --prune-empty-dirs --itemize-changes
   --include='*/' --include='*.epub' --include='*.EPUB'
   --exclude='*')
 [ "$dry_run" -eq 1 ] && args+=(--dry-run)
-# Defer deletions until after the transfer phase.
-[ "$delete" -eq 1 ] && args+=(--delete-after)
 
 [ "$dry_run" -eq 1 ] || mkdir -p "$dest_abs"
 # Unchanged books are itemized as ".f..T....": identical content, and the SD
 # mtime is left alone. Only list copies and deletions.
 rsync "${args[@]}" "$src_abs/" "$dest_abs/" | { grep -v '^\.f' || true; }
+# Delete in a second pass that copies nothing, reached only when every book
+# copied: GNU rsync's --delete-after removes old files even after a failed copy.
+if [ "$delete" -eq 1 ]; then
+  rsync "${args[@]}" --delete --existing --ignore-existing "$src_abs/" "$dest_abs/" | { grep -v '^\.f' || true; }
+fi
 
 if [ "$dry_run" -eq 1 ]; then
   echo "Dry run only; nothing was written."
