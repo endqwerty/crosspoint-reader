@@ -60,9 +60,9 @@ Validation rules:
   (`GlyphRasterParity` takes about 70 s under the sanitizers). Keep test build
   directories under `~/.local/share/crosspoint-build/`. `./bin/clang-format-fix`
   finds the venv's `clang-format` when that `bin/` is first on `PATH`.
-- The maintained checkout lives on local disk at `~/workspace/crosspoint-reader`;
-  T3 Code worktrees go under the local `~/.t3/worktrees`. Keep source and git
-  data off the SMB share.
+- The maintained checkout lives on the Mac's SSD volume at
+  `/Volumes/SSD/Work/crosspoint-reader`; T3 Code worktrees go under
+  `/Volumes/SSD/Worktrees`. Keep source and git data off the SMB share.
 - Firmware version for a handoff: put `[crosspoint]` `version =
   1.6.5-dev-x4pro-rNN-<upstream short hash>` in a temporary
   `platformio.local.ini` (gitignored), build, and delete it afterwards.

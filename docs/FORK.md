@@ -15,7 +15,7 @@ not engineering, validation or upstream-compatibility requirements.
 fork, replacing upstream's ban on autonomous agents and its ask-first Git rules.
 Without asking, agents may commit finished work on the task branch, push it to
 `origin`, open and write a PR against the fork's `develop`, resolve review findings,
-squash-merge this thread's own PR, and publish validated upstream syncs of the fork's
+rebase-merge this thread's own PR, and publish validated upstream syncs of the fork's
 `develop` (reader and SDK, daily maintenance included). Not covered: the official
 project (push or PR), release tags, closing a PR unmerged, another thread's
 worktree. Ask only when an essential fact or decision cannot be resolved from the
@@ -42,9 +42,15 @@ code, upstream and these rules.
   never validated.
 - **Public repository:** everything committed, and every issue, PR and comment, is
   public. Do not write credentials, private IPs or host names, home-server details
-  or private paths beyond the existing `/Volumes/workspace` build-share references;
+  or private paths beyond the existing checkout and `/Volumes/workspace` build-share references;
   point to the homelab repository instead. Security notes live in
   [SECURITY.md](../SECURITY.md).
+- **Upstream references:** in fork issues, PRs, comments and commit messages,
+  write an official or Free-Ink SDK PR or issue as code (`` `#4263` ``), never as
+  a link or `owner/repo#4263`. GitHub notifies the upstream thread on every
+  mention, and an upstream reviewer asked us to stop (2026-11-06, in
+  [#13](https://github.com/endqwerty/crosspoint-reader/issues/13)).
+  Links in committed files and in chat replies to the user do not notify.
 - **Records:** when the user changes how work is done, update these pages in the
   same task.
 
