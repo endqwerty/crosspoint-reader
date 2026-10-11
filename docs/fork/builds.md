@@ -60,6 +60,13 @@ Validation rules:
   (`GlyphRasterParity` takes about 70 s under the sanitizers). Keep test build
   directories under `~/.local/share/crosspoint-build/`. `./bin/clang-format-fix`
   finds the venv's `clang-format` when that `bin/` is first on `PATH`.
+- A Linux host (set up 2026-10-11) uses the same venv path, created with
+  `python3 -m venv` and `pip install clang-format==21.1.8 cmake==4.4.3` plus
+  pioarduino Core 6.1.19, the versions the Mac uses. `check` takes the sanitizer
+  compiler from the `clang++` on `PATH` when Homebrew's LLVM is absent. The
+  first firmware build downloads the ESP32 toolchain into `~/.platformio`. The
+  build share is not mounted there: copy a firmware package through a machine
+  that has `/Volumes/workspace` (the homelab `omarchy.md` says how).
 - The maintained checkout lives on the Mac's SSD volume at
   `/Volumes/SSD/Work/crosspoint-reader`; T3 Code worktrees go under
   `/Volumes/SSD/Worktrees`. Keep source and git data off the SMB share.
