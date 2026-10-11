@@ -44,9 +44,9 @@ action, otherwise resolve a fork to its parent. It also disables pushing to
 default.
 
 The fork's GitHub settings (set 2026-09-30 and 2026-10-01): merge commits
-disabled, squash and rebase merges allowed, squash commits take the pull
-request's title and body, head branches are deleted on merge, and GitHub
-Actions is disabled. The user does not want to spend CI minutes; this machine
+disabled, squash and rebase merges allowed (agents rebase-merge since
+2026-10-10; squash commits take the pull request's title and body), head
+branches are deleted on merge, and GitHub Actions is disabled. The user does not want to spend CI minutes; this machine
 is the CI (see "Local checks" in [builds.md](builds.md#local-checks)).
 
 `t3.json` at the repository root is T3 Code's project file. It makes new threads

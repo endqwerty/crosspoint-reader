@@ -9,7 +9,7 @@ official/develop          official project (upstream), fetch only
       v
 origin/develop            downstream integration branch
       ^
-      |  pull requests, squash-merged
+      |  pull requests, rebase-merged
       +-- <T3-assigned branch>   one per thread, in its own worktree
       +-- feature/<x>, fix/<x>, docs/<x>, refactor/<x>, codex/<x>
 ```
@@ -28,7 +28,7 @@ origin/develop            downstream integration branch
   checkout stays on `develop`; do not check out `develop` in a worktree.
 - Standing authorization (2026-10-06): without asking each time, commit
   completed work on the task branch, push it to `origin`, open a pull request
-  against the fork's `develop`, resolve review findings and squash-merge this
+  against the fork's `develop`, resolve review findings and rebase-merge this
   thread's own PR. It covers the requested scope on the personal fork,
   including daily maintenance, not upstream publication or release tags.
   Do not leave completed work only in a disposable worktree.
@@ -38,10 +38,12 @@ origin/develop            downstream integration branch
   `origin/develop` or contains merge commits, and it always names the fork as
   the base repository. Never open a pull request against the official project
   without explicit approval.
-- The squash commit is the pull request's title and body. Write the title as
-  the commit subject (`AGENTS.md` format) and the body as the
-  commit message, ending with any `Co-Authored-By` lines for adapted work. Do
-  not add assistant attribution or a generated-by line.
+- A rebase merge keeps the branch's own commits, so each commit message is what
+  lands on `develop`: write every subject in the `AGENTS.md` format and end
+  commits for adapted work with the `Co-Authored-By` lines. Do not add assistant
+  attribution or a generated-by line. Tidy the series locally (an
+  interactive rebase) before opening the pull request, since the pull
+  request's title and body are not committed.
 - When T3 Code's `link_pull_request` tool is available, link every pull request
   to the thread; T3 Code then shows it beside the thread and settles the thread
   when it merges.
@@ -58,13 +60,13 @@ origin/develop            downstream integration branch
   it sits on an unpublished rebase shows the whole series and conflicts with
   `develop`; `sync-publish` of the validated rebase fixes that
   ([upstream-sync.md](upstream-sync.md)).
-- Squash-merge once the checks and reviews required for the diff have passed,
+- Rebase-merge once the checks and reviews required for the diff have passed,
   with no material objection or essential decision open. Fetch and verify head
   and base first; use `gh pr merge <n> --repo endqwerty/crosspoint-reader
-  --squash --match-head-commit <reviewed-SHA>` without `--delete-branch`
+  --rebase --match-head-commit <reviewed-SHA>` without `--delete-branch`
   (GitHub deletes the remote branch; T3 needs the local branch). If the base
-  moved, restack and rerun affected checks. Rebase merge is available when
-  human commits should stay separate. Leave the PR open when the user asks
+  moved, restack and rerun affected checks. Squash merge is still allowed on the
+  repository but is not the default. Leave the PR open when the user asks
   to review before merge or a real blocker remains.
 - After the merge GitHub deletes the remote branch, the thread settles and the
   user archives it. The worktree is T3 Code's to remove; see
@@ -100,7 +102,7 @@ Follow the global pull-request rules and keep the repository's template
   the actual build commit, SDK and version; do not rebuild solely to change a
   Git hash when firmware source bytes are identical. Record the pull request
   number and head commit when applicable in `build-info.json` and the issue/PR.
-  After squash merge, verify the integration tree matches the reviewed head;
+  After the rebase merge, verify the integration tree matches the reviewed head;
   GitHub retains that head at `refs/pull/<number>/head`.
 - Report any genuine blocker instead of claiming unfinished work is complete. Do
   not start open-ended roadmap work from a handoff: finish the user's requested
