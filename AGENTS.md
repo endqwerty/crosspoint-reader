@@ -1,8 +1,8 @@
 # CrossPoint Reader agent guide
 
 Personal fork: read [docs/FORK.md](docs/FORK.md) first. It is short and says which
-fork pages the task needs. Rules below that its standing authorization changes have
-been edited to match.
+fork pages the task needs. Upstream rules that the standing authorization changes
+have been edited to match it; [the edits are listed here](docs/fork/upstream-sync.md#fork-edits-to-upstream-instruction-files).
 
 CrossPoint Reader is open-source e-reader firmware for Xteink and other FreeInk-supported devices. Its mission is a lightweight, high-performance reading experience focused on EPUB rendering. The X3/X4's ESP32-C3 remains the resource baseline: roughly 380 KB usable RAM, no PSRAM, and a single framebuffer sized for the selected panel. Other board profiles have different CPUs, display sizes, input, and memory capabilities; check the selected profile before assuming them.
 
