@@ -46,6 +46,7 @@ class Epub {
   std::string contentBasePath;
   // Uniq cache key based on filepath
   std::string cachePath;
+  bool replaced = false;
   // Spine and TOC cache
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   // CSS parser for styling
@@ -77,6 +78,11 @@ class Epub {
   bool loadSyncMetadata(SyncMetadata& metadata);
   bool loadMetadata(LibraryMetadata& out);
   bool clearCache() const;
+  // Empties a cache built from an earlier file at this path, keeping the reading
+  // position; load() calls it too. False when stale entries could not be removed.
+  bool discardStaleCache();
+  // The book was replaced since its cache was built, so this load rebuilds it.
+  bool wasReplaced() const { return replaced; }
   void setupCacheDir() const;
   const std::string& getCachePath() const;
   const std::string& getPath() const;
