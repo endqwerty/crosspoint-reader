@@ -33,7 +33,8 @@ take them from the next sync rather than from CrossInk.
   and clips/highlights additions (2026-10-08): not wanted.
 - Marking books finished, the 99% finished prompt, Recent Books 3x3 grid: low
   value for the owner; revisit only on request.
-- Minimal and Dashboard themes, Lexend/Bitter/Inter fonts (the fork enforces
-  Libron, see [fork-libron-font.md](fork-libron-font.md)), dictionary, USB
+- Minimal and Dashboard themes, Lexend/Bitter/Inter fonts (built-in fonts are
+  Libron and Noto Sans, others load from the SD card, see
+  [fork-libron-font.md](fork-libron-font.md)), dictionary, USB
   serial transfer, frontlight schedule, firmware flasher changes.
 - Pinned favorite sleep image: possible later UI work, not done.
