@@ -157,7 +157,6 @@ void SdCardFontSystem::begin(GfxRenderer& renderer, const EpdFontFamily& small, 
   builtinUiFonts_[0] = &small;
   builtinUiFonts_[1] = &ui10;
   builtinUiFonts_[2] = &ui12;
-  SETTINGS.enforceReaderFont();
   refreshRegistry();
   renderer_ = &renderer;
   cpfontVariants_.reserve(MAX_CPFONT_VARIANTS);
@@ -269,7 +268,6 @@ void SdCardFontSystem::handleMissingFamily() const {
 }
 
 void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, [[maybe_unused]] const bool retryUnavailable) {
-  SETTINGS.enforceReaderFont();
   // If the web server (or another task) installed/deleted fonts, re-discover.
   // Track whether we just re-discovered so we can force a reload below even
   // when the wanted family/size still maps to the same point size — the file
