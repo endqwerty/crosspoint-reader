@@ -15,12 +15,14 @@ fork effort goes; they never justify diverging from upstream's design.
   compatible license; a fork of a copyleft or unlicensed project is a feature
   idea only. Libron's Reserved Font Name rules are in
   [the font policy](../fork-libron-font.md).
-- Personal reader font (2026-10-06): embed Libron and enforce it over saved
-  built-in, SD bitmap and vector font selections. Keep the selected font size
-  at the nearest supported built-in size; preserve other typography settings.
-  Font controls show the enforced family as Reader Serif, honoring the source
-  font's reserved-name license. See
-  [the font policy](../fork-libron-font.md) for provenance and resource details.
+- Reader fonts (2026-10-14, replaces the 2026-10-06 rule that enforced Libron):
+  the user wants a choice of fonts, not one forced font. Libron stays built in
+  as the default serif, in upstream's serif slot and shown as Reader Serif to
+  honor the font's reserved-name license; Noto Sans is the built-in sans. All
+  three built-in families do not fit the app partition, so Noto Serif, Literata,
+  Bookerly and other fonts load from the SD card through upstream's SD font
+  support. Bookerly is proprietary: never commit it; the user supplies the files.
+  See [the font policy](../fork-libron-font.md).
 - Device scope (2026-10-06): focus on offline EPUB reading for Xteink X4 Pro
   (`x4pro-gh_release`), the only device the user owns or tests. Other devices
   are not feature, optimization or validation targets for this personal fork.
