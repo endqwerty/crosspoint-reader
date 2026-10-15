@@ -42,8 +42,9 @@ quickly with a large collection of books kept offline on the SD card. In practic
   next page, ghost cleanup and hardened display and storage paths. See
   [Reader](docs/fork-reader.md), [Layout and prefetch](docs/fork-layout.md) and
   [Storage and display](docs/fork-storage-display.md).
-- **One reader font.** The built-in [Libron](docs/fork-libron-font.md) serif is
-  enforced for book text, shown in menus as "Reader Serif".
+- **Libron as the built-in serif.** The built-in serif reader font is
+  [Libron](docs/fork-libron-font.md), shown in menus as "Reader Serif", next to
+  Noto Sans. Other fonts, including Noto Serif, load from the SD card.
 - **Reading aids.** Stable page numbers, a seconds-based auto page turn, and Find in
   Book. See [EPUB indexing](docs/fork-epub-indexing.md).
 
