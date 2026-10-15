@@ -15,6 +15,7 @@
 #include <cstring>
 #include <vector>
 
+#include "Epub/CacheSource.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
@@ -497,10 +498,18 @@ bool Epub::openProtection() {
   return true;
 }
 
+bool Epub::discardStaleCache() {
+  if (Txt::isTxtOrMd(filepath)) return true;
+  const CacheSource::Result source = CacheSource::discardIfChanged(filepath, cachePath);
+  replaced = source == CacheSource::Result::Replaced;
+  return source != CacheSource::Result::Failed;
+}
+
 bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   LOG_DBG("EBP", "Loading ePub: %s", filepath.c_str());
 
   if (!openProtection()) return false;
+  if (!discardStaleCache()) return false;
 
   bool loaded = false;
   ScopedCleanup cleanup{[this, &loaded] {
@@ -716,6 +725,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
     LOG_ERR("EBP", "Failed to reload cache after writing");
     return false;
   }
+  CacheSource::record(filepath, cachePath);
 
   LOG_DBG("EBP", "Loaded ePub: %s", filepath.c_str());
   loaded = true;

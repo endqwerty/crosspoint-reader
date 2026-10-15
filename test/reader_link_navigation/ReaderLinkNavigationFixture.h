@@ -151,6 +151,8 @@ class EpubReaderActivity {
     }
     size_t getBookSize() const { return bookSize; }
     int getSpineItemsCount() const { return spineCount; }
+    bool replaced = false;
+    bool wasReplaced() const { return replaced; }
     size_t getCumulativeSpineItemSize(int spine) const { return (spine + 1) * 1000; }
     std::string getCachePath() const { return "/cache"; }
     int getSpineIndexForTextReference() const { return textReference; }

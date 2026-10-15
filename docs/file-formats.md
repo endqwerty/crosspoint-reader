@@ -88,6 +88,18 @@ if (parsedSize != fileSize) {
 }
 ```
 
+## `source.bin`
+
+Fork-only, in each `epub_<hash>/` cache directory. Eight bytes, two little-endian
+`uint32_t` fields: the EPUB's size in bytes and its FAT modification timestamp as
+returned by `HalFile::modificationTime()`. `CacheSource::discardIfChanged()`
+compares them with the file on every load. A difference removes every entry in
+the directory except `progress.bin` and `source.bin`, starting with `book.bin`;
+`CacheSource::record()` rewrites the stamp after the rebuild. A missing stamp
+beside an existing `book.bin` is written from the current file; a short stamp
+counts as a change, and a stamp that exists but cannot be opened rejects the
+cache for that load. No version field: the file has one layout.
+
 ## `section.bin`
 
 ### Version 56

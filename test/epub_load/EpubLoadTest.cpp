@@ -97,8 +97,11 @@ TEST_F(EpubLoadTest, EveryColdLoadFailureReleasesOwnersAndAllowsRetry) {
     Epub epub;
     EXPECT_FALSE(epub.load()) << static_cast<int>(fault);
     expectEmpty(epub);
+    EXPECT_EQ(state.sourceRecords, 0) << static_cast<int>(fault);
     state.fault = Fault::None;
     ASSERT_TRUE(epub.load());
+    // A reload failure leaves book.bin published, so the retry reads it instead of rebuilding.
+    EXPECT_EQ(state.sourceRecords, fault == Fault::Reload ? 0 : 1) << static_cast<int>(fault);
     EXPECT_EQ(state.metadataPeak, 1);
     EXPECT_EQ(state.cssPeak, 1);
   }
@@ -134,6 +137,8 @@ TEST_F(EpubLoadTest, CompleteCachedLoadSkipsSourceParsingAndReleasesCssRules) {
   EXPECT_EQ(state.sectionDeletes, 0);
   EXPECT_TRUE(epub.cssParser);
   EXPECT_TRUE(epub.bookMetadataCache);
+  EXPECT_EQ(state.sourceChecks, 1);
+  EXPECT_EQ(state.sourceRecords, 0);
 }
 
 TEST_F(EpubLoadTest, CssLowMemoryKeepsCacheAndBookAvailable) {
@@ -205,6 +210,8 @@ TEST_F(EpubLoadTest, NavFallbackAndMissingTocStillAllowReading) {
     EXPECT_TRUE(state.published);
     EXPECT_EQ(state.loads, 2);
     EXPECT_EQ(state.cleanupCalls, 1);
+    EXPECT_EQ(state.sourceChecks, 1);
+    EXPECT_EQ(state.sourceRecords, 1);
   }
 }
 

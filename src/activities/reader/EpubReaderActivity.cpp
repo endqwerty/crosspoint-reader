@@ -222,6 +222,11 @@ bool EpubReaderActivity::loadBook() {
     return false;
   }
 
+  // A replaced book is indexed again like a new one, so drop its stale cache first.
+  if (!loadedEpub->discardStaleCache()) {
+    LOG_ERR("ERS", "Failed to discard stale EPUB cache");
+    return false;
+  }
   const bool uncached = !Storage.exists((loadedEpub->getCachePath() + "/book.bin").c_str());
   if (uncached) {
     disableFastInitialRefresh();
@@ -267,7 +272,14 @@ bool EpubReaderActivity::loadBook() {
       cachedSpineIndex = currentSpineIndex;
       LOG_DBG("ERS", "Loaded cache: %d, %d", currentSpineIndex, nextPageNumber);
     }
-    if (dataSize == 6) {
+    // A replaced book can be shorter than the saved position; open its last
+    // chapter rather than reading it as finished, and drop the old chapter's
+    // page and text position.
+    if (hasSavedProgress && epub->wasReplaced() && currentSpineIndex >= epub->getSpineItemsCount()) {
+      currentSpineIndex = std::max(0, epub->getSpineItemsCount() - 1);
+      cachedSpineIndex = currentSpineIndex;
+      nextPageNumber = 0;
+    } else if (dataSize == 6) {
       cachedChapterTotalPageCount = data[4] + (data[5] << 8);
     } else if (dataSize == 10) {
       cachedChapterTotalPageCount = data[4] + (data[5] << 8);

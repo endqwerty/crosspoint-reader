@@ -40,11 +40,16 @@ class CssParser {
   void clear() {}
   static bool sectionCacheIsStale(CacheStatus, CacheLoadResult, ParseResult) { return false; }
 };
+namespace CacheSource {
+inline void record(const std::string&, const std::string&) {}
+}  // namespace CacheSource
+
 class Epub {
  public:
   std::string filepath = "/book.epub", cachePath = "/cache", contentBasePath;
   // These fixtures open every book as a plain ZIP; no entry is protected.
   bool openProtection() { return true; }
+  bool discardStaleCache() { return true; }
   std::string tocNavItem, tocNcxItem;
   std::vector<std::string> cssFiles;
   std::unique_ptr<BookMetadataCache> bookMetadataCache;

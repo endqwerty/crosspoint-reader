@@ -17,7 +17,7 @@ struct State {
   int metadataLive = 0, cssLive = 0, metadataPeak = 0, cssPeak = 0, openHandles = 0;
   int metadataCreated = 0, cssCreated = 0, loads = 0, opfCalls = 0, cssParses = 0;
   int cssClears = 0, cssDeletes = 0, sectionDeletes = 0, navCalls = 0, ncxCalls = 0, cleanupCalls = 0;
-  int discoveries = 0, directoryCalls = 0, errors = 0;
+  int discoveries = 0, directoryCalls = 0, errors = 0, sourceChecks = 0, sourceRecords = 0;
   int metadataValuesLive = 0, metadataCopies = 0, metadataValuesDuringCss = -1, metadataValuesDuringReload = -1;
   bool opfInputEmpty = false, builtMetadataCorrect = false;
   std::vector<std::string> events;
@@ -125,6 +125,10 @@ class BookMetadataCache {
   }
 };
 
+namespace CacheSource {
+inline void record(const std::string&, const std::string&) { ++load_test::state.sourceRecords; }
+}  // namespace CacheSource
+
 // Epub.cpp routes TXT/Markdown through Txt; these tests only load EPUBs.
 class Txt {
  public:
@@ -175,6 +179,10 @@ class Epub {
   std::string filepath = "/book.epub", cachePath = "/cache", tocNavItem = "nav.xhtml", tocNcxItem = "toc.ncx";
   // These fixtures open every book as a plain ZIP; no entry is protected.
   bool openProtection() { return true; }
+  bool discardStaleCache() {
+    ++load_test::state.sourceChecks;
+    return true;
+  }
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   std::unique_ptr<CssParser> cssParser;
   bool load(bool buildIfMissing = true, bool skipLoadingCss = false);
