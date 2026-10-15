@@ -592,7 +592,6 @@ STR_BOOK_SEARCH_EMPTY: "No matching text"
 STR_BOOK_SEARCH_PARTIAL: "Partial results. Refine your search."
 STR_BOOK_SEARCH_FAILED: "Could not search this book"
 STR_BOOK_SEARCH_INVALID: "Enter a shorter search phrase"
-STR_BOOK_SEARCH_RESULTS: "Search results"
 
 STR_BOOK_SEARCH_PARTIAL_TITLE: "Search results (partial)"
 STR_NO_RECENT_BOOKS: "No recent books"
