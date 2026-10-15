@@ -361,8 +361,9 @@ cache. This cache directory exists at `.crosspoint` on the SD card. The structur
 
 ```text
 .crosspoint/
-├── epub_<hash>/         # one directory per book, named by content hash
+├── epub_<hash>/         # one directory per book, named by a hash of its path
 │   ├── progress.bin     # reading position (chapter, page, etc.)
+│   ├── source.bin       # size and timestamp of the EPUB the cache was built from
 │   ├── cover.bmp        # generated cover image
 │   ├── book.bin         # metadata: title, author, spine, TOC
 │   ├── css_rules.cache  # parsed CSS rule cache
