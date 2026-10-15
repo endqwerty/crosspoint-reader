@@ -1,46 +1,66 @@
-# Personal Libron reader font
+# Built-in Libron reader font
 
-This firmware pins EPUB and dictionary text to the built-in Libron family,
-including when settings on the SD card name Noto Sans, Noto Serif or an SD/vector
-font. Loading normalizes the stored family and clears the SD font name once;
-rendering also resolves Libron directly, without consulting the SD resolver.
-Settings menus and text previews expose the same single family as **Reader Serif**.
-Libron is a reserved font name; its OFL requires a different primary name for
-converted firmware fonts. The released TTF files retain their original names. UI fonts retain
-their existing roles. The unused Noto Serif and Noto Sans reader families are not
-registered, so the linker can discard those flash assets and fit the firmware
-partition. Noto Sans 18 remains registered for `UiSliderDialog` title text. Matching-style Noto Sans sources fill only codepoints absent from
-Libron during font generation, including Cyrillic, punctuation and U+FFFD.
-Native Libron glyphs take priority; measuring, rendering, prewarming and cache
-identity all use the same combined built-in font without runtime redirection.
+The fork's built-in reader fonts are Libron and Noto Sans. Libron takes the place
+of upstream's built-in Noto Serif: settings store it as upstream's serif slot
+(`NOTOSERIF = 0`), and `getReaderFontId()` returns the Libron font IDs for that
+slot. Menus and the text preview show it as **Reader Serif**. Libron is a reserved
+font name, and its OFL requires a different primary name for converted firmware
+fonts. The released TTF files keep their original names.
 
-The four styles are rasterized at 12, 14, 16 and 18 points using the existing
-2-bit, compressed built-in font pipeline. Available sizes and tie-breaking match
-other built-ins. Unsupported saved sizes snap to the nearest size (ties choose
-the smaller size); line-spacing choices use the built-in serif scale. Other
-reader typography options keep their saved values. Libron font IDs are derived
-from the generated assets by `build-font-ids.sh`, so old Noto/SD section layouts
-use a different cache key and rebuild through the existing cache mechanism.
+SD-card fonts work as upstream ships them. Noto Serif (`NotoSerifExtended`),
+Literata and other prebuilt `.cpfont` families come from the
+[crosspoint-fonts releases](https://github.com/crosspoint-reader/crosspoint-fonts/releases);
+copy a family folder to `/fonts/` on the card. The X4 Pro has external RAM, so
+`.ttf` and `.otf` files also load directly, for example
+`/fonts/Bookerly/Bookerly-Regular.ttf`. `.cpfont` files render faster. Bookerly is
+proprietary and must not be committed here; the owner supplies their own copy.
+
+## Why not three built-in families
+
+On 2026-10-14 the X4 Pro image with Libron, Noto Serif and Noto Sans built in
+linked 7,292,066 bytes against the 6,553,600-byte app partition. Measured from
+the linked font data, Libron uses 1,309,158 bytes, Noto Serif 965,837 bytes and
+Noto Sans 961,741 bytes at 12 to 18 pt. Libron and Noto Sans link at 6,325,546
+bytes. Libron stays built in rather than moving to the card because it was the
+owner's chosen font and built-in bitmaps are the fastest path; upstream's
+prebuilt SD releases did not include Libron yet (upstream added it to the
+download list in #3971 on 2026-10-14).
+
+## Settings migration
+
+From 2026-10-06 to 2026-10-14 the fork forced Libron and saved it as family 2.
+Upstream reads a saved 2 as the legacy OpenDyslexic setting and moves it to an SD
+font. The fork removes that branch: a saved 2 clamps to the serif slot, which is
+Libron, and the settings file is saved again once. Saved SD font names are no
+longer cleared. Libron font IDs did not change, so existing section caches stay
+valid.
+
+## Assets
+
+The four styles are rasterized at 12, 14, 16 and 18 points with the existing 2-bit
+compressed built-in font pipeline. Matching-style Noto Sans sources fill only
+codepoints absent from Libron during font generation, including Cyrillic,
+punctuation and U+FFFD. Native Libron glyphs take priority. Font IDs come from
+the generated assets through `build-font-ids.sh`.
 
 Source provenance, the release pin, checksums and OFL attribution are beside the
 TTF files in `lib/EpdFont/builtinFonts/source/Libron/`. Regenerate with the Libron
 block in `convert-builtin-fonts.sh`, then regenerate `src/fontIds.h` using
 `build-font-ids.sh`.
 
-Glyph bitmaps, intervals and metrics use the converter's flash-resident constant
-arrays. Sixteen small `EpdFont` wrappers and four family wrappers use static
-storage, replacing the previous Noto Serif reader wrappers. Registration uses
-the same four map entries once during startup; the map is the renderer's existing
-public font lookup interface. Unused Noto Sans 12/14/16 reader registrations
-are removed; its 18-point UI registration remains. There is no new heap allocation in font selection, normalization or
-glyph fallback; a fontstack resolves missing codepoints at generation time.
-Glyph decompression uses the existing bounded shared font cache;
-SD/vector reader font loading is bypassed. Font chooser storage reserves one
-entry and reuses the existing settings lifetime.
+Glyph bitmaps, intervals and metrics are flash-resident constant arrays. The
+sixteen `EpdFont` wrappers and four family wrappers have static storage and
+replace upstream's Noto Serif wrappers one for one. There is no new heap
+allocation.
 
-Host regression coverage checks forced selection, saved-settings normalization,
-size snapping, resolver bypass and cache identifiers. Firmware builds establish
-static RAM/flash fit; serial heap, visual glyph quality and physical e-ink
-readability remain unverified. On the device, an existing saved alternative font
-must open as Libron, all four emphasis styles should display, and the font menus
-should name Reader Serif after reboot.
+## Checks
+
+`test/reader_font_sizes/ReaderFontPolicyTest.cpp` runs the production
+`getReaderFontId()`, line-spacing and settings-loading code: the serif slot
+renders Libron and the sans slot Noto Sans at every size, sizes snap, an installed
+SD font wins and a missing one falls back, the old saved value migrates once, and
+saved built-in and SD choices are kept. `LibronCoverageTest` checks glyph
+coverage. Firmware builds establish flash fit. On the device, unverified: each
+built-in and an SD font render in a book, the font menus list Reader Serif, Noto
+Sans and the installed SD families, and the previous Libron setting survives the
+update.
