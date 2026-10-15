@@ -72,10 +72,6 @@ class LibraryIndexFile {
   // Books belonging to a series, which is also where the standalone block starts
   // in series order.
   uint16_t knownSeriesCount() const { return opened ? head.knownSeriesCount : 0; }
-  // Whether a series order is worth offering at all. An index built before the
-  // reader turned book metadata on carries no series, and a tab that leads to
-  // nothing but ungrouped books is worse than no tab.
-  bool hasSeries() const { return opened && head.seriesCount > 0 && head.knownSeriesCount > 0; }
 
   // Record ordinal of the row at display position `row` in `order`. Returns
   // 0xFFFF when out of range, which callers treat as "no such row" rather than
