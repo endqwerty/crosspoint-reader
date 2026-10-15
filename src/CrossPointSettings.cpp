@@ -95,9 +95,12 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   doc["frontButtonRight"] = frontButtonRight;
   // Font family and size — both use dynamic getter/setters in SettingsList (the
   // option lists depend on the SD font registry), so the generic loop skips them.
-  doc["fontFamily"] = LIBRON;
+  doc["fontFamily"] = fontFamily;
   doc["fontSize"] = fontPointSize;
-  doc.remove("sdFontFamilyName");
+  // SD card font family name — not in SettingsList, save manually
+  if (sdFontFamilyName[0] != '\0') {
+    doc["sdFontFamilyName"] = sdFontFamilyName;
+  }
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, save manually
   if (dictionaryName[0] != '\0') {
     doc["dictionaryName"] = dictionaryName;
@@ -249,6 +252,9 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   }
   fontPointSize = storedFontSize;
 
+  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
+  const uint8_t storedFontFamily = doc["fontFamily"] | (uint8_t)0;
+  fontFamily = clamp(storedFontFamily, BUILTIN_FONT_COUNT, 0);
   // These controls use board-specific display-index mappings and are skipped by
   // the generic settings loop. Persisted action IDs remain stable across boards.
   longPressMenuFunction = clamp(doc["longPressMenuFunction"] | (uint8_t)LP_MENU_DISABLED,
@@ -265,11 +271,13 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     }
   }
 
-  // Ignore saved reader families, including SD/vector selections, in this personal firmware.
-  if (enforceReaderFont() || doc["fontFamily"] != static_cast<uint8_t>(LIBRON) ||
-      (doc["sdFontFamilyName"] | "")[0] != '\0' || storedFontSize != fontPointSize) {
-    needsResave = true;
-  }
+  // SD card font family name — not in SettingsList, load manually
+  const char* sfn = doc["sdFontFamilyName"] | "";
+  strncpy(sdFontFamilyName, sfn, sizeof(sdFontFamilyName) - 1);
+  sdFontFamilyName[sizeof(sdFontFamilyName) - 1] = '\0';
+  // Upstream reads a stored 2 as legacy OpenDyslexic. This fork stored Libron as 2,
+  // which the clamp above moves to the serif slot that now renders Libron.
+  if (storedFontFamily >= BUILTIN_FONT_COUNT) needsResave = true;
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, load manually
   copyToField(dictionaryName, doc["dictionaryName"] | "", sizeof(dictionaryName));
   // Language -- stored as code string for stability across enum reorders.
@@ -364,16 +372,6 @@ int CrossPointSettings::getRefreshFrequency() const {
   }
 }
 
-bool CrossPointSettings::enforceReaderFont() {
-  const uint8_t pt =
-      snapToNearestPointSize(BUILTIN_READER_POINT_SIZES, std::size(BUILTIN_READER_POINT_SIZES), fontPointSize);
-  const bool changed = fontFamily != LIBRON || sdFontFamilyName[0] != '\0' || fontPointSize != pt;
-  fontFamily = LIBRON;
-  sdFontFamilyName[0] = '\0';
-  fontPointSize = pt;
-  return changed;
-}
-
 void CrossPointSettings::clearSdFontFamily() {
   sdFontFamilyName[0] = '\0';
   fontPointSize =
@@ -382,17 +380,29 @@ void CrossPointSettings::clearSdFontFamily() {
 }
 
 int CrossPointSettings::getReaderFontId() const {
+  // Check SD card font first
+  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontPointSize);
+    if (id != 0) return id;
+    // Fall through to built-in if SD font not found
+  }
+
+  // A built-in family only exists at BUILTIN_READER_POINT_SIZES, so a size
+  // carried over from an SD family may not be one of them. ensureLoaded()
+  // normally persists the snap; snap again here (without allocating — this runs
+  // in the page render loop) so rendering is correct even before it has run.
   const uint8_t pt =
       snapToNearestPointSize(BUILTIN_READER_POINT_SIZES, std::size(BUILTIN_READER_POINT_SIZES), fontPointSize);
+  const bool sans = (fontFamily == NOTOSANS);
   switch (pt) {
     case 12:
-      return LIBRON_12_FONT_ID;
+      return sans ? NOTOSANS_12_FONT_ID : LIBRON_12_FONT_ID;
     case 16:
-      return LIBRON_16_FONT_ID;
+      return sans ? NOTOSANS_16_FONT_ID : LIBRON_16_FONT_ID;
     case 18:
-      return LIBRON_18_FONT_ID;
+      return sans ? NOTOSANS_18_FONT_ID : LIBRON_18_FONT_ID;
     case 14:
     default:
-      return LIBRON_14_FONT_ID;
+      return sans ? NOTOSANS_14_FONT_ID : LIBRON_14_FONT_ID;
   }
 }
