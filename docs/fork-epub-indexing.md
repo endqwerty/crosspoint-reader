@@ -11,9 +11,24 @@ usable TOC still opens and reads. Library metadata scans parse only OPF display
 metadata and never build the indexing structures described below.
 
 The `book.bin` byte layout (version 10) is documented in `docs/file-formats.md`.
-Cache identity is path-based: replacing EPUB content at the same path still relies
-on the existing invalidation rules, and a copy under a new filename gets a separate
-cache.
+Cache identity is path-based, and a copy under a new filename gets a separate
+cache. A book replaced at the same path (a Calibre re-export, or a newer edition
+copied over the old file) is detected by `CacheSource`: `source.bin` in the cache
+holds the EPUB's size and FAT timestamp from the last build, 8 bytes. When either
+differs on load, every cache entry except `progress.bin` is removed and the book
+is indexed again, so the reading position survives. If the removal fails part-way,
+or the stamp exists but cannot be read, the book does not open from the stale
+cache; the next open retries it. The reader calls `Epub::discardStaleCache()`
+before choosing whether to show the indexing popup, so a replaced book is indexed
+like a new one. On the open that rebuilds a replaced book, a saved position at or
+past its end opens the start of the last chapter instead of marking the book
+finished. If another path (the sleep cover) rebuilt the cache first, the reader
+no longer knows the book was replaced and a saved position at the very end still
+reads as finished. A cache built before this check
+has no `source.bin` and is taken as built from the current file; use **Delete Book
+Cache** once for a book that was already replaced. A replacement with the same size
+and the same timestamp is not detected. Bookmarks live outside the cache and are
+not touched.
 
 ## Load orchestration (`Epub::load`)
 
