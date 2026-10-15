@@ -182,5 +182,6 @@ add_subdirectory(huge_book_index)
 
 add_subdirectory(sdfat_cache)
 add_subdirectory(epub_load)
+add_subdirectory(cache_source)
 
 add_subdirectory(epub_indexing)
