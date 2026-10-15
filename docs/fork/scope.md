@@ -23,6 +23,11 @@ fork effort goes; they never justify diverging from upstream's design.
   Bookerly and other fonts load from the SD card through upstream's SD font
   support. Bookerly is proprietary: never commit it; the user supplies the files.
   See [the font policy](../fork-libron-font.md).
+- UI language (2026-10-14): the X4 Pro image is built with English menus only
+  (`custom_i18n_builtin_langs = en`, an upstream build option) to save about
+  390 KB of flash. Book text in other languages is unaffected; only the menu
+  language picker shrinks. Revert the option if another menu language is
+  wanted.
 - Device scope (2026-10-06): focus on offline EPUB reading for Xteink X4 Pro
   (`x4pro-gh_release`), the only device the user owns or tests. Other devices
   are not feature, optimization or validation targets for this personal fork.

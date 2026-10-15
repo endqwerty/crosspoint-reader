@@ -76,7 +76,8 @@ The drivers live in the `freeink-sdk` submodule (`libs/display/FreeInkDisplay`).
 
 - the RC02 baseline (`2cca22fe`);
 - Direct grayscale and `UltraChipDirectGrayLuts.h`;
-- one local commit with the fork's display changes.
+- two local commits: the fork's display hardening, and the list and text-area
+  extensions the reader uses.
 
 A handoff must include the nested SDK commits, not only the submodule pointer.
 
