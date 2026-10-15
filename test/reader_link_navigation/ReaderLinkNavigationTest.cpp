@@ -162,6 +162,39 @@ TEST_F(ReaderLinkNavigationTest, SavedSpineZeroResumesEvenWhenBookHasDifferentTe
   }
 }
 
+TEST_F(ReaderLinkNavigationTest, ReplacedShorterBookOpensItsLastChapterInsteadOfFinished) {
+  Storage.available = true;
+  for (const int savedSpine : {10, 15}) {
+    Storage.data = {static_cast<uint8_t>(savedSpine), 0, 7, 0, 20, 0, 0xD2, 4, 0, 0};
+    reader.epub->replaced = true;
+    reader.cachedChapterTotalPageCount = 0;
+    reader.cachedVisibleTextOffset.reset();
+    reader.loadSavedProgress();
+    EXPECT_EQ(reader.currentSpineIndex, 9) << savedSpine;
+    EXPECT_EQ(reader.cachedSpineIndex, 9) << savedSpine;
+    EXPECT_EQ(reader.nextPageNumber, 0) << savedSpine;
+    EXPECT_EQ(reader.cachedChapterTotalPageCount, 0) << savedSpine;
+    EXPECT_FALSE(reader.cachedVisibleTextOffset.has_value()) << savedSpine;
+  }
+}
+
+TEST_F(ReaderLinkNavigationTest, FinishedBookThatWasNotReplacedStaysFinished) {
+  Storage.available = true;
+  Storage.data = {10, 0, 0, 0};
+  reader.loadSavedProgress();
+  EXPECT_EQ(reader.currentSpineIndex, 10);
+}
+
+TEST_F(ReaderLinkNavigationTest, ReplacedBookKeepsAPositionThatStillExists) {
+  Storage.available = true;
+  Storage.data = {4, 0, 7, 0, 20, 0, 0xD2, 4, 0, 0};
+  reader.epub->replaced = true;
+  reader.loadSavedProgress();
+  EXPECT_EQ(reader.currentSpineIndex, 4);
+  EXPECT_EQ(reader.nextPageNumber, 7);
+  EXPECT_EQ(reader.cachedVisibleTextOffset, 1234);
+}
+
 TEST_F(ReaderLinkNavigationTest, FreshBookStartsAtTextReference) {
   reader.currentSpineIndex = 0;
   reader.loadSavedProgress();
