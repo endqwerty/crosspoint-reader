@@ -185,8 +185,9 @@ text still follows the converter's line break. This behavior defines
 `section.bin` version 51. Version 52 also preserves paragraph continuity and
 top spacing across soft flushes. Version 53 incorporates upstream's redaction
 glyph widths and retires older version 52 layouts, with partial sentinel 229
-and the same byte layout. See
-[file-formats.md](file-formats.md).
+and the same byte layout. Later versions are listed in
+[file-formats.md](file-formats.md); the current one is 56, with partial
+sentinel 226.
 
 ## Limits and known gaps
 
