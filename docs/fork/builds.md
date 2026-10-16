@@ -67,6 +67,15 @@ Validation rules:
   first firmware build downloads the ESP32 toolchain into `~/.platformio`. The
   build share is not mounted there: copy a firmware package through a machine
   that has `/Volumes/workspace` (the homelab `omarchy.md` says how).
+- The platform keeps a second Python environment, `~/.platformio/penv`. Envs
+  with `custom_sdkconfig` (`default`, `sticky` and the C3 release targets)
+  rebuild the Arduino IDF libraries with a nested `pio` from it. When the
+  platform creates it, for example after a Homebrew Python upgrade breaks its
+  interpreter link, it installs the newest `pioarduino`. Core 6.2.0 there
+  replaces SCons during the build, which fails with `No module named
+  'SCons.Tool.FortranCommon'`. `prepare`, and `check` before its firmware
+  builds, pin `penv` to the venv's Core version, as upstream CI does. Run
+  `prepare` again after a Python or toolchain upgrade.
 - The maintained checkout lives on the Mac's SSD volume at
   `/Volumes/SSD/Work/crosspoint-reader`; T3 Code worktrees go under
   `/Volumes/SSD/Worktrees`. Keep source and git data off the SMB share.
@@ -109,7 +118,8 @@ T3 recreates a removed checkout from the thread's branch when resumed. There is
 no other cleanup job.
 
 - Run `scripts/fork-workflow.sh prepare` before building or testing. It checks
-  out the pinned SDK, borrowing objects from the permanent checkout.
+  out the pinned SDK, borrowing objects from the permanent checkout, and pins
+  the platform's PlatformIO Core (see Toolchain).
 - `scripts/fork-workflow.sh release` drops build output and the SDK checkout.
   Run it as the last command of the turn that ends the task (the global rules
   require it every time). Run it only once the work is delivered or preserved:

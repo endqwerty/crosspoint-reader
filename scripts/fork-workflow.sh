@@ -34,7 +34,8 @@ Usage: scripts/fork-workflow.sh <command>
 
   setup                 Verify remotes and set the per-clone git and gh defaults.
   status                Show official/fork/branch state and open pull requests.
-  prepare               Check out the pinned SDK submodule in this worktree.
+  prepare               Check out the pinned SDK submodule in this worktree and
+                        pin the platform's own PlatformIO Core (penv).
   check [--fast|--full] Run the checks CI would run, locally. Default: format,
                         host tests (Release and sanitizers) and the X4 Pro build.
                         --fast: format and Release host tests only.
@@ -154,7 +155,7 @@ cmd_status() {
   open_prs
 }
 
-cmd_prepare() {
+prepare_sdk() {
   local top reference
   top=$(git rev-parse --show-toplevel)
   reference="$(main_worktree)/$SDK_PATH"
@@ -164,6 +165,45 @@ cmd_prepare() {
   else
     git -C "$top" submodule update --init "$SDK_PATH"
   fi
+}
+
+# Envs with custom_sdkconfig rebuild the Arduino IDF libraries through a nested
+# `pio` from the platform's own Python environment (penv). Whenever the platform
+# creates penv, for example after a Python upgrade broke it, it installs the
+# newest "pioarduino>=6.1.19"; a core newer than ours swaps SCons out mid-build
+# ("No module named 'SCons.Tool.FortranCommon'"). Upstream CI pins it the same
+# way (.github/workflows/ci.yml, pioarduino/platform-espressif32#529).
+pin_platform_core() {
+  local want have core_dir="${PLATFORMIO_CORE_DIR:-$HOME/.platformio}"
+  local penv_bin="$core_dir/penv/bin"
+  [ -x "$TOOL_BIN/pio" ] || die "no toolchain in $TOOL_BIN (set CROSSPOINT_TOOL_BIN)"
+  want=$("$TOOL_BIN/python" -c 'import platformio; print(platformio.__version__)') || return 1
+  # Installing the platform's packages creates or repairs penv first.
+  "$TOOL_BIN/pio" pkg install -d "$(git rev-parse --show-toplevel)" -e x4pro-gh_release || return 1
+  # Running Core version, the pioarduino distribution's version, and any
+  # other distribution that also installs the platformio module.
+  have=$("$penv_bin/python" -c '
+import importlib.metadata as m, platformio
+others = []
+for name in ("pioarduino-core", "platformio"):
+    try:
+        m.version(name)
+        others.append(name)
+    except m.PackageNotFoundError:
+        pass
+print(platformio.__version__, m.version("pioarduino"), *others)' 2>/dev/null) || have=missing
+  if [ "$have" != "$want $want" ]; then
+    echo "platform penv: found \"$have\" (Core, pioarduino, overlaps), installing pioarduino==$want"
+    # These distributions share the platformio module, so remove them all first.
+    UV_CACHE_DIR="$core_dir/.cache/uv" "$penv_bin/uv" pip uninstall --python "$penv_bin/python" pioarduino pioarduino-core platformio || return 1
+    UV_CACHE_DIR="$core_dir/.cache/uv" "$penv_bin/uv" pip install --python "$penv_bin/python" "pioarduino==$want" || return 1
+  fi
+  echo "platform penv: PlatformIO Core $want"
+}
+
+cmd_prepare() {
+  prepare_sdk
+  pin_platform_core
 }
 
 run_step() {
@@ -196,7 +236,7 @@ host_tests() {
 }
 
 cmd_check() {
-  local mode=${1:-default} dir failed=0 env
+  local mode=${1:-default} dir failed=0 pinned=0 env
   case "$mode" in
     default | --fast | --full) ;;
     *) die "usage: check [--fast|--full]" ;;
@@ -207,7 +247,7 @@ cmd_check() {
   export PATH
   dir=$(ci_dir)
   mkdir -p "$dir"
-  cmd_prepare >"$dir/prepare.log" 2>&1 || die "could not check out the SDK (see $dir/prepare.log)"
+  prepare_sdk >"$dir/prepare.log" 2>&1 || die "could not check out the SDK (see $dir/prepare.log)"
   echo "checking $(git rev-parse --short HEAD) in $(pwd); logs in $dir"
 
   # The formatter rewrites files, so it needs a clean tree to compare against.
@@ -220,13 +260,22 @@ cmd_check() {
   run_step "host tests (Release)" "$dir/tests-release.log" host_tests "$dir/tests-release" OFF || failed=1
   if [ "$mode" != --fast ]; then
     run_step "host tests (sanitizers)" "$dir/tests-sanitizers.log" host_tests "$dir/tests-sanitizers" ON || failed=1
-    run_step "build x4pro-gh_release" "$dir/build-x4pro-gh_release.log" pio run -e x4pro-gh_release || failed=1
+    # A failed pin can leave penv without a Core, so the builds wait for it.
+    if run_step "platform core" "$dir/platform-core.log" pin_platform_core; then
+      pinned=1
+      run_step "build x4pro-gh_release" "$dir/build-x4pro-gh_release.log" pio run -e x4pro-gh_release || failed=1
+    else
+      echo "firmware builds              skipped: platform core failed"
+      failed=1
+    fi
   fi
   if [ "$mode" = --full ]; then
     run_step "cppcheck" "$dir/cppcheck.log" pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high || failed=1
-    for env in $CI_ENVS; do
-      run_step "build $env" "$dir/build-$env.log" pio run -e "$env" || failed=1
-    done
+    if [ "$pinned" -eq 1 ]; then
+      for env in $CI_ENVS; do
+        run_step "build $env" "$dir/build-$env.log" pio run -e "$env" || failed=1
+      done
+    fi
   fi
   [ "$failed" -eq 0 ] || die "checks failed"
   echo "all checks passed"
