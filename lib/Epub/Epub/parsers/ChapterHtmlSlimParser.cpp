@@ -3520,7 +3520,7 @@ bool ChapterHtmlSlimParser::makePages(const bool includeLastLine, const bool par
       pendingFootnotes.clear();
     }
 
-    if (!paragraphEnd) return;
+    if (!paragraphEnd) return true;
 
     // Apply bottom spacing after the paragraph (stored in pixels)
     if (blockStyle.marginBottom > 0) {
