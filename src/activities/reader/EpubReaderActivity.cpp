@@ -430,10 +430,10 @@ bool EpubReaderActivity::resolvePendingSectionJump() {
 // A started build runs to the end of the chapter, one bounded step per idle loop frame, so the
 // parser and its page LUT are freed soon (and a radio stopped for the build comes back with no
 // parser alive). Not while the radio holds the heap, and not in a spine whose background build
-// failed.
+// failed unless a pending jump into it needs the build.
 bool EpubReaderActivity::backgroundBuildWanted() const {
   return !pendingBuildError && section && section->isBuilding() && !bleturner::holdsHeap() &&
-         currentSpineIndex != backgroundBuildFailedSpine;
+         (currentSpineIndex != backgroundBuildFailedSpine || hasPendingSectionJump());
 }
 
 // Starts the deferred extension of a partial section once the reader nears its watermark; the
@@ -1124,7 +1124,8 @@ void EpubReaderActivity::jumpToByteOffset(size_t targetSize) {
   int targetSpineIndex = spineCount - 1;
   size_t prevCumulative = 0;
 
-  const int found = epub->getSpineIndexForSize(targetSize);
+  // A target on a chapter boundary opens the next chapter's start, not the previous chapter's end.
+  const int found = epub->getSpineIndexForSize(targetSize + 1);
   if (found >= 0) {
     targetSpineIndex = found;
     prevCumulative = (found > 0) ? epub->getCumulativeSpineItemSize(found - 1) : 0;

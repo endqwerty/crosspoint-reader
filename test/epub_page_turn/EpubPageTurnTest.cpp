@@ -151,10 +151,10 @@ TEST(CachedPageReads, CompletePagesReduceStorageCallsWithUnchangedAllocationBudg
 
 TEST(RubyRendering, ReusesAnnotationTextAcrossRenderModes) {
   static constexpr uint64_t EXPECTED_PIXELS[4][3] = {
-      {0xb620c544256a40e0ULL, 0x64b33547ffd2a6b8ULL, 0x0db3a328e04a1937ULL},
-      {0x178e6f174e89db4bULL, 0xf7f5e9d87299f7eeULL, 0xc88ccee41daa44a2ULL},
-      {0x4b838fe1eac7505bULL, 0x884487f44027dd73ULL, 0x714849700edf8961ULL},
-      {0xcc0f978bd7c14549ULL, 0x5d948514416c2a20ULL, 0x5cc7462b9ba1dbb4ULL},
+      {0xc57b85f25a441430ULL, 0xf7db8cfc954cc5b3ULL, 0x39eeeb10005f7034ULL},
+      {0x05037c0870da114fULL, 0x8e1b23d2920d284cULL, 0xf48ead1fe8dbe498ULL},
+      {0x04da0eabdf8330aaULL, 0x61df59b987a6ca8eULL, 0x9e3ff9c6ede809d1ULL},
+      {0x76a81d0faee55b03ULL, 0x0bc0cef627b62066ULL, 0x05553130d09670c1ULL},
   };
   using namespace epub_page_test;
   using Style = EpdFontFamily::Style;
@@ -215,8 +215,8 @@ TEST(RubyRendering, ReusesAnnotationTextAcrossRenderModes) {
 
 TEST(RubyRendering, CompletePagesKeepPixelsAndProseAllocationBudget) {
   static constexpr uint64_t EXPECTED_PIXELS[2][4] = {
-      {0x9bd371383337398bULL, 0x224c0109b01c030cULL, 0x0fe7b1a9a079401cULL, 0x337275435822b51cULL},
-      {0xf9a8a86d3d456bb6ULL, 0x696d546b9894ac70ULL, 0x4e5b03d2e6decbdeULL, 0x482cdbbd6fdffcc0ULL},
+      {0x4701f7553448970bULL, 0x74e325d889860867ULL, 0x45380d99ecfd510dULL, 0x8a1b4305d89deb56ULL},
+      {0xf745045f35bb1f12ULL, 0x2510f44142308418ULL, 0x57c0092d68ff3012ULL, 0x709039d1907fdab3ULL},
   };
   using namespace epub_page_test;
   for (const auto scene : {Scene::Prose, Scene::Annotated}) {

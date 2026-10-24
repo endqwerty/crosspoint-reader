@@ -22,7 +22,7 @@ class ReaderIncrementalTest : public testing::TestWithParam<bool> {
   void complete() {
     int ticks = 0;
     while (reader.hasPendingSectionJump() && !reader.pendingBuildError && ticks++ < 10000) {
-      reader.advanceSectionBuild();
+      reader.idleTick();
     }
     ASSERT_LT(ticks, 10000);
   }
@@ -39,7 +39,7 @@ TEST_P(ReaderIncrementalTest, UncachedJumpDefersAllPaginationAndProgressUntilTar
   EXPECT_EQ(reader.saves, 0);
   EXPECT_EQ(GUI.indexingPopups, 1);
   EXPECT_TRUE(querySchedulingHint(reader));
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.pagesBuilt, 2);
   EXPECT_TRUE(reader.hasPendingSectionJump());
   reader.renderBook();
@@ -77,7 +77,7 @@ TEST_P(ReaderIncrementalTest, PendingChapterDoesNotOfferFootnotesFromThePrevious
   EXPECT_TRUE(reader.currentPageFootnotes.empty());
   EXPECT_TRUE(reader.currentPageLinks.empty());
   EXPECT_EQ(reader.storage.pageReads, 0);
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_TRUE(reader.currentPageFootnotes.empty());
 }
 
@@ -88,7 +88,7 @@ TEST_P(ReaderIncrementalTest, PartialWatermarkDoesNotMakeOneTickRebuildTheWholeC
   reader.storage.totalPages = 8000;
   reader.renderBook();
   EXPECT_EQ(reader.storage.chunks, 0);
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.pagesBuilt, 2);
   EXPECT_EQ(reader.section->pageCount, 4000);
   EXPECT_TRUE(reader.hasPendingSectionJump());
@@ -114,7 +114,7 @@ TEST_P(ReaderIncrementalTest, EmptyChapterClearsPendingJumpAndShowsEmptyWithoutS
   setJump();
   reader.storage.totalPages = 0;
   reader.renderBook();
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_FALSE(reader.hasPendingSectionJump());
   EXPECT_EQ(reader.updates, 1);
   EXPECT_FALSE(querySchedulingHint(reader));
@@ -122,7 +122,7 @@ TEST_P(ReaderIncrementalTest, EmptyChapterClearsPendingJumpAndShowsEmptyWithoutS
   EXPECT_EQ(reader.renderer.emptyChapters, 1);
   EXPECT_EQ(reader.storage.pageReads, 0);
   EXPECT_EQ(reader.saves, 0);
-  for (int i = 0; i < 10; ++i) reader.advanceSectionBuild();
+  for (int i = 0; i < 10; ++i) reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 1);
   EXPECT_EQ(reader.updates, 1);
 }
@@ -131,16 +131,16 @@ TEST_P(ReaderIncrementalTest, HeapGatePausesWithoutSpinningAndResumesAtThreshold
   setJump();
   reader.renderBook();
   ESP.freeHeap = EpubReaderActivity::BACKGROUND_BUILD_MIN_FREE_HEAP - 1;
-  for (int i = 0; i < 10; ++i) reader.advanceSectionBuild();
+  for (int i = 0; i < 10; ++i) reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 0);
   EXPECT_FALSE(querySchedulingHint(reader));
   ESP.freeHeap++;
   ESP.largest = EpubReaderActivity::BACKGROUND_BUILD_MIN_MAX_ALLOC - 1;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 0);
   EXPECT_FALSE(querySchedulingHint(reader));
   ESP.largest++;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 1);
   EXPECT_TRUE(querySchedulingHint(reader));
 }
@@ -149,15 +149,15 @@ TEST_P(ReaderIncrementalTest, BusyRendererPreventsBackgroundWork) {
   setJump();
   reader.renderBook();
   RenderLock::busy = true;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 0);
   EXPECT_FALSE(querySchedulingHint(reader));
   RenderLock::busy = false;
   RenderLock::failTryAcquire = true;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 0);
   RenderLock::failTryAcquire = false;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, 1);
 }
 
@@ -165,13 +165,13 @@ TEST_P(ReaderIncrementalTest, BackgroundFailureIsLatchedUntilExplicitNavigation)
   setJump();
   reader.renderBook();
   reader.storage.chunkFails = true;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_TRUE(reader.pendingBuildError);
   EXPECT_FALSE(reader.section);
   EXPECT_FALSE(querySchedulingHint(reader));
   EXPECT_EQ(reader.updates, 1);
   for (int i = 0; i < 5; ++i) {
-    reader.advanceSectionBuild();
+    reader.idleTick();
     reader.renderBook();
   }
   EXPECT_EQ(reader.storage.buildsStarted, 1);
@@ -215,7 +215,7 @@ TEST_P(ReaderIncrementalTest, ExplicitJumpIgnoresOldCachedOffsetAndRatio) {
 TEST_P(ReaderIncrementalTest, NewChapterNavigationCancelsStaleJump) {
   setJump();
   reader.renderBook();
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_TRUE(reader.skipPages(1));
   EXPECT_FALSE(reader.hasPendingSectionJump());
   EXPECT_EQ(reader.currentSpineIndex, 2);
@@ -228,16 +228,17 @@ TEST_P(ReaderIncrementalTest, NewChapterNavigationCancelsStaleJump) {
 
 INSTANTIATE_TEST_SUITE_P(PercentAndLastPage, ReaderIncrementalTest, testing::Bool());
 
-TEST(ReaderIncremental, OrdinaryFirstPageStillBuildsOnlyItsExistingForegroundWindow) {
+// Upstream #4040: after the first window, the rest of the chapter builds in idle frames.
+TEST(ReaderIncremental, OrdinaryFirstPageBuildsItsWindowThenContinuesWhenIdle) {
   EpubReaderActivity reader;
   reader.renderBook();
   EXPECT_EQ(reader.storage.chunks, 1);
   EXPECT_EQ(reader.storage.pagesBuilt, EpubReaderActivity::BUILD_PAGES_PER_CHUNK);
   EXPECT_EQ(reader.renderedPage, 0);
   EXPECT_EQ(reader.savedPage, 0);
-  EXPECT_FALSE(querySchedulingHint(reader));
-  reader.advanceSectionBuild();
-  EXPECT_EQ(reader.storage.chunks, 1);
+  EXPECT_TRUE(querySchedulingHint(reader));
+  reader.idleTick();
+  EXPECT_EQ(reader.storage.chunks, 2);
 }
 
 TEST(ReaderIncremental, SectionAllocationFailureHasAStableErrorWithoutProgress) {
@@ -258,10 +259,10 @@ TEST(ReaderIncremental, PendingPartialFarFromWatermarkStillStartsUnderHeapGate) 
   EXPECT_EQ(reader.storage.buildsStarted, 0);
   reader.pendingLastPageJump = true;
   ESP.freeHeap = 0;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.buildsStarted, 0);
   ESP = {};
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.buildsStarted, 1);
   EXPECT_EQ(reader.storage.pagesBuilt, 2);
 }
@@ -273,7 +274,7 @@ TEST(ReaderIncremental, DeferredStartFailurePreservesTheOldCacheButStopsThePendi
   reader.renderBook();
   reader.pendingLastPageJump = true;
   reader.storage.startFails = true;
-  for (int i = 0; i < 5; ++i) reader.advanceSectionBuild();
+  for (int i = 0; i < 5; ++i) reader.idleTick();
   ASSERT_TRUE(reader.section);
   EXPECT_TRUE(reader.pendingBuildError);
   EXPECT_EQ(reader.storage.buildsStarted, 1);
@@ -337,30 +338,33 @@ TEST_P(ReaderIncrementalTest, BusyBuildAndSchedulingReadNoSectionStateBeforeAcqu
     RenderLock::failTryAcquire = !busy;
     reader.storage.stateReads = 0;
     RenderLock::tryAttempts = RenderLock::peekCalls = 0;
-    reader.advanceSectionBuild();
+    reader.idleTick();
     EXPECT_FALSE(querySchedulingHint(reader));
     EXPECT_EQ(reader.storage.stateReads, 0);
     EXPECT_EQ(reader.storage.chunks, 0);
-    EXPECT_EQ(RenderLock::tryAttempts, 2u);
+    // Two idle-frame steps and the scheduling hint each try the lock once.
+    EXPECT_EQ(RenderLock::tryAttempts, 3u);
     EXPECT_EQ(RenderLock::peekCalls, 0u);
   }
 }
 
-TEST_P(ReaderIncrementalTest, SharedBuildPredicateRespectsWindowAndPendingNavigation) {
+TEST_P(ReaderIncrementalTest, StartedBuildRunsToTheEndUnlessTheRadioHoldsTheHeap) {
   reader.renderBook();
   ASSERT_TRUE(reader.section);
-  reader.section->pageCount = EpubReaderActivity::BUILD_WINDOW_AHEAD;
   reader.section->currentPage = 0;
   reader.section->partial = false;
   reader.section->building = true;
   const auto chunks = reader.storage.chunks;
-  EXPECT_FALSE(querySchedulingHint(reader));
-  reader.advanceSectionBuild();
-  EXPECT_EQ(reader.storage.chunks, chunks);
-  setJump();
   EXPECT_TRUE(querySchedulingHint(reader));
-  reader.advanceSectionBuild();
+  bleturner::heapHeld = true;
+  EXPECT_FALSE(querySchedulingHint(reader));
+  reader.idleTick();
+  EXPECT_EQ(reader.storage.chunks, chunks);
+  bleturner::heapHeld = false;
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, chunks + 1);
+  reader.backgroundBuildFailedSpine = reader.currentSpineIndex;
+  EXPECT_FALSE(querySchedulingHint(reader));
 }
 
 namespace {
@@ -449,11 +453,7 @@ TEST(ReaderIdlePrefetch, LockUiAndHeapGatesAvoidIdleReads) {
 TEST(ReaderIdlePrefetch, ActiveParserWaitsForCompletion) {
   EpubReaderActivity reader;
   reader.renderBook();
-  int ticks = 0;
-  while (reader.backgroundBuildWanted() && ticks++ < 10) reader.advanceSectionBuild();
-  ASSERT_LT(ticks, 10);
   ASSERT_TRUE(reader.section->isBuilding());
-  ASSERT_FALSE(reader.backgroundBuildWanted());
   reader.lastRenderCompleteMs = 100;
   reader.storage.pageReads = 0;
   reader.runIdlePrewarm();
@@ -518,7 +518,7 @@ TEST(ReaderBackgroundFramebuffer, LoanRequestsRedrawAndMarksBufferStale) {
   ASSERT_TRUE(reader.section);
   reader.section->loanOnBuild = true;
   const int updates = reader.updates;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_TRUE(reader.pageBufferStale);
   EXPECT_EQ(reader.updates, updates + 1);
 }
@@ -531,12 +531,31 @@ TEST(ReaderBackgroundFramebuffer, OverlayDefersBuildAndFramebufferLoan) {
   reader.section->loanOnBuild = true;
   reader.overlay = EpubReaderActivity::Overlay::Test;
   const int chunks = reader.storage.chunks;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_EQ(reader.storage.chunks, chunks);
   EXPECT_EQ(reader.renderer.frameBufferLoanCount(), 0u);
   EXPECT_FALSE(querySchedulingHint(reader));
   reader.overlay = EpubReaderActivity::Overlay::None;
-  reader.advanceSectionBuild();
+  reader.idleTick();
   EXPECT_GT(reader.storage.chunks, chunks);
   EXPECT_TRUE(reader.pageBufferStale);
+}
+
+// A failed speculative build stops idle building in that chapter, but an explicit jump into it
+// still needs its build to run.
+TEST_P(ReaderIncrementalTest, JumpIntoAChapterWhoseBackgroundBuildFailedStillCompletes) {
+  reader.renderBook();
+  ASSERT_TRUE(reader.section);
+  reader.storage.chunkFails = true;
+  reader.idleTick();
+  ASSERT_EQ(reader.backgroundBuildFailedSpine, reader.currentSpineIndex);
+  ASSERT_FALSE(reader.section);
+  reader.storage.chunkFails = false;
+  setJump();
+  reader.renderBook();
+  complete();
+  EXPECT_FALSE(reader.pendingBuildError);
+  EXPECT_FALSE(reader.hasPendingSectionJump());
+  ASSERT_TRUE(reader.section);
+  EXPECT_EQ(reader.section->currentPage, expectedPage());
 }

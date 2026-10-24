@@ -7,6 +7,8 @@
 #include <tuple>
 #include <vector>
 
+#include "../reader_ble_stub/ReaderBleStub.h"
+
 namespace haptic_feedback {
 inline int taps = 0;
 inline int holds = 0;
@@ -140,6 +142,8 @@ class EpubReaderActivity : public ReaderActivity {
   unsigned long lastPageTurnTime = 0;
   unsigned long pageTurnDuration = 500;
   int deferredClears = 0;
+  int idleBuildTicks = 0;
+  void backgroundBuildTick() { ++idleBuildTicks; }
 
   bool pageTurn(bool forward) override;
   bool skipPages(int amount) override;

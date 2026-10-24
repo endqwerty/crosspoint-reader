@@ -21,7 +21,7 @@ class SdCardFont {
   int prewarm(TextGetter, const void*, uint32_t, uint8_t, bool, bool) { std::abort(); }
   int buildAdvanceTable(const char*, uint8_t, const char*) { std::abort(); }
   int buildAdvanceTable(const std::deque<std::string>&, bool, uint8_t, const char*) { std::abort(); }
-  int buildAdvanceTablePacked(const char* const*, const size_t*, size_t, bool, bool, uint8_t, const char*) {
+  int buildAdvanceTablePacked(const char* const*, const size_t*, size_t, bool, bool, uint8_t, const char*, bool) {
     std::abort();
   }
   bool hasAdvanceTable() const { std::abort(); }

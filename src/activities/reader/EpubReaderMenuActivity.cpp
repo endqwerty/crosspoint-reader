@@ -5,6 +5,8 @@
 #include <HalFrontlight.h>
 #include <I18n.h>
 
+#include <algorithm>
+
 #include "AutoTurnIntervals.h"
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -223,7 +225,7 @@ void EpubReaderMenuActivity::buildScreen(UiScreen& screen) {
 
   fui::ListProps props;
   props.items = menuRowItems;
-  props.count = static_cast<uint16_t>(menuItems.size());
+  props.count = static_cast<uint16_t>(std::min(menuItems.size(), MAX_MENU_ITEMS));
   props.action = ACTION_ROW;
   props.inputMask = fui::InputTouch;  // physical buttons stay in loop()
   props.valueInset = 8;               // air between the value and the row edge
