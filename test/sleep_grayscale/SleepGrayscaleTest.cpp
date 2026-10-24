@@ -53,7 +53,9 @@ class GfxRenderer {
     frame[2] = mode == BW ? 0xa5 : 0x18;
     return true;
   }
-  bool drawBitmap(const Bitmap&, int, int, int, int, float, float, bool) const { return paint(); }
+  bool drawBitmap(const Bitmap&, int, int, int, int, float, float, bool = false) const { return paint(); }
+  bool storeBwBuffer() { return true; }
+  void restoreBwBuffer() {}
   void displayBuffer(HalDisplay::RefreshMode value) const {
     ++bwRefreshes;
     refresh = value;
@@ -114,6 +116,9 @@ class SleepActivity {
   explicit SleepActivity(GfxRenderer& value) : renderer(value) {}
   void renderBitmapSleepScreen(const Bitmap&, bool preserveBackground) const;
   bool renderTransparentOverlayPng(const std::string&) const;
+  void renderTransparentCustomSleepScreen() const {}
+  mutable const Bitmap* overlayCover = nullptr;
+  mutable const Bitmap* overlayGrayCover = nullptr;
 };
 
 #include "SleepFunctions.inc"
@@ -126,7 +131,7 @@ class SleepGrayscale : public testing::TestWithParam<Path> {
     SleepActivity sleep(renderer);
     if (GetParam() == Path::TransparentBmp) {
       HalFile file;
-      ASSERT_EQ(tryRenderTransparentOverlayBmp(file, renderer, "overlay.bmp"), AlphaOverlayResult::Rendered);
+      ASSERT_EQ(tryRenderTransparentOverlayBmp(file, renderer, "overlay.bmp", nullptr), AlphaOverlayResult::Rendered);
     } else if (GetParam() == Path::BitmapCover) {
       sleep.renderBitmapSleepScreen(Bitmap{}, true);
     } else {
