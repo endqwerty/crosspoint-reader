@@ -121,8 +121,8 @@ TEST_F(LibraryBuilderTest, SkipsSystemFolderContents) {
 TEST_F(LibraryBuilderTest, XtcTitleAndAuthorComeFromTheFile) {
   fake::add("/Comics/one.xtc");
   fake::add("/Comics/two.xtch");
-  bookMetadata["/Comics/one.xtc"] = {"Go Problems", "Cho Chikun", true};
-  bookMetadata["/Comics/two.xtch"] = {"Sakata no Go", "Sakata Eio", true};
+  bookMetadata["/Comics/one.xtc"] = {.title = "Go Problems", .author = "Cho Chikun", .success = true};
+  bookMetadata["/Comics/two.xtch"] = {.title = "Sakata no Go", .author = "Sakata Eio", .success = true};
   initial();
 
   LibraryIndexFile index;

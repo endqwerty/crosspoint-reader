@@ -226,6 +226,21 @@ TEST_F(BookMetadataCacheTest, ChapterSizeAllocationFailureIsRecoverable) {
   EXPECT_EQ(cache_test::handles, 0);
   EXPECT_TRUE(reader.load());
 }
+TEST_F(BookMetadataCacheTest, WindowTableAllocationFailureIsRecoverable) {
+  makeBook();
+  BookMetadataCache reader("/book");
+  {
+    // Three chapters need one retained window total.
+    parser_test::ScopedAllocationFailure fail(parser_test::ScopedAllocationFailure::Kind::Array, sizeof(uint32_t));
+    EXPECT_FALSE(reader.load());
+    EXPECT_EQ(fail.failures(), 1u);
+  }
+  EXPECT_FALSE(reader.isLoaded());
+  EXPECT_EQ(reader.getCumulativeSize(2), 0u);
+  EXPECT_EQ(cache_test::handles, 0);
+  EXPECT_TRUE(reader.load());
+  EXPECT_EQ(reader.getCumulativeSize(2), 300u);
+}
 TEST_F(BookMetadataCacheTest, OptionalBufferAllocationFailureUsesCheckedUnbufferedReads) {
   makeBook();
   BookMetadataCache reader("/book");
@@ -235,7 +250,9 @@ TEST_F(BookMetadataCacheTest, OptionalBufferAllocationFailureUsesCheckedUnbuffer
   EXPECT_EQ(reader.getCumulativeSize(2), 300u);
   EXPECT_EQ(reader.getSpineEntry(2).href, "chapter2.xhtml");
 }
-TEST_F(BookMetadataCacheTest, ThousandChapterLoadBatchesReadsAndProgressQueriesDoNoIo) {
+// Upstream #3784 keeps cumulative sizes in book.bin: RAM holds one total per 32-chapter window,
+// and a query reads at most one window (its LUT offset, then two fields per chapter).
+TEST_F(BookMetadataCacheTest, ThousandChapterLoadBatchesReadsAndProgressQueriesReadEachWindowOnce) {
   makeBook(1000);
   BookMetadataCache reader("/book");
   cache_test::resetFaults();
@@ -248,6 +265,14 @@ TEST_F(BookMetadataCacheTest, ThousandChapterLoadBatchesReadsAndProgressQueriesD
   for (int i = 0; i < 1000; ++i) EXPECT_EQ(reader.getCumulativeSize(i), static_cast<uint32_t>((i + 1) * 100));
   EXPECT_EQ(reader.getCumulativeSize(-1), 0u);
   EXPECT_EQ(reader.getCumulativeSize(1000), 0u);
+  constexpr int WINDOWS = (1000 + 31) / 32;
+  EXPECT_LE(cache_test::reads, WINDOWS * (1 + 2 * 32));
+  // One refill for the window, then repeated queries inside it do no I/O.
+  for (int pass = 0; pass < 2; ++pass) {
+    cache_test::resetFaults();
+    for (int i = 960; i < 990; ++i) EXPECT_EQ(reader.getCumulativeSize(i), static_cast<uint32_t>((i + 1) * 100));
+    if (pass == 0) EXPECT_LE(cache_test::reads, 1 + 2 * 32);
+  }
   EXPECT_EQ(cache_test::reads, 0);
   EXPECT_EQ(cache_test::seeks, 0);
 }

@@ -66,7 +66,8 @@ class BookMetadataCache {
 
   // Cumulative spine sizes stay in book.bin; RAM holds every SIZE_WINDOW-th one and one window.
   static constexpr int SIZE_WINDOW = 32;
-  std::vector<uint32_t> windowStarts;  // total before item w * SIZE_WINDOW
+  std::unique_ptr<uint32_t[]> windowStarts;  // total before item w * SIZE_WINDOW
+  uint16_t windowCount = 0;
   uint32_t bookSize = 0;
   bool loadedFromBackup = false;  // the file load() validated, which fillWindow() reopens
   mutable int windowFirst = -1;
