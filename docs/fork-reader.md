@@ -348,8 +348,15 @@ saved progress. A successfully read zero remains a valid chapter-start position.
   per tick, paused while free heap < 32 KiB or largest block < 16 KiB
   (`BACKGROUND_BUILD_MIN_*`). Foreground chunks use `BUILD_PAGES_PER_CHUNK` = 8.
   The page count is a requested pagination budget, not a wall-clock or output
-  limit; the parser yields at its input/paragraph boundaries. The combined build
-  tick retains pending navigation and error recovery. No task is created.
+  limit; the parser yields at its input/paragraph boundaries. Since the
+  2026-10-23 sync the policy is upstream's (#4040): a started build runs to the
+  end of the chapter in idle loop frames, after input is handled. It skips build
+  steps while a button is down and ends a running step at the next parser
+  checkpoint. It does not run while the Bluetooth radio
+  holds the heap. A failed speculative build stops idle building in that chapter
+  until a pending jump into it needs the build. The fork's partial-section
+  start (`advanceSectionBuild()`) and pending-jump resolution run in the same
+  frames. No task is created.
 - `ButtonNavigator` takes synchronously consumed initializer-list views and
   returns directions from `static constexpr` lists instead of temporary vectors,
   so idle polling makes no allocations. Caller brace lists are never retained.
