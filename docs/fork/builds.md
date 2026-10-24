@@ -80,7 +80,8 @@ Validation rules:
   `/Volumes/SSD/Work/crosspoint-reader`; T3 Code worktrees go under
   `/Volumes/SSD/Worktrees`. Keep source and git data off the SMB share.
 - Firmware version for a handoff: put `[crosspoint]` `version =
-  1.6.5-dev-x4pro-rNN-<upstream short hash>` in a temporary
+  <upstream version>-dev-x4pro-rNN-<upstream short hash>` (r71 was
+  `2.0.0-dev-x4pro-r71-facaa87`) in a temporary
   `platformio.local.ini` (gitignored), build, and delete it afterwards.
 
 ## Firmware handoff
