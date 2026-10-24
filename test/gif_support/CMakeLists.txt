@@ -16,6 +16,11 @@ endif()
 add_library(animatedgif_host STATIC ${ANIMATEDGIF_SOURCE_DIR}/src/AnimatedGIF.cpp)
 target_include_directories(animatedgif_host PUBLIC ${ANIMATEDGIF_SOURCE_DIR}/src)
 target_compile_definitions(animatedgif_host PUBLIC __LINUX__ MAX_WIDTH=3072)
+if(CROSSPOINT_TEST_SANITIZERS)
+  # AnimatedGIF reads LZW codes and header fields with unaligned word loads; the
+  # dependency stays unpatched, so only its alignment check is off.
+  target_compile_options(animatedgif_host PRIVATE -fno-sanitize=alignment)
+endif()
 
 add_executable(GifSupportTest GifSupportTest.cpp PixelCacheTest.cpp GifDecoderTest.cpp)
 target_include_directories(GifSupportTest PRIVATE
