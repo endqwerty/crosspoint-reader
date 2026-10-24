@@ -15,6 +15,7 @@ inline bool searchTestReadActive = false;
 inline uint32_t millis() { return 0; }
 struct CrossPointSettings {
   enum { VIBRATION_OFF, VIBRATION_TOUCH_PAGE };
+  enum { PWR_IGNORE, PWR_BOOKMARK, PWR_SYNC, PWR_READER_MENU };
 };
 struct HalHaptics {
   static void feedback(bool, bool, uint8_t) {}
@@ -26,6 +27,10 @@ struct SearchSettingsFixture {
   HomeButtonAction homeButtonTapAction = HomeButtonAction::Home;
   HomeButtonAction homeButtonDoubleTapAction = HomeButtonAction::Ignore;
   HomeButtonAction homeButtonLongPressAction = HomeButtonAction::ReaderMenu;
+  uint8_t shortPwrBtn = CrossPointSettings::PWR_IGNORE;
+};
+struct HalGPIO {
+  bool wasReleased(uint8_t) const { return false; }
 };
 inline SearchSettingsFixture SETTINGS;
 class GfxRenderer {
@@ -47,7 +52,7 @@ class GfxRenderer {
 };
 class MappedInputManager {
  public:
-  enum class Button { Back, ScreenDown = 14 };
+  enum class Button { Back, Power = 6, ScreenDown = 14 };
   enum class SwipeDir { None };
   struct Labels {
     const char* btn1;
@@ -71,6 +76,11 @@ class MappedInputManager {
   mutable HomeButtonAction homeAction = HomeButtonAction::Ignore;
   mutable HomeButtonAction deferredHomeAction = HomeButtonAction::Ignore;
   mutable uint32_t longPressFiredButtons = 0;
+  struct RemoteInputFixture {
+    void reset() {}
+  };
+  mutable RemoteInputFixture remoteInput;
+  bool mapButton(Button, bool (HalGPIO::*)(uint8_t) const) const { return false; }
   unsigned cancelAt = 0;
   bool releaseBack = false;
   bool backGesture = false;
