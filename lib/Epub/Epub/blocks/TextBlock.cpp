@@ -55,13 +55,15 @@ bool readRubyTexts(HalFile& file, const uint16_t wordCount, std::vector<std::str
   return true;
 }
 
-bool readBlockStyle(HalFile& file, BlockStyle& style) {
+// Reads the style, its font id and the word-font flag that follows it in one read.
+bool readBlockStyle(HalFile& file, BlockStyle& style, uint8_t& hasWordFonts) {
   // The wire layout has no struct padding; keep multi-byte loads aligned.
   constexpr size_t FLAG_OFFSET = 2 + 9 * sizeof(int16_t);
-  uint8_t bytes[FLAG_OFFSET + 3 + sizeof(int8_t)];
+  constexpr size_t FONT_OFFSET = FLAG_OFFSET + 3 + sizeof(int8_t);
+  uint8_t bytes[FONT_OFFSET + sizeof(int32_t) + 1];
   if (!serialization::readBytesChecked(file, bytes, sizeof(bytes)) ||
       bytes[0] > static_cast<uint8_t>(CssTextAlign::None) || bytes[1] > 1 || bytes[FLAG_OFFSET] > 1 ||
-      bytes[FLAG_OFFSET + 1] > 1 || bytes[FLAG_OFFSET + 2] > 1) {
+      bytes[FLAG_OFFSET + 1] > 1 || bytes[FLAG_OFFSET + 2] > 1 || bytes[FONT_OFFSET + sizeof(int32_t)] > 1) {
     return false;
   }
   int16_t spacing[9];
@@ -81,6 +83,8 @@ bool readBlockStyle(HalFile& file, BlockStyle& style) {
   style.isRtl = bytes[FLAG_OFFSET + 1] != 0;
   style.directionDefined = bytes[FLAG_OFFSET + 2] != 0;
   memcpy(&style.characterSpacing, bytes + FLAG_OFFSET + 3, sizeof(style.characterSpacing));
+  memcpy(&style.fontId, bytes + FONT_OFFSET, sizeof(style.fontId));
+  hasWordFonts = bytes[FONT_OFFSET + sizeof(int32_t)];
   return true;
 }
 }  // namespace
@@ -688,15 +692,9 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
   }
 
   // Style (alignment + margins/padding/indent)
-  if (!readBlockStyle(file, block->blockStyle)) {
-    LOG_ERR("TXB", "Deserialization failed: block style");
-    return nullptr;
-  }
-
   uint8_t hasWordFonts = 0;
-  if (!serialization::readPodChecked(file, block->blockStyle.fontId) ||
-      !serialization::readPodChecked(file, hasWordFonts) || hasWordFonts > 1) {
-    LOG_ERR("TXB", "Deserialization failed: bad word font flag %u", hasWordFonts);
+  if (!readBlockStyle(file, block->blockStyle, hasWordFonts)) {
+    LOG_ERR("TXB", "Deserialization failed: block style");
     return nullptr;
   }
   if (hasWordFonts) {

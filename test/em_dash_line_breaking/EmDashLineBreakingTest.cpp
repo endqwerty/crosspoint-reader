@@ -31,6 +31,7 @@ std::vector<Line> layout(const std::vector<const char*>& words, const bool hyphe
       line.words.emplace_back(block->wordText(i));
       line.xpos.push_back(block->wordXpos(i));
     }
+    return true;
   });
   return lines;
 }

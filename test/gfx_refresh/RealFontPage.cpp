@@ -2,19 +2,19 @@
 
 #include <EpdFont.h>
 #include <Utf8.h>
-#include <builtinFonts/notoserif_14_bold.h>
-#include <builtinFonts/notoserif_14_bolditalic.h>
-#include <builtinFonts/notoserif_14_italic.h>
-#include <builtinFonts/notoserif_14_regular.h>
+#include <builtinFonts/notosans_14_bold.h>
+#include <builtinFonts/notosans_14_bolditalic.h>
+#include <builtinFonts/notosans_14_italic.h>
+#include <builtinFonts/notosans_14_regular.h>
 
 #include <algorithm>
 
 namespace page_test {
 namespace {
-const EpdFont regular(&notoserif_14_regular);
-const EpdFont bold(&notoserif_14_bold);
-const EpdFont italic(&notoserif_14_italic);
-const EpdFont boldItalic(&notoserif_14_bolditalic);
+const EpdFont regular(&notosans_14_regular);
+const EpdFont bold(&notosans_14_bold);
+const EpdFont italic(&notosans_14_italic);
+const EpdFont boldItalic(&notosans_14_bolditalic);
 const EpdFontFamily family(&regular, &bold, &italic, &boldItalic);
 constexpr int BINARY_FONT_ID = 2;
 constexpr uint8_t BINARY_BITMAP[] = {0xab, 0x75, 0x6e, 0xd8, 0xe9, 0xa0};

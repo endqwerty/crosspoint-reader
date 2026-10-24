@@ -2,7 +2,7 @@
 
 `GfxRefreshTest` links the production renderer, `EpdFont` / `EpdFontFamily`,
 font scan/prewarm cache, compressed-font decoder, `InflateReader`, bundled uzlib,
-UTF-8 and bidi code. Its fixtures use the actual compressed Noto Serif 14 font in
+UTF-8 and bidi code. Its fixtures use the actual compressed Noto Sans 14 font in
 all four styles. Hardware, memory-pressure callbacks and unused SD-font entry
 points are stubbed; any unexpected SD-font call terminates the test instead of
 returning fake glyphs. Font buffers use the SDK host allocator. These built-in

@@ -1476,7 +1476,8 @@ void LibraryListActivity::openBookDetails(const std::string& path, const std::st
 }
 
 void LibraryListActivity::promptDeleteBook(const std::string& path, const std::string& title) {
-  auto confirmation = makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, tr(STR_DELETE_ITEM_CONFIRM), title);
+  auto confirmation =
+      makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, tr(STR_DELETE_ITEM_CONFIRM), title);
   if (!confirmation) {
     LOG_ERR("LIB", "OOM: book deletion confirmation");
     return;
