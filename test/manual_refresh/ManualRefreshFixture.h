@@ -37,6 +37,8 @@ struct FrontlightFixture {
   void setOn(bool) { EXPECT_EQ(RenderLock::held, 1u); }
 };
 inline FrontlightFixture Frontlight;
+// No slide switch on the fixture board, so the panel owns the light toggle.
+inline bool slideSwitchOwnsLight() { return false; }
 
 namespace fui {
 struct ActionEvent {

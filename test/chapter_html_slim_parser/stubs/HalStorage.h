@@ -117,6 +117,7 @@ class HalFile {
   bool isOpen() const { return file_ != nullptr; }
   explicit operator bool() const { return isOpen(); }
   size_t position() const { return file_ ? static_cast<size_t>(std::ftell(file_)) : 0; }
+  uint64_t fileSize64() const { return size(); }
   size_t size() const {
     if (!file_) return 0;
     const long offset = std::ftell(file_);

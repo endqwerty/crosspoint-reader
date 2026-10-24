@@ -152,6 +152,7 @@ add_subdirectory(library_book_state)
 add_subdirectory(library_ui)
 
 add_subdirectory(reader_search_handoff)
+add_subdirectory(reader_menu_capacity)
 
 add_subdirectory(atomic_file)
 add_subdirectory(bookmark_actions)

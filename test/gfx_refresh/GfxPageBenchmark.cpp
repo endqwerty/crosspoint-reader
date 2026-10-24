@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     return 2;
   }
   std::puts("# Host CPU composition only: no ESP32 timing, SPI, panel BUSY, SD I/O, optical ghosting or prewarm time.");
-  std::puts("# Real compressed Noto Serif 14; two grayscale planes; identical bytes; unchanged BW; overlay mode.");
+  std::puts("# Real compressed Noto Sans 14; two grayscale planes; identical bytes; unchanged BW; overlay mode.");
   std::puts(
       "scene,orientation,font_cache,samples,legacy_median_us,full_height_median_us,host_speedup,"
       "legacy_page_passes,full_page_passes,legacy_text_calls,full_text_calls,legacy_bitmap_calls,"

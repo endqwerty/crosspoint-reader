@@ -116,7 +116,8 @@ TEST(ReaderFontPolicy, UnknownSavedFamilyResetsToSerifSlot) {
 TEST(ReaderFontPolicy, LineSpacingFollowsTheActiveFamily) {
   constexpr float SERIF[] = {0.95f, 1.0f, 1.1f, 1.2f};
   constexpr float SANS[] = {0.90f, 0.95f, 1.0f, 1.05f};
-  constexpr float SD[] = {0.95f, 1.0f, 1.3f, 1.6f};
+  // Upstream #4013: SD fonts share the serif scale.
+  constexpr float SD[] = {0.95f, 1.0f, 1.1f, 1.2f};
   for (uint8_t spacing = 0; spacing < std::size(SERIF); ++spacing) {
     CrossPointSettings settings;
     settings.lineSpacing = spacing;

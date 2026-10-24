@@ -374,12 +374,25 @@ TEST(SdCardFontTest, ScratchAllocationFailurePreservesTheResidentPage) {
 }
 
 TEST(SdCardFontTest, IdenticalStyleIntervalsShareOneCheckedAllocation) {
+  // Four styles with the same coverage allocate as often as one style does. Per-style state grows
+  // with the style count, but the interval table (two compact 6-byte intervals) is allocated once
+  // and shared; upstream #4145 extends that sharing across loaded fonts.
+  constexpr size_t INTERVAL_BYTES = 12;
+  makeFont(1);
+  size_t oneStyleAttempts = 0, oneStyleBytes = 0;
+  {
+    SdCardFont single;
+    sdFontTestAllocations = {};
+    ASSERT_TRUE(single.load("fixture"));
+    oneStyleAttempts = sdFontTestAllocations.attempts;
+    oneStyleBytes = sdFontTestAllocations.requestedBytes;
+  }
   makeFont(4);
   SdCardFont font;
   sdFontTestAllocations = {};
   ASSERT_TRUE(font.load("fixture"));
-  EXPECT_EQ(1U, sdFontTestAllocations.attempts);
-  EXPECT_EQ(12U, sdFontTestAllocations.requestedBytes);  // two compact 6-byte intervals
+  EXPECT_EQ(oneStyleAttempts, sdFontTestAllocations.attempts);
+  EXPECT_EQ(INTERVAL_BYTES + 4 * (oneStyleBytes - INTERVAL_BYTES), sdFontTestAllocations.requestedBytes);
   ASSERT_EQ(0, font.prewarm(page(FIRST, 5).c_str(), 0x0f, false, false, false));
   EXPECT_TRUE(pageIntact(font, FIRST, 5, 4));
   font.releaseResidentCaches();
