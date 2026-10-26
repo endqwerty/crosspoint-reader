@@ -23,6 +23,8 @@ add_library(EpubPageTurnHost STATIC
   ${REPO_ROOT}/lib/Epub/Epub/Page.cpp
   ${REPO_ROOT}/lib/Epub/Epub/SectionPageReader.cpp
   ${REPO_ROOT}/lib/Epub/Epub/blocks/TextBlock.cpp
+  ${REPO_ROOT}/lib/Epub/Epub/CjkBreaks.cpp
+  ${REPO_ROOT}/lib/Epub/Epub/hyphenation/HyphenationCommon.cpp
   ${REPO_ROOT}/lib/GfxRenderer/GfxRenderer.cpp
   ${REPO_ROOT}/lib/GfxRenderer/FontCacheManager.cpp
   ${REPO_ROOT}/lib/EpdFont/EpdFont.cpp
