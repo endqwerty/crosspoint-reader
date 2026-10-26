@@ -162,7 +162,7 @@ Keep these `Co-Authored-By` lines when this work is committed or rebased.
 
 - **Storage failure handling** adapts [CrossPoint PR #3419](https://github.com/crosspoint-reader/crosspoint-reader/pull/3419) at `f2faf88b77b0a3e4b5154b5090b1f6a059347d5c`. It was an open proposal when adopted, not an accepted upstream decision. Daviex (`david.iuffri94@hotmail.it`), verified from the PR commit records:
   `Co-Authored-By: Daviex <david.iuffri94@hotmail.it>`
-- **SdFat cache:** the build flag, the cache override, the failed-fill invalidation and the patch hook are upstream's since [CrossPoint PR #3685](https://github.com/crosspoint-reader/crosspoint-reader/pull/3685) by Sung-jin Brian Hong (`serialx`) merged as `e9245489`. The fork carries only the directory-pointer guard (`0003`), `GIT_OPTIONAL_LOCKS=0` for the hook's `git apply`, the patch README and the host tests in `test/sdfat_cache`.
+- **SdFat cache:** the build flag, the cache override, the failed-fill invalidation and the patch hook are upstream's since [CrossPoint PR #3685](https://github.com/crosspoint-reader/crosspoint-reader/pull/3685) by Sung-jin Brian Hong (`serialx`) merged as `e9245489`. Upstream [#4150](https://github.com/crosspoint-reader/crosspoint-reader/pull/4150) also supplies FAT-before-data sync ordering. The fork carries only the directory-pointer guard (`0003`), `GIT_OPTIONAL_LOCKS=0` for the hook's `git apply`, the patch README and the host tests in `test/sdfat_cache`.
 - **Display:**
   - [SDK #97](https://github.com/Free-Ink/freeink-sdk/pull/97): Eszter `<hello@eszter.xyz>`, commit `6644bf2fbf7525c36d5f86b7d0e880bd3a009b23`.
   - [SDK #98](https://github.com/Free-Ink/freeink-sdk/pull/98): Justin Mitchell `<justin@jmitch.com>`, commit `5916724f23f9392a1d75bc2f632780f54b0735fa`.
