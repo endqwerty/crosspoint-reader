@@ -22,6 +22,8 @@ struct Disk : FsBlockDeviceInterface {
   size_t partial = 0, reads = 0, writes = 0, fatReads = 0, dataReads = 0;
   uint32_t fatStart = 0, fatEnd = 0;
   bool atomicRead = false;
+  bool recordWrites = false;
+  std::vector<uint32_t> writeOrder;
   bool isBusy() override { return false; }
   bool syncDevice() override { return true; }
   Sector_t sectorCount() override { return capacity; }
@@ -46,6 +48,7 @@ struct Disk : FsBlockDeviceInterface {
   }
   bool writeSector(Sector_t n, const uint8_t* src) override {
     ++writes;
+    if (recordWrites) writeOrder.push_back(n);
     if (n >= capacity || n == failedWrite) return false;
     if (std::all_of(src, src + 512, [](uint8_t b) { return b == 0; }))
       sectors.erase(n);
@@ -167,6 +170,59 @@ void writeFailures() {
     std::memcpy(p, expected.data(), 512);
     require(c.sync() && d.value(2) == expected, "reserved write lost");
   });
+}
+void allocationSyncOrder() {
+#if USE_SEPARATE_FAT_CACHE
+  for (const uint32_t capacity : {131072u, 8388608u}) {
+    for (const bool failMirror : {false, true}) {
+      check("allocation sync writes FAT before directory and retries failures", [=] {
+        Disk d;
+        d.capacity = capacity;
+        Sector scratch{};
+        FatFormatter formatter;
+        require(formatter.format(&d, scratch.data()), "sync-order format");
+        FatVolume volume;
+        require(volume.begin(&d), "sync-order mount");
+        const uint32_t directory = volume.fatType() == 16 ? volume.rootDirStart()
+                                                          : volume.dataStartSector() + (volume.rootDirStart() - 2) *
+                                                                                           volume.sectorsPerCluster();
+        FatFile file;
+        require(file.open(&volume, "ORDER.BIN", O_CREAT | O_RDWR), "sync-order open");
+        require(file.sync(), "sync empty directory entry");
+        const auto oldDirectory = d.value(directory);
+        const uint8_t payload = 42;
+        require(file.write(&payload, 1) == 1, "sync-order write");
+        const uint32_t primary = volume.fatStartSector();
+        const uint32_t mirror = primary + volume.sectorsPerFat();
+        d.failedWrite = failMirror ? mirror : primary;
+        d.recordWrites = true;
+        require(!file.sync(), "failed FAT write accepted");
+        require(std::find(d.writeOrder.begin(), d.writeOrder.end(), directory) == d.writeOrder.end(),
+                "directory published before FAT sync succeeded");
+        require(d.value(directory) == oldDirectory, "failed FAT sync changed directory");
+        d.failedWrite = UINT32_MAX;
+        d.writeOrder.clear();
+        require(file.sync(), "allocation sync retry");
+        const auto primaryWrite = std::find(d.writeOrder.begin(), d.writeOrder.end(), primary);
+        const auto mirrorWrite = std::find(d.writeOrder.begin(), d.writeOrder.end(), mirror);
+        const auto directoryWrite = std::find(d.writeOrder.begin(), d.writeOrder.end(), directory);
+        require(primaryWrite != d.writeOrder.end() && mirrorWrite != d.writeOrder.end() &&
+                    directoryWrite != d.writeOrder.end(),
+                "retry did not write FAT copies and directory");
+        require(primaryWrite < directoryWrite && mirrorWrite < directoryWrite, "directory write preceded a FAT copy");
+        require(file.close(), "sync-order close");
+        FatVolume reopened;
+        require(reopened.begin(&d), "sync-order remount");
+        FatFile reader;
+        require(reader.open(&reopened, "ORDER.BIN", O_RDONLY), "sync-order reopen");
+        uint8_t actual = 0;
+        require(reader.fileSize() == 1 && reader.read(&actual, 1) == 1 && actual == payload,
+                "retry lost allocation or payload");
+        require(reader.close(), "sync-order close reader");
+      });
+    }
+  }
+#endif
 }
 uint8_t fileByte(size_t offset, unsigned file) { return (offset * 7 + offset / 512 + file * 53) % 251; }
 void fileWorkload(uint32_t capacity, unsigned expectedFat, size_t chunks) {
@@ -348,6 +404,7 @@ int main(int argc, char** argv) {
   partialReads(false);
   partialReads(true);
   writeFailures();
+  allocationSyncOrder();
   if (argc == 1 || std::string(argv[1]) != "cache-only") {
     check("FAT16 fragmented interleaved files", [] { fileWorkload(131072, 16, 40); });
     check("FAT32 fragmented interleaved files", [] { fileWorkload(8388608, 32, 40); });

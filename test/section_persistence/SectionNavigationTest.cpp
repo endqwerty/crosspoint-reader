@@ -130,7 +130,8 @@ TEST_F(SectionNavigation, EveryFailedShortReadAndSeekReturnsNoPosition) {
 
 TEST_F(SectionNavigation, RejectsOldIncompleteAndShortHeaders) {
   for (int kind = 0; kind < 5; ++kind) {
-    for (uint8_t version : {uint8_t(0), uint8_t(1), uint8_t(section_test::completeVersion() - 1)}) {
+    for (uint8_t version : {uint8_t(0), uint8_t(1), uint8_t(section_test::completeVersion() - 1),
+                            uint8_t(section_test::partialVersion() + 1)}) {
       install(34);
       files[0][0] = version;
       EXPECT_EQ(std::nullopt, lookup(kind)) << kind << ':' << int(version);

@@ -508,6 +508,10 @@ class Dictionary {
 };
 ''' + lookup_methods + r'''
 int main() {
+  assert(Dictionary::cleanWord("「日本語」") == "日本語");
+  assert(Dictionary::cleanWord("日本語") == "日本語");
+  assert(Dictionary::cleanWord("【】。！？").empty());
+  assert(Dictionary::cleanWord("‘Reading!’") == "reading");
   Dictionary dictionary;
   std::string definition = "unchanged", headword = "unchanged";
   for (const char* suffix : {"ing", "ed", "ies"}) {
