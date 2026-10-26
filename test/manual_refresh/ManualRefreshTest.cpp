@@ -11,6 +11,9 @@ class ManualRefreshTest : public ::testing::Test {
 
   void SetUp() override {
     SETTINGS = {};
+    Frontlight = {};
+    bleturner::currentStatus = {};
+    bleturner::stopCalls = 0;
     RenderLock::held = 0;
     RenderLock::acquisitions = 0;
     renderer.begin();
@@ -36,6 +39,41 @@ class ManualRefreshTest : public ::testing::Test {
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 };
+
+TEST_F(ManualRefreshTest, BluetoothTogglePersistsOptInAndStopsWhenDisabled) {
+  tapTile(4);
+  EXPECT_EQ(SETTINGS.ble.enabled, 1u);
+  EXPECT_EQ(SETTINGS.writes, 1u);
+  EXPECT_EQ(bleturner::stopCalls, 0u);
+  tapTile(4);
+  EXPECT_EQ(SETTINGS.ble.enabled, 0u);
+  EXPECT_EQ(SETTINGS.writes, 2u);
+  EXPECT_EQ(bleturner::stopCalls, 1u);
+  EXPECT_EQ(panel.closeCalls, 0u);
+}
+
+TEST_F(ManualRefreshTest, UnavailableBluetoothDoesNotChangeSettings) {
+  bleturner::currentStatus.compiledIn = false;
+  tapTile(4);
+  EXPECT_EQ(SETTINGS.ble.enabled, 0u);
+  EXPECT_EQ(SETTINGS.writes, 0u);
+  EXPECT_EQ(bleturner::stopCalls, 0u);
+}
+
+TEST_F(ManualRefreshTest, LightlessPanelRefreshesWithoutSavingLightSettings) {
+  Frontlight.detected = false;
+  panel.brightness = 10;
+  panel.lightOn = true;
+  panel.lightOnChanged = true;
+  tapTile(1);
+  EXPECT_EQ(panel.closeCalls, 1u);
+  exitPanel();
+  paintDestination();
+  EXPECT_EQ(display.lastRefresh, HalDisplay::FULL_REFRESH);
+  EXPECT_EQ(SETTINGS.writes, 0u);
+  EXPECT_EQ(SETTINGS.frontlightBrightness, 60u);
+  EXPECT_EQ(SETTINGS.frontlightOn, 0u);
+}
 
 TEST_F(ManualRefreshTest, LatePanelPaintCannotStealCleanupFromUnderlyingPage) {
   tapTile(1);
