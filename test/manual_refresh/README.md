@@ -22,6 +22,11 @@ under the manager's render lock. A replacement therefore receives an explicitly
 requested cleanup just as a popped reader does. Ordinary exits add no cleanup.
 The production change adds one Boolean and no heap allocation.
 
+Control-center cases also cover Bluetooth opt-in and disable, unavailable
+Bluetooth without settings writes, and refresh on boards without a frontlight.
+Lightless exits leave saved light settings unchanged. The radio is a stub;
+pairing and reconnect behavior are not measured.
+
 The test does not run the FreeRTOS scheduler, complete UI toolkit, or display
 driver. It forces the relevant interleaving and checks actual renderer submission;
 existing SDK sequence tests cover controller commands. No optical or page-speed
