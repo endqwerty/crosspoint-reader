@@ -13,6 +13,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   ${REPO_ROOT}/scripts/sdfat_patches/0001-invalidate-failed-cache-fill.patch
   ${REPO_ROOT}/scripts/sdfat_patches/0002-allow-separate-fat-cache-override.patch
   ${REPO_ROOT}/scripts/sdfat_patches/0003-guard-directory-output-pointer.patch
+  ${REPO_ROOT}/scripts/sdfat_patches/0003-sync-fat-before-data-cache.patch
   ${CMAKE_CURRENT_SOURCE_DIR}/prepare_dependency.py)
 execute_process(COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/prepare_dependency.py
