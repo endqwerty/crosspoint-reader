@@ -10,7 +10,6 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/I18nTranslationMacro.h "#pragma once\n${t
 
 crosspoint_extract_between(matching ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "struct ProgressRange {" "std::string buildReadFolderDestination(")
 crosspoint_extract_between(epsilon ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr float bookmarkProgressEpsilon =" "constexpr int CLIP_SELECTION_PAGE_WINDOW =")
-crosspoint_extract_between(capacity ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr size_t initialBookmarkCacheCapacity =" "constexpr float bookmarkProgressEpsilon =")
 crosspoint_extract_between(add ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::addBookmark()" "void EpubReaderActivity::updateBookmarkFlag()")
 crosspoint_extract_between(load ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::loadCachedBookmarks()" "void EpubReaderActivity::addBookmark()")
 crosspoint_extract_between(update_flag ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::updateBookmarkFlag()" "ScreenshotInfo EpubReaderActivity::getScreenshotInfo()")
@@ -22,7 +21,7 @@ crosspoint_extract_between(enter ${REPO_ROOT}/src/activities/reader/EpubReaderBo
 crosspoint_extract_between(buttons ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "bool EpubReaderBookmarksActivity::handleButtons()" "void EpubReaderBookmarksActivity::startRename()")
 crosspoint_extract_between(screen ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::buildScreen(" "void EpubReaderBookmarksActivity::render(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/BookmarkActionsProduction.cpp
-  "#include \"BookmarkActionsFixture.h\"\nnamespace {\n${capacity}\n${epsilon}\n${matching}\n}\n${load}\n${add}\n${update_flag}\n${rename}\n${remove}\n${open}\n${enter}\n${buttons}\n${screen}\n"
+  "#include \"BookmarkActionsFixture.h\"\nnamespace {\n${epsilon}\n${matching}\n}\n${load}\n${add}\n${update_flag}\n${rename}\n${remove}\n${open}\n${enter}\n${buttons}\n${screen}\n"
   "void EpubReaderActivity::renderFeedback() {\nRenderLock lock;\n${feedback}\n}\n")
 
 add_executable(BookmarkActionsTest BookmarkActionsTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/BookmarkActionsProduction.cpp)
