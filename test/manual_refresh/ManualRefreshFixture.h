@@ -26,17 +26,34 @@ struct SettingsFixture {
   uint8_t screenInverted = 0;
   uint8_t orientation = 0;
   uint8_t touchReaderControls = 1;
+  struct {
+    uint8_t enabled = 0;
+  } ble;
   unsigned writes = 0;
   void saveToFile() { ++writes; }
 };
 inline SettingsFixture SETTINGS;
 
 struct FrontlightFixture {
+  bool detected = true;
+  bool present() const { return detected; }
   void setBrightness(uint8_t) { EXPECT_EQ(RenderLock::held, 1u); }
   void setWarmth(uint8_t) { EXPECT_EQ(RenderLock::held, 1u); }
   void setOn(bool) { EXPECT_EQ(RenderLock::held, 1u); }
 };
 inline FrontlightFixture Frontlight;
+namespace bleturner {
+struct Status {
+  bool compiledIn = true;
+};
+inline Status currentStatus;
+inline unsigned stopCalls = 0;
+inline Status status() { return currentStatus; }
+inline void switchOff() {
+  EXPECT_EQ(RenderLock::held, 1u);
+  ++stopCalls;
+}
+}  // namespace bleturner
 // No slide switch on the fixture board, so the panel owns the light toggle.
 inline bool slideSwitchOwnsLight() { return false; }
 
