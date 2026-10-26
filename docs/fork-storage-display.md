@@ -40,7 +40,9 @@ None of these change a cache, settings, bookmark, Library index or reading-posit
 
 1. `0001` (`FsCache.cpp`): a failed `readSector()` invalidates the cache. Without this, a partial transfer can leave another sector's bytes under the old sector's identity. A later write-back could then corrupt both FAT copies. Dirty data has already been synced before the read, so nothing is lost. Dirty write-back failures keep the buffer so the write can be retried.
 2. `0002` (`SdFatConfig.h`): adds an `#ifndef` guard. Without it, the architecture default (1 on ARM, 0 elsewhere) overrides the `-D` flag.
-3. `0003` (`FatFile.cpp`): `readDirCache` passes a null output pointer, and advancing that pointer is undefined behaviour. The guard leaves it alone. This is local work and is not part of upstream's patch set.
+3. `0003-guard-directory-output-pointer.patch` (`FatFile.cpp`): `readDirCache` passes a null output pointer, and advancing that pointer is undefined behaviour. The guard leaves it alone. This is local work and is not part of upstream's patch set.
+
+4. `0003-sync-fat-before-data-cache.patch` (`FatPartition.h`): upstream [#4150](https://github.com/crosspoint-reader/crosspoint-reader/pull/4150) syncs both FAT copies before directory data. This protects interrupted allocation publishing, but changes interrupted frees as described below.
 
 Hook invariants:
 
@@ -55,6 +57,17 @@ Limits:
 - The gain is measured only as fewer simulated block reads. For example, enumerating 1,000 books with a small read from each goes from 5,163 to 3,903 reads on FAT16 and from 3,969 to 2,967 on FAT32. This is not a measurement of load time or of panel behavior.
 - On X4 Pro, a single-sector SDMMC read copies out of its DMA buffer only on success (`SdmmcBlockDevice.cpp`). The partial-fill corruption case therefore does not apply to X4 Pro. It still applies to SPI paths on other boards and to the general filesystem contract.
 - SD failure recovery and peak heap have not been measured on a device.
+
+FAT-first syncing does not make deletes or truncations atomic. A reset after the
+FAT frees clusters but before the directory update can leave an entry pointing
+at reusable clusters. This also reaches `atomic_file::write` in
+`lib/Serialization/AtomicFile.cpp`: its last step deletes the old `.bak` file.
+If that deletion is interrupted in this window, the surviving backup entry may
+point at freed or reused data. `atomic_file::read` prefers the backup, and the
+next write restores it over the primary, so recovery can lose the good new
+copy. Section-cache cleanup and Calibre deletions use the same filesystem
+ordering. Host I/O-failure tests do not model these interrupted sector writes;
+operation-aware recovery remains future work.
 
 ## Display commit failures and BUSY latching
 
