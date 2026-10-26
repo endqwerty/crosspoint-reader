@@ -67,17 +67,19 @@ are unaffected.
 
 ## Ruby rendering
 
-`TextBlock::render` resolves ruby positions into a temporary
-`std::vector<RubyDrawInfo>` that holds geometry only: the x position and base
-direction per word. Annotation text is read directly from the block-owned
-`rubyTexts` vector when drawing. This is safe because the `const TextBlock`
-keeps ownership of those strings for the whole render, and no pointer is
-cached beyond it. The geometry vector is the only temporary table, and it is
-allocated only when the block has ruby. Ordinary prose pages make no rendering
-allocations. Measurement order, drawing order, ruby grouping
-(`RUBY_CONTINUE`), directions and serialized data are identical to copying the
-strings. Layout (`extractLine`) has already reserved start/end offsets, so a
-centered ruby stays inside the page margins.
+`TextBlock::render` follows upstream's ruby `space-around` alignment. Its
+per-render `RubyDrawInfo` table holds geometry, a view of the block-owned
+annotation, and character boundaries when a short CJK annotation is spread
+across its base text. The block owns the strings for the whole render; views
+are not retained afterwards. Glyph prewarm scans visit the annotation directly
+and skip the geometry table. Ordinary prose makes no rendering allocations.
+
+The fork's former geometry-only allocation-byte assertions are obsolete because
+upstream enlarged this table. The tests retain exact pixels in all four
+orientations and all three render planes, unchanged serialized text, annotation
+reuse for the long Latin fixture, and zero rendering allocations for prose.
+CJK spreading uses upstream's temporary boundary vectors and token strings;
+physical peak heap remains unmeasured.
 
 ## Idle next-page prefetch
 
@@ -186,8 +188,8 @@ text still follows the converter's line break. This behavior defines
 top spacing across soft flushes. Version 53 incorporates upstream's redaction
 glyph widths and retires older version 52 layouts, with partial sentinel 229
 and the same byte layout. Later versions are listed in
-[file-formats.md](file-formats.md); the current one is 68, with partial
-sentinel 214.
+[file-formats.md](file-formats.md); the current one is 69, with partial
+sentinel 213. Version 69 also includes upstream's bounded drop-cap wrapping.
 
 ## Limits and known gaps
 
