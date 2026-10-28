@@ -50,6 +50,11 @@ inline size_t bytesRead = 0;
 inline unsigned delays = 0;
 inline std::map<std::string, unsigned> writesByPath;
 inline std::map<std::string, unsigned> directoryEntriesByPath;
+// Operation counters for SD-cost fixtures; reset() clears them.
+inline std::map<std::string, unsigned> writeOpensByPath;
+inline std::map<std::string, size_t> bytesWrittenByPath;
+inline unsigned directoryOpens = 0;
+inline unsigned removes = 0;
 inline bool failureTriggered = false;
 inline std::map<std::string, std::vector<std::string>> extraDirectoryEntries;
 inline std::vector<size_t> allocations;
@@ -98,6 +103,10 @@ inline void reset() {
   delays = 0;
   writesByPath.clear();
   directoryEntriesByPath.clear();
+  writeOpensByPath.clear();
+  bytesWrittenByPath.clear();
+  directoryOpens = 0;
+  removes = 0;
   failureTriggered = false;
   extraDirectoryEntries.clear();
 }
@@ -242,6 +251,7 @@ class HalFile {
       if (fake::corruptWritePath == path) node->bytes[pos] ^= 1;
     }
     pos += written;
+    fake::bytesWrittenByPath[path] += written;
     // SdFat reports zero on error even when a prefix changed storage/cursor.
     return written == size ? size : 0;
   }
@@ -271,6 +281,7 @@ class HalStorage {
     if (found != fake::files.end()) {
       file.node = found->second;
       file.path = normalized;
+      if (file.node->directory) fake::directoryOpens++;
     }
     return file;
   }
@@ -289,6 +300,7 @@ class HalStorage {
     return bool(file);
   }
   bool openFileForWrite(const char*, const char* path, HalFile& file) {
+    fake::writeOpensByPath[path]++;
     if (fake::failOpenPath == path) return false;
     fake::add(path, "");
     file = open(path);
@@ -297,7 +309,10 @@ class HalStorage {
   bool openFileForWrite(const char* module, const std::string& path, HalFile& file) {
     return openFileForWrite(module, path.c_str(), file);
   }
-  bool remove(const char* path) { return !fake::fail(fake::failRemove) && fake::files.erase(path) != 0; }
+  bool remove(const char* path) {
+    fake::removes++;
+    return !fake::fail(fake::failRemove) && fake::files.erase(path) != 0;
+  }
   bool removeDir(const char* path) {
     if (fake::fail(fake::failRemove) || !fake::files.erase(path)) return false;
     const std::string prefix = std::string(path) + "/";

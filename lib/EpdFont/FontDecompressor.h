@@ -23,7 +23,8 @@ class FontDecompressor {
   void clearCache();
 
   // Pre-scan UTF-8 text and extract needed glyph bitmaps into a flat page buffer.
-  // Each group is decompressed once into a temp buffer; only needed glyphs are kept.
+  // Each group is decompressed once into a temp buffer that is freed before return;
+  // only needed glyphs are kept.
   // Returns the number of glyphs that couldn't be loaded (0 on full success).
   int prewarmCache(const EpdFontData* fontData, const char* utf8Text);
 

@@ -220,11 +220,12 @@ library-sized stays resident.
 
 ### Build pipeline (`LibraryBuilder`)
 
-- **One walk** over the card (`.epub`, `.txt`, `.md`, `.xtc`; hidden entries and
+- **Shared traversal** over the card (`.epub`, `.txt`, `.md`, `.xtc`; hidden entries and
   macOS `._*` sidecars excluded), at most five folder levels below the root (a
-  corrupted FAT can contain a self-referencing directory). Records stream into
-  `/.crosspoint/library.stage` in discovery order; nothing proportional to the
-  library stays resident during the walk.
+  corrupted FAT can contain a self-referencing directory). The probe checks for
+  changes without staging. A rebuild walks again and streams records into
+  `/.crosspoint/library.stage` in discovery order. The prior matching table stays
+  in memory through reconciliation; full metadata records are not retained.
 - **Duplicate dirents** are dropped using a fixed 1,024-key, fallible 8 KiB
   buffer per directory. If allocation fails or the cap is exceeded, the build
   continues with `DEDUP_DEGRADED`; a damaged FAT may then show duplicates but no
@@ -236,9 +237,16 @@ library-sized stays resident.
   mode and expected extraction status all match.
 - **Title fallback** is materialized only when metadata supplied no title; reused
   records keep their stored folded key without rebuilding the stem.
-- **Unchanged library**: if every record reuses metadata, counts match and no limit
-  or unreadable entry was seen, staging files are discarded and the live index stays
-  byte-for-byte unchanged. Refresh is a freshness check, not a forced reread.
+- **Unchanged library**: a read-only probe uses the same walker and metadata reuse
+  checks as a rebuild. When the probe runs and every record reuses metadata,
+  counts match and no limit or unreadable entry was seen, no staging file is
+  opened and the live index stays
+  byte-for-byte unchanged. Cached metadata and series reads still validate the
+  previous index. Recovery and stale-file cleanup run before the probe.
+  A mismatch restarts the staging walk after resetting counts and prior matches.
+  Read or directory failures abort without replacing the index. The probe is
+  skipped when no prior index exists, that index is partial, or duplicate-key
+  allocation failed. Refresh remains a freshness check, not a forced reread.
 - **Reconciliation** with the prior index reads all prior records contiguously
   (temporarily storing `nameOff` in the `PriorEntry::pathHash` slot), then resolves
   path hashes in a second pass, then sorts. This avoids alternating between the
@@ -375,7 +383,10 @@ library-sized stays resident.
 Two atomic 32-bit generations. A build captures `refreshToken()` before scanning
 and reports `reconciled(success, token)`; a mutation that arrives during a
 successful build leaves refresh pending. The persistent dirty marker is cleared
-only if no newer invalidation occurred.
+only if no newer invalidation occurred. After the cover-grid Home successfully
+builds and reopens a missing index, it reports completion the same way. Library
+can then skip its initial session scan. A newer invalidation, dirty marker,
+invalid index or metadata-mode change still requires a refresh.
 
 ## Memory and I/O budgets
 
@@ -391,7 +402,7 @@ state, allocator overhead and temporary strings are additional.
 | Series sort keys | 24 B/series book (98,304 B max) | Rebuild only |
 | Worst-case simultaneous series-phase arrays | 147,456 B (series keys, three u16 series maps, title order, arrival order, resolved `firstSeen`) | Rebuild only |
 | Modification-time array | 4 B/book; falls back to `firstSeen` if unavailable | Rebuild only |
-| Staging record, name buffer | one heap `StagedEntry`, 512 B | Rebuild only |
+| Staging record, name buffer | one heap `StagedEntry`, 512 B | Probe and rebuild |
 | Rank cache | 64 B + bookkeeping inside the index object | While Library open |
 | Filter row map, group-start map | u16 per row, 8 KiB each max | Released with the activity |
 | Refresh / Recent lookup chunk | 4 KiB | Per call |
@@ -441,7 +452,14 @@ destroyed to open a book.
 - Hard ceiling of 4,096 books (u16 ordinals), pending an external-sort design.
 - Entering Library after a card change enumerates the card and writes staging
   files; metadata reuse avoids EPUB parsing, not all SD I/O, so large cards take
-  longer to open.
+  longer to open. A late mismatch or removal adds almost a full directory walk.
+  Books with unknown timestamps or failed metadata extraction keep paying for a
+  probe prefix on each refresh. The 750-book host fixture avoids 759,750 staging
+  bytes on an unchanged refresh; a last-book modification increases directory
+  entries visited from 1,578 to 3,156. These are storage-fake operation counts,
+  not device timings. The probe adds no per-book allocation and shares the
+  existing freshness rules; it does not reconstruct staged records from a
+  separate saved traversal.
 - A same-size replacement that preserves its FAT timestamp reuses stale metadata
   until the index is reset.
 - State and progress follow raw paths; external renames and moves keep them only for books that name a UUID.
