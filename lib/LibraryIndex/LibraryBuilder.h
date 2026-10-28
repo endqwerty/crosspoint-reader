@@ -1,15 +1,15 @@
 #pragma once
 
-// Builds the CLX1 index by walking the SD card once.
+// Builds the CLX1 index from the SD card.
 //
 // The walk derives filename fallbacks and can read title and author metadata from
 // EPUBs. Fresh metadata is reused from the previous index.
 //
 // Shape of the build, and why:
 //
-//   * ONE walk. Records go straight into a staging file in discovery order, so
-//     nothing proportional to the library stays resident. Phase-local sort arrays
-//     are fallible and released before the next large allocation.
+//   * One walker probes for an unchanged library, then stages a rebuild if needed.
+//     Records stream to staging in discovery order. Prior matches stay in memory
+//     through reconciliation; fallible sort arrays are released between phases.
 //   * Duplicate directory entries are dropped. A damaged FAT can hand the same
 //     file out twice — measured on a real card: 6 of 75 entries were duplicate
 //     dirents resolving to one inode — and without this the shelf shows phantom
