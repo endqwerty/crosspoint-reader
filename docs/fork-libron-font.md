@@ -59,7 +59,9 @@ allocation.
 `getReaderFontId()`, line-spacing and settings-loading code: the serif slot
 renders Libron and the sans slot Noto Sans at every size, sizes snap, an installed
 SD font wins and a missing one falls back, the old saved value migrates once, and
-saved built-in and SD choices are kept. `LibronCoverageTest` checks glyph
+saved built-in and SD choices are kept. Line spacing follows upstream: the same
+percentage of font size for every family, so each family wrapper is given its
+real point size; four-option saves move up one slot once. `LibronCoverageTest` checks glyph
 coverage. Firmware builds establish flash fit. On the device, unverified: each
 built-in and an SD font render in a book, the font menus list Reader Serif, Noto
 Sans and the installed SD families, and the previous Libron setting survives the
