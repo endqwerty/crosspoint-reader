@@ -14,8 +14,8 @@ namespace {
 const EpdFont regular(&ubuntu_10_regular);
 const EpdFont bold(&ubuntu_10_bold);
 const EpdFont small(&ubuntu_8_regular);
-const EpdFontFamily uiFamily(&regular, &bold);
-const EpdFontFamily smallFamily(&small);
+const EpdFontFamily uiFamily(10, &regular, &bold);
+const EpdFontFamily smallFamily(8, &small);
 
 class BootSplash : public testing::TestWithParam<std::tuple<GfxRenderer::Orientation, bool, bool>> {
  protected:
