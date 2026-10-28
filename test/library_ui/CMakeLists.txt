@@ -1,7 +1,8 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(ui_source ${REPO_ROOT}/src/activities/library/LibraryListActivity.cpp)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ui_source} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py
-  ${REPO_ROOT}/src/activities/UiTabListActivity.cpp ${REPO_ROOT}/src/util/ButtonNavigator.cpp
+  ${REPO_ROOT}/src/activities/UiTabListActivity.cpp ${REPO_ROOT}/src/activities/home/HomeActivity.cpp
+  ${REPO_ROOT}/src/util/ButtonNavigator.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryIndexFile.cpp)
 execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py
   ${ui_source} ${CMAKE_CURRENT_BINARY_DIR} RESULT_VARIABLE extract_result)
