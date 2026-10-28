@@ -338,9 +338,20 @@ uint64_t fnv1a64(const char* data, const size_t len) {
 // second pass decides whether it is a rename or genuinely new.
 constexpr uint16_t FIRST_SEEN_UNRESOLVED = 0xFFFF;
 
+// A refresh first probes the card read-only and stops at the first book the
+// previous index cannot supply unchanged. Only then does a staging walk write the
+// records a rebuild needs. Both run the same walk and reuse checks.
+enum class WalkMode : uint8_t { Probe, Stage };
+
+// Why a walk ended early. Changed ends only a probe; Failed ends the build and
+// keeps the previous index.
+enum class WalkStop : uint8_t { None, Changed, Failed };
+
 // State threaded through the recursive walk. Passed by reference rather than
 // captured, so the walk stays a plain function and its stack frame stays small.
 struct WalkState {
+  WalkMode mode = WalkMode::Stage;
+  WalkStop stop = WalkStop::None;
   HalFile stage;
   serialization::BufferedFileWriter* stageOut = nullptr;
   char* nameBuf = nullptr;
@@ -354,7 +365,6 @@ struct WalkState {
   uint64_t* dedupKeys = nullptr;
   uint16_t activeDedupCount = 0;
   bool dedupDegraded = false;
-  bool failed = false;
   bool readMetadata = false;
   uint16_t seriesBooks = 0;
   bool limitsReached = false;
@@ -438,7 +448,7 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   ClixRecord& priorRecord = entry.record;
   if (priorIndex >= 0) {
     if (!st.previous->readRecord(priorOrdinal(st.prior[priorIndex]), priorRecord)) {
-      st.failed = true;
+      st.stop = WalkStop::Failed;
       return false;
     }
     reuseMetadata =
@@ -447,10 +457,14 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
         st.previous->header().foldVersion == CLIX_FOLD_VERSION &&
         st.previous->header().metadataEnabled == st.readMetadata && priorRecord.metadataStatus == expectedStatus;
   }
+  if (st.mode == WalkMode::Probe && !reuseMetadata) {
+    st.stop = WalkStop::Changed;
+    return false;
+  }
 
   if (reuseMetadata) {
     if (!st.previous->readReuseFields(priorRecord, title, author, authorSort, uuid)) {
-      st.failed = true;
+      st.stop = WalkStop::Failed;
       return false;
     }
     titleFromBook = !title.empty();
@@ -460,13 +474,13 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
     // series and lands under Standalone.
     ClixSeriesRef priorSeries{};
     if (!st.previous->readSeriesRef(priorOrdinal(st.prior[priorIndex]), priorSeries)) {
-      st.failed = true;
+      st.stop = WalkStop::Failed;
       return false;
     }
     if (priorSeries.seriesId != CLIX_SERIES_NONE) {
       uint16_t priorSeriesBooks = 0;
       if (!st.previous->readSeries(priorSeries.seriesId, series, priorSeriesBooks, &seriesIdentity)) {
-        st.failed = true;
+        st.stop = WalkStop::Failed;
         return false;
       }
       seriesIndex = priorSeries.seriesIndex;
@@ -596,9 +610,14 @@ int findPrior(WalkState& st, const uint64_t pathHash) {
   entry.series.index = entry.series.len > 0 ? seriesIndex : SERIES_INDEX_NONE;
   if (entry.series.len > 0) ++st.seriesBooks;
 
-  st.stageOut->write(&entry, STAGE_STRIDE);
+  if (st.mode == WalkMode::Stage) st.stageOut->write(&entry, STAGE_STRIDE);
   st.books++;
   return true;
+}
+
+// A skipped book or a partial walk already rules out an unchanged index.
+void stopProbe(WalkState& st) {
+  if (st.mode == WalkMode::Probe) st.stop = WalkStop::Changed;
 }
 
 struct DedupFrame {
@@ -608,9 +627,10 @@ struct DedupFrame {
 };
 
 void walk(WalkState& st, const std::string& path, const int depth) {
-  if (st.failed) return;
+  if (st.stop != WalkStop::None) return;
   if (depth > LIBRARY_MAX_DEPTH) {
     st.limitsReached = true;
+    stopProbe(st);
     return;
   }
 
@@ -620,7 +640,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
   HalFile dir = Storage.open(path.c_str());
   if (!dir || !dir.isDirectory()) {
     LOG_ERR("LIBIDX", "cannot scan directory: %s", path.c_str());
-    st.failed = true;
+    st.stop = WalkStop::Failed;
     if (dir) dir.close();
     return;
   }
@@ -647,7 +667,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
 
   for (HalFile entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
     serviceBuilder(st.serviceUnits);
-    if (st.failed) {
+    if (st.stop != WalkStop::None) {
       entry.close();
       break;
     }
@@ -665,13 +685,13 @@ void walk(WalkState& st, const std::string& path, const int depth) {
       const size_t resumePosition = dir.position();
       dir.close();
       walk(st, joinLibraryPath(path, name), depth + 1);
-      if (st.failed) return;
+      if (st.stop != WalkStop::None) return;
 
       dir = Storage.open(path.c_str());
       if (!dir || !dir.isDirectory() || !dir.seekSet(resumePosition)) {
         if (dir) dir.close();
         LOG_ERR("LIBIDX", "cannot resume directory %s at %u", path.c_str(), static_cast<unsigned>(resumePosition));
-        st.failed = true;
+        st.stop = WalkStop::Failed;
         return;
       }
       continue;
@@ -682,6 +702,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     // the contents do not exist. Counted rather than silently dropped.
     if (size == 0) {
       st.unreadableSkipped++;
+      stopProbe(st);
       continue;
     }
     // The index stores the name and the folder path behind one length byte
@@ -693,6 +714,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     // to ~765 UTF-8 bytes.
     if (name.size() > STAGE_NAME_BYTES || path.size() > FOLDER_PATH_BYTES) {
       st.unreadableSkipped++;
+      stopProbe(st);
       continue;
     }
     const uint64_t key = (static_cast<uint64_t>(fnv1a32(name.data(), name.size())) << 32) | size;
@@ -717,6 +739,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     // book is encountered; sidecars and empty directories do not count.
     if (st.books == CLIX_MAX_RECORDS) {
       st.limitsReached = true;
+      stopProbe(st);
       break;
     }
     if (!folderEmitted) {
@@ -726,10 +749,11 @@ void walk(WalkState& st, const std::string& path, const int depth) {
       // In range: entries whose folder path exceeds FOLDER_PATH_BYTES were
       // skipped above, so no book reaches this line with an overlong path.
       const uint8_t pathLen = static_cast<uint8_t>(path.size());
-      if (st.folders.write(&pathLen, 1) != 1 ||
-          st.folders.write(reinterpret_cast<const uint8_t*>(path.data()), pathLen) != pathLen) {
+      if (st.mode == WalkMode::Stage &&
+          (st.folders.write(&pathLen, 1) != 1 ||
+           st.folders.write(reinterpret_cast<const uint8_t*>(path.data()), pathLen) != pathLen)) {
         LOG_ERR("LIBIDX", "folder stage write failed: %s", path.c_str());
-        st.failed = true;
+        st.stop = WalkStop::Failed;
         break;
       }
       st.folderBytes += 1u + pathLen;
@@ -740,7 +764,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
   }
   if (dir.hasError()) {
     LOG_ERR("LIBIDX", "directory scan failed: %s", path.c_str());
-    st.failed = true;
+    st.stop = WalkStop::Failed;
   }
   dir.close();
 }
@@ -1636,64 +1660,102 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
   }
 
   WalkState st;
-  st.nameBuf = nameBuf.get();
-  st.stagedEntry = stagedEntry.get();
-  st.dedupKeys = dedupKeys.get();
-  st.dedupDegraded = !dedupKeys;
-  st.nextFirstSeen = nextFirstSeen;
-  st.prior = priorList.get();
-  st.priorCount = priorList ? priorCount : 0;
-  st.readMetadata = readMetadata;
-  st.previous = previous.isOpen() ? &previous : nullptr;
-  st.stats = &stats;
-
-  if (!Storage.openFileForWrite("LIBIDX", STAGE_PATH, st.stage) ||
-      !Storage.openFileForWrite("LIBIDX", folderStagePath, st.folders)) {
-    LOG_ERR("LIBIDX", "cannot open staging files");
-    if (st.stage) st.stage.close();
-    if (st.folders) st.folders.close();
-    return false;
-  }
+  // Each walk starts clean: a staging walk after a probe must not inherit the
+  // probe's prior matches or counts.
+  const auto beginWalk = [&](const WalkMode mode) {
+    st = WalkState{};
+    st.mode = mode;
+    st.nameBuf = nameBuf.get();
+    st.stagedEntry = stagedEntry.get();
+    st.dedupKeys = dedupKeys.get();
+    st.dedupDegraded = !dedupKeys;
+    st.nextFirstSeen = nextFirstSeen;
+    st.prior = priorList.get();
+    st.priorCount = priorList ? priorCount : 0;
+    st.readMetadata = readMetadata;
+    st.previous = previous.isOpen() ? &previous : nullptr;
+    st.stats = &stats;
+    stats = BuildStats{};
+    for (uint16_t i = 0; i < st.priorCount; ++i) st.prior[i].ordinalAndMatched &= PRIOR_ORDINAL_MASK;
+  };
+  // Reports the finished walk and whether the previous index still describes it.
+  const auto finishWalk = [&] {
+    stats.books = st.books;
+    stats.folders = st.folderId;
+    stats.duplicatesDropped = st.duplicatesDropped;
+    stats.unreadableSkipped = st.unreadableSkipped;
+    stats.dedupDegraded = st.dedupDegraded;
+    stats.limitsReached = st.limitsReached || st.unreadableSkipped > 0;
+    stats.unchanged = st.reused;
+    stats.enriched = st.enriched;
+    return previous.isOpen() && st.books == priorCount && st.reused == priorCount &&
+           stats.metadataReused == priorCount && st.unreadableSkipped == 0 && !stats.limitsReached &&
+           !previous.limitsReached();
+  };
 
   LOG_DBG("LIBIDX", "phase prepare/prior: %ums", static_cast<unsigned>(millis() - startMs));
   [[maybe_unused]] const uint32_t walkStartMs = millis();
-  bool stageFlushed = false;
-  {
-    serialization::BufferedFileWriter stageOut(st.stage, LIBRARY_IO_BUFFER_SIZE);
-    st.stageOut = &stageOut;
+  bool unchanged = false;
+  // A partial previous index can never be found unchanged. Without duplicate
+  // detection, the staging walk keeps its degraded-scan handling.
+  if (previous.isOpen() && dedupKeys && !previous.limitsReached()) {
+    beginWalk(WalkMode::Probe);
     walk(st, rootPath, 0);
-    st.stageOut = nullptr;
-    stageFlushed = stageOut.flush();
+    switch (st.stop) {
+      case WalkStop::Failed:
+        LOG_ERR("LIBIDX", "probe failed; keeping the previous index");
+        return false;
+      case WalkStop::Changed:
+        break;
+      case WalkStop::None:
+        unchanged = finishWalk();
+        break;
+    }
+    LOG_DBG("LIBIDX", "phase probe: %ums, %s", static_cast<unsigned>(millis() - walkStartMs),
+            unchanged ? "unchanged" : "changed");
   }
-  const bool stageClosed = st.stage.close();
-  const bool foldersClosed = st.folders.close();
-  LOG_DBG("LIBIDX", "phase walk/metadata/stage: %ums", static_cast<unsigned>(millis() - walkStartMs));
 
-  if (st.failed || !stageFlushed || !stageClosed || !foldersClosed) {
-    LOG_ERR("LIBIDX", "staging failed; keeping the previous index");
-    Storage.remove(STAGE_PATH);
-    Storage.remove(folderStagePath.c_str());
-    return false;
+  if (!unchanged) {
+    beginWalk(WalkMode::Stage);
+    if (!Storage.openFileForWrite("LIBIDX", STAGE_PATH, st.stage) ||
+        !Storage.openFileForWrite("LIBIDX", folderStagePath, st.folders)) {
+      LOG_ERR("LIBIDX", "cannot open staging files");
+      if (st.stage) st.stage.close();
+      if (st.folders) st.folders.close();
+      return false;
+    }
+
+    bool stageFlushed = false;
+    {
+      serialization::BufferedFileWriter stageOut(st.stage, LIBRARY_IO_BUFFER_SIZE);
+      st.stageOut = &stageOut;
+      walk(st, rootPath, 0);
+      st.stageOut = nullptr;
+      stageFlushed = stageOut.flush();
+    }
+    const bool stageClosed = st.stage.close();
+    const bool foldersClosed = st.folders.close();
+    LOG_DBG("LIBIDX", "phase walk/metadata/stage: %ums", static_cast<unsigned>(millis() - walkStartMs));
+
+    if (st.stop != WalkStop::None || !stageFlushed || !stageClosed || !foldersClosed) {
+      LOG_ERR("LIBIDX", "staging failed; keeping the previous index");
+      Storage.remove(STAGE_PATH);
+      Storage.remove(folderStagePath.c_str());
+      return false;
+    }
+    unchanged = finishWalk();
   }
 
-  stats.books = st.books;
-  stats.folders = st.folderId;
-  stats.duplicatesDropped = st.duplicatesDropped;
-  stats.unreadableSkipped = st.unreadableSkipped;
-  stats.dedupDegraded = st.dedupDegraded;
-  stats.limitsReached = st.limitsReached || st.unreadableSkipped > 0;
-  stats.unchanged = st.reused;
-  stats.enriched = st.enriched;
-
-  if (previous.isOpen() && st.books == priorCount && st.reused == priorCount && stats.metadataReused == priorCount &&
-      st.unreadableSkipped == 0 && !stats.limitsReached && !previous.limitsReached()) {
+  if (unchanged) {
     // The index is left exactly as it was, series sections included, so report
     // what it still holds rather than the zeroes emitIndex() never filled in.
     stats.series = previous.header().seriesCount;
     stats.inSeries = previous.header().knownSeriesCount;
     previous.close();
-    Storage.remove(STAGE_PATH);
-    Storage.remove(folderStagePath.c_str());
+    if (st.mode == WalkMode::Stage) {
+      Storage.remove(STAGE_PATH);
+      Storage.remove(folderStagePath.c_str());
+    }
     stats.walkMs = millis() - startMs;
     LOG_INF("LIBIDX", "unchanged: %u reused, %u parsed, no replacement, %ums",
             static_cast<unsigned>(stats.metadataReused), static_cast<unsigned>(stats.parsed),
