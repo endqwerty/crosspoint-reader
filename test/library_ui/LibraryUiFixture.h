@@ -131,7 +131,8 @@ enum class SortOrder : uint8_t {
   AuthorAsc,
   AuthorDesc,
   SeriesAsc,
-  SeriesDesc
+  SeriesDesc,
+  RecentDesc = AddedDesc,
 };
 inline const char* libraryIndexPath() { return "/index"; }
 inline std::map<uint64_t, BookState> states;
@@ -340,6 +341,39 @@ struct Index {
   }
 };
 }  // namespace library
+// Home's cover-grid fallback opens its own reader on the shared card index.
+namespace library {
+inline bool cardHasIndex = true, cardBuildOk = true, cardBuildCreatesIndex = true;
+inline int cardBuilds = 0;
+inline std::function<void()> cardBuildHook;
+struct BuildStats {};
+using RenameHandler = bool (*)(const std::string&, const std::string&);
+inline bool buildLibraryIndex(const char*, BuildStats&, bool, RenameHandler) {
+  ++cardBuilds;
+  if (cardBuildHook) cardBuildHook();
+  if (cardBuildOk && cardBuildCreatesIndex) cardHasIndex = true;
+  return cardBuildOk;
+}
+struct LibraryIndexFile : Index {
+  bool open(const char* path) {
+    openOk = cardHasIndex;
+    return Index::open(path);
+  }
+};
+}  // namespace library
+inline bool relinkRenamedBook(const std::string&, const std::string&) { return true; }
+struct RecentBooksStore {
+  static bool isMissing(const RecentBook&) { return false; }
+};
+struct CoverGridHomeUi {
+  static constexpr int MAX_BOOKS = 7;
+};
+class HomeActivity {
+ public:
+  int renderer = 0;
+  std::vector<RecentBook> recentBooks;
+  void fillCoverGridFromLibrary();
+};
 namespace fui = freeink::ui;
 struct UiScreen {
   struct Theme {

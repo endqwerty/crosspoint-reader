@@ -63,6 +63,18 @@ target_include_directories(GfxRefreshTest PRIVATE ${REPO_ROOT}/lib/Epub)
 target_link_libraries(GfxRefreshTest PRIVATE GfxRefreshHost GTest::gtest_main)
 gtest_discover_tests(GfxRefreshTest)
 
+# Counts and fails prewarm allocations; the test supplies fiFontMalloc/fiFontFree
+# in place of the SDK host allocator.
+add_library(FontPrewarmHost STATIC
+  ${REPO_ROOT}/lib/EpdFont/FontDecompressor.cpp
+  ${REPO_ROOT}/lib/InflateReader/InflateReader.cpp
+  ${REPO_ROOT}/lib/uzlib/src/tinflate.c
+  ${REPO_ROOT}/lib/Utf8/Utf8.cpp)
+configure_gfx_host(FontPrewarmHost)
+add_executable(FontPrewarmScratchTest FontPrewarmScratchTest.cpp)
+target_link_libraries(FontPrewarmScratchTest PRIVATE FontPrewarmHost GTest::gtest_main)
+gtest_discover_tests(FontPrewarmScratchTest)
+
 option(CROSSPOINT_BUILD_PAGE_BENCHMARK "Build the optional host page-composition benchmark" OFF)
 if(CROSSPOINT_BUILD_PAGE_BENCHMARK)
   add_executable(GfxPageBenchmark GfxPageBenchmark.cpp)

@@ -9,6 +9,7 @@
 #include <I18n.h>
 #include <LibraryBuilder.h>
 #include <LibraryIndexFile.h>
+#include <LibrarySession.h>
 #include <Memory.h>
 #include <Utf8.h>
 #include <Xtc.h>
@@ -76,11 +77,14 @@ void HomeActivity::fillCoverGridFromLibrary() {
     index.close();
     GUI.drawPopup(renderer, tr(STR_LIBRARY_REBUILDING));
     library::BuildStats stats;
+    const auto refreshToken = library::librarySession.refreshToken();
     if (!library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0, relinkRenamedBook) ||
         !index.open(library::libraryIndexPath())) {
       LOG_ERR("HOME", "Cannot populate cover grid from library");
       return;
     }
+    // Library skips its boot reconcile unless the card changed during this build.
+    library::librarySession.reconciled(true, refreshToken);
   }
   for (uint16_t row = 0; row < index.bookCount() && recentBooks.size() < CoverGridHomeUi::MAX_BOOKS; ++row) {
     RecentBook book;
