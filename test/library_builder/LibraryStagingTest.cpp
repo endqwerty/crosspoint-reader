@@ -133,10 +133,29 @@ TEST_F(LibraryStagingTest, ReusedMetadataReadFailureDoesNotStageRecord) {
   ASSERT_TRUE(writer);
   fake::failRead = 1;  // Record succeeds; metadata fails.
   EXPECT_FALSE(stage());
-  EXPECT_TRUE(state.failed);
+  EXPECT_EQ(state.stop, library::WalkStop::Failed);
   EXPECT_EQ(state.books, 0);
   EXPECT_EQ(writer->position(), 0u);
   EXPECT_EQ(stats.metadataReused, 0);
+}
+
+TEST_F(LibraryStagingTest, ProbeValidatesReuseWithoutStagingAndStopsAtAChangedBook) {
+  prepare({"Title", "Author", "Saga", "2"}, true);
+  ASSERT_TRUE(writer);
+  state.mode = library::WalkMode::Probe;
+
+  ASSERT_TRUE(stage());
+  EXPECT_EQ(state.stop, library::WalkStop::None);
+  EXPECT_EQ(state.books, 1);
+  EXPECT_EQ(stats.metadataReused, 1);
+  EXPECT_EQ(writer->position(), 0u);
+
+  prior.ordinalAndMatched = 0;
+  EXPECT_FALSE(library::stageRecord(state, name, 4, 0, path, 2));
+  EXPECT_EQ(state.stop, library::WalkStop::Changed);
+  EXPECT_EQ(state.books, 1);
+  EXPECT_EQ(fake::parses, 0u);
+  EXPECT_EQ(writer->position(), 0u);
 }
 
 }  // namespace

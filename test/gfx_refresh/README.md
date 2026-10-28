@@ -29,12 +29,21 @@ scaling happens to produce no intermediate shades. The detector adds two boolean
 members and no buffers or heap allocation; it examines the resolved font once per
 text draw, never scans pixels. These tests do not model complete reader activities.
 
-Run the normal host suite, or just this executable:
+`FontPrewarmScratchTest` links the production decoder with a counting
+`fiFontMalloc` / `fiFontFree` in place of the SDK host allocator. With real Noto
+Sans 14 regular text spanning five groups, one prewarm must make three allocations
+(page buffer, lookup table, one decompression buffer), free the decompression buffer
+before returning, and peak at the page slot plus the largest group. Prewarmed glyph
+bytes must match the non-prewarmed hot-group path. When the largest group cannot be
+allocated, or one group fails to inflate, the other groups must still load.
+
+Run the normal host suite, or these two executables:
 
 ```sh
 cmake -S test -B build/host-tests -DCMAKE_BUILD_TYPE=Release
-cmake --build build/host-tests --target GfxRefreshTest -j4
+cmake --build build/host-tests --target GfxRefreshTest FontPrewarmScratchTest -j4
 build/host-tests/gfx_refresh/GfxRefreshTest
+build/host-tests/gfx_refresh/FontPrewarmScratchTest
 ```
 
 Enable the optional benchmark:
