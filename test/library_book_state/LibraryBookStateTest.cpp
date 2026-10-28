@@ -32,6 +32,18 @@ TEST_F(LibraryBookStateTest, MissingStateIsUnreadAndDoesNotCreateFiles) {
   EXPECT_TRUE(fake::files.empty());
 }
 
+TEST_F(LibraryBookStateTest, TransientMissingPrimaryLookupDoesNotDiscardSavedState) {
+  ASSERT_TRUE(writeBookState(KEY, FAVORITE));
+  const auto saved = fake::files[MAIN]->bytes;
+  BookState state;
+  fake::transientExistsMiss = true;
+  EXPECT_FALSE(readBookState(KEY, state));
+  fake::transientExistsMiss = true;
+  EXPECT_FALSE(writeBookState(KEY, FINISHED));
+  EXPECT_EQ(fake::files[MAIN]->bytes, saved);
+  expectState(FAVORITE);
+}
+
 TEST_F(LibraryBookStateTest, WireRecordHasFixedSizeAndLittleEndianIdentity) {
   ASSERT_TRUE(writeBookState(KEY, FAVORITE));
   const auto& record = fake::files[MAIN]->bytes;
