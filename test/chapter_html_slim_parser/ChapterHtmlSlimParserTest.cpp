@@ -708,7 +708,7 @@ TEST_F(ChapterTightSpacingTest, FontSizeLineSpacingKeepsLastLineInsidePage) {
   open("p", nullptr);
   text(words(80));
   close("p");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   bool checkedSpacing = false;
   for (const auto& page : pages) {
@@ -739,7 +739,7 @@ TEST_F(ChapterTightSpacingTest, TightTableLinesStayTogetherAndInsidePage) {
   ASSERT_FALSE(parser.tableRowStacked);
   close("tr");
   close("table");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   for (const auto& page : pages) {
     std::map<int, int> columnsAtY;
@@ -1011,7 +1011,7 @@ TEST_F(ChapterTightSpacingTest, TightDropCapMovesWithAllSpannedLines) {
   close("span");
   text("he " + words(50));
   close("p");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   size_t capCount = 0;
   for (size_t index = 0; index < pages.size(); ++index) {
@@ -1113,7 +1113,7 @@ TEST_F(ChapterTightSpacingTest, BorderedTableRowMovesWholeWhenRaisedRowDoesNotFi
   }
   close("tr");
   close("table");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_EQ(pages.size(), 2u);
   std::map<PageElementTag, std::vector<int>> secondPage;
   for (const auto& element : pages[1]->elements) secondPage[element->getTag()].push_back(element->yPos);
