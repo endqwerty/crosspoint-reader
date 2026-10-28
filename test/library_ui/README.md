@@ -18,6 +18,9 @@ production source. The backend suites separately test actual index/state files.
 Coverage includes:
 
 - Reconcile once per session, metadata mismatch, invalidation and failed refresh.
+- HomeActivity's cover-grid index build (extracted from production) counting as
+  the session reconcile only when the build and reopen succeed with no newer
+  invalidation.
 - Title/author/series query matching combined with shelf-state filtering.
 - Filter allocation/read failures, sort remapping, stale/out-of-range row actions.
 - Series identity boundaries even when displayed names are identical, group
