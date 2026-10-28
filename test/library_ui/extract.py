@@ -38,6 +38,8 @@ chunks.append(extract('UiTabListActivity::moveRingTo(', nav_source).replace('UiT
 button_source = (repo / 'src/util/ButtonNavigator.cpp').read_text()
 for method in ['nextIndex', 'previousIndex', 'nextPageIndex', 'previousPageIndex']:
     chunks.append(extract('ButtonNavigator::' + method + '(', button_source))
+home_source = (repo / 'src/activities/home/HomeActivity.cpp').read_text()
+chunks.append(extract('HomeActivity::fillCoverGridFromLibrary(', home_source))
 # Share the real return contract with the UI; storage remains simulated.
 index_source = (repo / 'lib/LibraryIndex/LibraryIndexFile.cpp').read_text()
 author_reader = extract('LibraryIndexFile::readAuthor(', index_source)
