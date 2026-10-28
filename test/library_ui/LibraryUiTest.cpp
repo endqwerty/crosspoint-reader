@@ -19,6 +19,9 @@ class LibraryUiTest : public testing::Test {
     library::librarySession.invalidate();
     lockDepth = locksTaken = 0;
     failNextAllocation = false;
+    library::cardHasIndex = library::cardBuildOk = library::cardBuildCreatesIndex = true;
+    library::cardBuilds = 0;
+    library::cardBuildHook = nullptr;
   }
   static void populate(LibraryListActivity& ui) {
     ui.activeTabIndex = TITLE_TAB;
@@ -2463,4 +2466,53 @@ TEST_F(LibraryUiTest, SearchFindsTheShownTitleWhenTheSortTitleDiffers) {
   ASSERT_FALSE(ui.filterFailed);
   ASSERT_EQ(ui.filteredCount, 1);
   EXPECT_EQ(ui.rowFor(0), 0);
+}
+
+// Home's cover grid builds a missing index; Library then reuses that session's work.
+class HomeLibraryTest : public LibraryUiTest {
+ protected:
+  void SetUp() override {
+    LibraryUiTest::SetUp();
+    library::cardHasIndex = false;
+  }
+  static int libraryRebuildsAfterHome() {
+    HomeActivity home;
+    home.fillCoverGridFromLibrary();
+    EXPECT_EQ(library::cardBuilds, 1);
+    LibraryListActivity ui;
+    populate(ui);
+    ui.onEnter();
+    return ui.rebuilds;
+  }
+};
+
+TEST_F(HomeLibraryTest, SuccessfulHomeBuildReconcilesSession) {
+  EXPECT_EQ(libraryRebuildsAfterHome(), 0);
+  EXPECT_FALSE(library::librarySession.needsRefresh(true, true));
+}
+
+TEST_F(HomeLibraryTest, InvalidationDuringHomeBuildStillRequiresLibraryRebuild) {
+  library::cardBuildHook = [] { library::librarySession.invalidate(); };
+  EXPECT_EQ(libraryRebuildsAfterHome(), 1);
+}
+
+TEST_F(HomeLibraryTest, FailedHomeBuildIsNotReconciled) {
+  library::cardBuildOk = false;
+  EXPECT_EQ(libraryRebuildsAfterHome(), 1);
+}
+
+TEST_F(HomeLibraryTest, FailedReopenAfterHomeBuildIsNotReconciled) {
+  library::cardBuildCreatesIndex = false;
+  EXPECT_EQ(libraryRebuildsAfterHome(), 1);
+}
+
+TEST_F(HomeLibraryTest, ExistingIndexDoesNotSkipSessionReconcile) {
+  library::cardHasIndex = true;
+  HomeActivity home;
+  home.fillCoverGridFromLibrary();
+  EXPECT_EQ(library::cardBuilds, 0);
+  LibraryListActivity ui;
+  populate(ui);
+  ui.onEnter();
+  EXPECT_EQ(ui.rebuilds, 1);
 }

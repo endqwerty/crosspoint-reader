@@ -54,7 +54,7 @@ bool FontDecompressor::ensureCapacity(uint8_t*& buf, uint32_t& capacity, uint32_
   // Grow-only, free-then-malloc: every caller fully rewrites the buffer after a grow, so the
   // old contents are dead -- freeing first gives the allocator its best shot on a tight heap.
   fiFontFree(buf);
-  buf = static_cast<uint8_t*>(fiFontMalloc(needed));  // owned by FontDecompressor, freed in freeHotGroup()
+  buf = static_cast<uint8_t*>(fiFontMalloc(needed));  // owned by the caller's buffer slot
   capacity = buf ? needed : 0;
   return buf != nullptr;
 }
@@ -339,6 +339,7 @@ int FontDecompressor::prewarmCache(const EpdFontData* fontData, const char* utf8
   uint32_t totalBytes = 0;
   uint16_t neededGroups[128];
   uint8_t groupCount = 0;
+  uint32_t largestGroupBytes = 0;
   bool groupCapWarned = false;
 
   for (uint16_t i = 0; i < glyphCount; i++) {
@@ -354,6 +355,9 @@ int FontDecompressor::prewarmCache(const EpdFontData* fontData, const char* utf8
     if (!found) {
       if (groupCount < 128) {
         neededGroups[groupCount++] = gi;
+        if (fontData->groups[gi].uncompressedSize > largestGroupBytes) {
+          largestGroupBytes = fontData->groups[gi].uncompressedSize;
+        }
       } else if (!groupCapWarned) {
         LOG_DBG("FDC", "Group cap (128) reached during prewarm; some groups will use hot-group fallback");
         groupCapWarned = true;
@@ -466,26 +470,29 @@ int FontDecompressor::prewarmCache(const EpdFontData* fontData, const char* utf8
     }
   }
 
-  // Step 4: For each unique group, decompress to temp buffer and extract needed glyphs
+  // Step 4: For each unique group, decompress to temp buffer and extract needed glyphs.
+  // One temp buffer, sized for the largest group, serves the whole prewarm. If that
+  // allocation fails, ensureCapacity() retries per group so smaller groups still load.
   uint32_t writeOffset = 0;
   int missed = 0;
+  uint8_t* tempBuf = nullptr;
+  uint32_t tempCapacity = 0;
+  ensureCapacity(tempBuf, tempCapacity, largestGroupBytes);
 
   for (uint8_t g = 0; g < groupCount; g++) {
     uint16_t groupIdx = neededGroups[g];
     const EpdFontGroup& group = fontData->groups[groupIdx];
 
-    auto* tempBuf = static_cast<uint8_t*>(fiFontMalloc(group.uncompressedSize));
-    if (!tempBuf) {
+    if (!ensureCapacity(tempBuf, tempCapacity, group.uncompressedSize)) {
       LOG_ERR("FDC", "Failed to allocate temp buffer (%u bytes) for group %u", group.uncompressedSize, groupIdx);
       missed++;
       continue;
     }
-    if (group.uncompressedSize > stats.peakTempBytes) {
-      stats.peakTempBytes = group.uncompressedSize;
+    if (tempCapacity > stats.peakTempBytes) {
+      stats.peakTempBytes = tempCapacity;
     }
 
     if (!decompressGroup(fontData, groupIdx, tempBuf, group.uncompressedSize)) {
-      fiFontFree(tempBuf);
       missed++;
       continue;
     }
@@ -501,9 +508,8 @@ int FontDecompressor::prewarmCache(const EpdFontData* fontData, const char* utf8
       slot.glyphs[i].bufferOffset = writeOffset;
       writeOffset += glyph.dataLength;
     }
-
-    fiFontFree(tempBuf);
   }
+  fiFontFree(tempBuf);
 
   LOG_DBG("FDC", "Prewarm: %u glyphs in %u bytes from %u groups (%d missed)", glyphCount, writeOffset, groupCount,
           missed);
