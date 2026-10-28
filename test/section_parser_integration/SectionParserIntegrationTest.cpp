@@ -112,7 +112,7 @@ TEST_F(SectionParserIntegration, SpacingSurvivesParagraphTableAndSoftFlushCacheR
   ASSERT_GT(section->pageCount, 1u);
   const auto bytes = readCache();
   ASSERT_GE(bytes.size(), SectionPageReader::HEADER_SIZE);
-  EXPECT_EQ(bytes[0], 69);
+  EXPECT_EQ(bytes[0], 71);
   EXPECT_EQ(SectionPageReader::HEADER_SIZE, 44u);
   size_t words = 0;
   for (uint16_t index = 0; index < section->pageCount; ++index) {
@@ -189,6 +189,24 @@ TEST_F(SectionParserIntegration, PreviousVersion48AndPartialAreRejectedBeforeFie
 TEST_F(SectionParserIntegration, PreviousVersion50And51CachesAreRejectedBeforeFieldReads) {
   commitPrevious();
   for (uint8_t version : {50, 232, 51, 231}) {
+    SCOPED_TRACE(version);
+    auto bytes = previous;
+    bytes[0] = version;
+    {
+      std::ofstream out(section->filePath, std::ios::binary | std::ios::trunc);
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    }
+    parser_test::ScopedReadFailure fault(1);
+    EXPECT_FALSE(section->loadSectionFile(spec));
+    EXPECT_EQ(fault.failures(), 0u);
+    EXPECT_FALSE(Storage.exists(section->filePath.c_str()));
+  }
+}
+
+// Fork v69 and upstream v70 laid out line spacing differently; both rebuild.
+TEST_F(SectionParserIntegration, ForkVersion69AndUpstreamVersion70CachesAreRejectedBeforeFieldReads) {
+  commitPrevious();
+  for (uint8_t version : {69, 213, 70, 212}) {
     SCOPED_TRACE(version);
     auto bytes = previous;
     bytes[0] = version;
@@ -423,7 +441,7 @@ TEST_F(SectionParserIntegration, SuspendedBuildIsReadableAndOverflowingWatermark
   ASSERT_NE(nullptr, SectionPageReader::load(section->filePath, 0));
   auto bytes = readCache();
   ASSERT_FALSE(bytes.empty());
-  EXPECT_EQ(bytes[0], 213);  // partial sentinel for version 69
+  EXPECT_EQ(bytes[0], 211);  // partial sentinel for version 71
   const uint32_t forgedOffset = UINT32_MAX - 3;
   std::memcpy(bytes.data() + SectionPageReader::HEADER_SIZE - sizeof(uint32_t), &forgedOffset, sizeof(forgedOffset));
   {
