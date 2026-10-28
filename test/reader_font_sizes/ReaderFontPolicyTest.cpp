@@ -13,7 +13,7 @@ class CrossPointSettings {
 #include "ReaderFontPolicyEnums.inc"
   uint8_t fontFamily = NOTOSERIF;
   uint8_t fontPointSize = 14;
-  uint8_t lineSpacing = NORMAL;
+  uint8_t lineSpacing = LINE_SPACING_120;
   char sdFontFamilyName[32] = "";
   using SdFontIdResolver = int (*)(void* ctx, const char* familyName, uint8_t fontSize);
   SdFontIdResolver sdFontIdResolver = nullptr;
@@ -25,6 +25,11 @@ class CrossPointSettings {
     bool needsResave = false;
 #include "ReaderFontFamilyJson.inc"
 #include "ReaderFontSdJson.inc"
+    return needsResave;
+  }
+  bool loadLineSpacing(const JsonDocument& doc) {
+    bool needsResave = false;
+#include "ReaderLineSpacingJson.inc"
     return needsResave;
   }
 };
@@ -113,20 +118,47 @@ TEST(ReaderFontPolicy, UnknownSavedFamilyResetsToSerifSlot) {
   EXPECT_EQ(settings.fontFamily, CrossPointSettings::NOTOSERIF);
 }
 
-TEST(ReaderFontPolicy, LineSpacingFollowsTheActiveFamily) {
-  constexpr float SERIF[] = {0.95f, 1.0f, 1.1f, 1.2f};
-  constexpr float SANS[] = {0.90f, 0.95f, 1.0f, 1.05f};
-  // Upstream #4013: SD fonts share the serif scale.
-  constexpr float SD[] = {0.95f, 1.0f, 1.1f, 1.2f};
-  for (uint8_t spacing = 0; spacing < std::size(SERIF); ++spacing) {
+TEST(ReaderFontPolicy, LineSpacingIsTheSamePercentOfFontSizeForEveryFamily) {
+  constexpr float EXPECTED[] = {1.0f, 1.1f, 1.2f, 1.3f, 1.45f, 1.6f, 1.75f};
+  static_assert(std::size(EXPECTED) == CrossPointSettings::LINE_COMPRESSION_COUNT);
+  for (uint8_t spacing = 0; spacing < std::size(EXPECTED); ++spacing) {
     CrossPointSettings settings;
     settings.lineSpacing = spacing;
-    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), SERIF[spacing]);
+    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), EXPECTED[spacing]);
     settings.fontFamily = CrossPointSettings::NOTOSANS;
-    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), SANS[spacing]);
+    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), EXPECTED[spacing]);
     std::strcpy(settings.sdFontFamilyName, "Literata");
-    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), SD[spacing]);
+    EXPECT_FLOAT_EQ(settings.getReaderLineCompression(), EXPECTED[spacing]);
   }
+  CrossPointSettings outOfRange;
+  outOfRange.lineSpacing = CrossPointSettings::LINE_COMPRESSION_COUNT;
+  EXPECT_FLOAT_EQ(outOfRange.getReaderLineCompression(), 1.2f);
+}
+
+TEST(ReaderFontPolicy, FourOptionLineSpacingSavesMoveUpOneSlotOnce) {
+  constexpr uint8_t MIGRATED[] = {CrossPointSettings::LINE_SPACING_110, CrossPointSettings::LINE_SPACING_120,
+                                  CrossPointSettings::LINE_SPACING_130, CrossPointSettings::LINE_SPACING_145};
+  for (uint8_t legacy = 0; legacy < std::size(MIGRATED); ++legacy) {
+    CrossPointSettings settings;
+    JsonDocument doc;
+    doc["lineSpacing"] = legacy;  // Tight, Normal, Wide, Extra Wide
+    EXPECT_TRUE(settings.loadLineSpacing(doc));
+    EXPECT_EQ(settings.lineSpacing, MIGRATED[legacy]);
+  }
+  CrossPointSettings corrupt;
+  JsonDocument corruptDoc;
+  corruptDoc["lineSpacing"] = 200;
+  EXPECT_TRUE(corrupt.loadLineSpacing(corruptDoc));
+  EXPECT_EQ(corrupt.lineSpacing, CrossPointSettings::LINE_SPACING_120);
+
+  // A file saved after the migration carries "lineHeight" and is left alone.
+  CrossPointSettings saved;
+  saved.lineSpacing = CrossPointSettings::LINE_SPACING_175;
+  JsonDocument savedDoc;
+  savedDoc["lineHeight"] = CrossPointSettings::LINE_SPACING_175;
+  savedDoc["lineSpacing"] = 0;
+  EXPECT_FALSE(saved.loadLineSpacing(savedDoc));
+  EXPECT_EQ(saved.lineSpacing, CrossPointSettings::LINE_SPACING_175);
 }
 
 TEST(ReaderFontPolicy, RegisteredBuiltinIdsAreUniqueAndNonZero) {

@@ -84,23 +84,27 @@ EpdFont libron14RegularFont(&libron_14_regular);
 EpdFont libron14BoldFont(&libron_14_bold);
 EpdFont libron14ItalicFont(&libron_14_italic);
 EpdFont libron14BoldItalicFont(&libron_14_bolditalic);
-EpdFontFamily libron14FontFamily(14, &libron14RegularFont, &libron14BoldFont, &libron14ItalicFont, &libron14BoldItalicFont);
+EpdFontFamily libron14FontFamily(14, &libron14RegularFont, &libron14BoldFont, &libron14ItalicFont,
+                                 &libron14BoldItalicFont);
 #ifndef OMIT_FONTS
 EpdFont libron12RegularFont(&libron_12_regular);
 EpdFont libron12BoldFont(&libron_12_bold);
 EpdFont libron12ItalicFont(&libron_12_italic);
 EpdFont libron12BoldItalicFont(&libron_12_bolditalic);
-EpdFontFamily libron12FontFamily(12, &libron12RegularFont, &libron12BoldFont, &libron12ItalicFont, &libron12BoldItalicFont);
+EpdFontFamily libron12FontFamily(12, &libron12RegularFont, &libron12BoldFont, &libron12ItalicFont,
+                                 &libron12BoldItalicFont);
 EpdFont libron16RegularFont(&libron_16_regular);
 EpdFont libron16BoldFont(&libron_16_bold);
 EpdFont libron16ItalicFont(&libron_16_italic);
 EpdFont libron16BoldItalicFont(&libron_16_bolditalic);
-EpdFontFamily libron16FontFamily(16, &libron16RegularFont, &libron16BoldFont, &libron16ItalicFont, &libron16BoldItalicFont);
+EpdFontFamily libron16FontFamily(16, &libron16RegularFont, &libron16BoldFont, &libron16ItalicFont,
+                                 &libron16BoldItalicFont);
 EpdFont libron18RegularFont(&libron_18_regular);
 EpdFont libron18BoldFont(&libron_18_bold);
 EpdFont libron18ItalicFont(&libron_18_italic);
 EpdFont libron18BoldItalicFont(&libron_18_bolditalic);
-EpdFontFamily libron18FontFamily(18, &libron18RegularFont, &libron18BoldFont, &libron18ItalicFont, &libron18BoldItalicFont);
+EpdFontFamily libron18FontFamily(18, &libron18RegularFont, &libron18BoldFont, &libron18ItalicFont,
+                                 &libron18BoldItalicFont);
 
 EpdFont notosans12RegularFont(&notosans_12_regular);
 EpdFont notosans12BoldFont(&notosans_12_bold);

@@ -15,7 +15,7 @@ const EpdFont regular(&notosans_14_regular);
 const EpdFont bold(&notosans_14_bold);
 const EpdFont italic(&notosans_14_italic);
 const EpdFont boldItalic(&notosans_14_bolditalic);
-const EpdFontFamily family(&regular, &bold, &italic, &boldItalic);
+const EpdFontFamily family(14, &regular, &bold, &italic, &boldItalic);
 constexpr int BINARY_FONT_ID = 2;
 constexpr uint8_t BINARY_BITMAP[] = {0xab, 0x75, 0x6e, 0xd8, 0xe9, 0xa0};
 constexpr EpdGlyph BINARY_GLYPH[] = {{7, 6, 8 * 64, -1, 5, sizeof(BINARY_BITMAP), 0}};
@@ -51,7 +51,7 @@ constexpr const char* OVERLAP = "A\u0301 o\u0308 ffi AV";
 RealFontPage::RealFontPage() : renderer(display), cache(renderer.getFontMap(), noSdFonts, renderer.getTtfFonts()) {
   renderer.begin();
   renderer.insertFont(FONT_ID, family);
-  renderer.insertFont(BINARY_FONT_ID, EpdFontFamily(&binaryFont));
+  renderer.insertFont(BINARY_FONT_ID, EpdFontFamily(8, &binaryFont));
   decompressor.init();
   cache.setFontDecompressor(&decompressor);
   renderer.setFontCacheManager(&cache);

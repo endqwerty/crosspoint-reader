@@ -188,7 +188,9 @@ traversals do not mean proportionally less bitmap work.
   paths keep their capability selection, including the low-memory strip
   fallback.
 - Monochrome text: EPUB (including TXT/Markdown) skips text AA when the body draw uses only black
-  1-bit text (or no text) and there are no images. GfxRenderer conservatively
+  1-bit text (or no text) and there are no grayscale images. With upstream's
+  Black & White image setting, images are dithered in the B/W pass and never
+  drawn into the gray planes, so they do not count. GfxRenderer conservatively
   tracks the resolved family/style; any 2-bit font, white text or unknown font
   data keeps the AA pass. This covers fallback, rotated and scaled text without
   a pixel scan. Tracking excludes the font-prewarm scan and status bar. It adds

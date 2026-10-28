@@ -46,9 +46,9 @@ class TextGrayscaleTracking : public testing::Test {
 
   void SetUp() override {
     renderer.begin();
-    renderer.insertFont(BINARY_FONT, EpdFontFamily(&binaryFont));
-    renderer.insertFont(GRAY_FONT, EpdFontFamily(&grayFont));
-    renderer.insertFont(MIXED_FONT, EpdFontFamily(&binaryFont, &grayFont));
+    renderer.insertFont(BINARY_FONT, EpdFontFamily(8, &binaryFont));
+    renderer.insertFont(GRAY_FONT, EpdFontFamily(8, &grayFont));
+    renderer.insertFont(MIXED_FONT, EpdFontFamily(8, &binaryFont, &grayFont));
     renderer.setFontCacheManager(&cache);
     renderer.clearScreen();
   }
