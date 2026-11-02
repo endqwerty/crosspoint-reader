@@ -14,12 +14,15 @@ TEST(ReaderMenuCapacity, OptionalEntriesAreLeftOutWhenUnavailable) {
   Frontlight.fitted = false;
   bleturner::statusValue.compiledIn = false;
   SETTINGS.dictionaryName[0] = '\0';
+  KOREADER_STORE.credentials = false;
   std::vector<EpubReaderMenuActivity::MenuItem> all;
   std::vector<EpubReaderMenuActivity::MenuItem> fewest;
   EpubReaderMenuActivity::buildMenuItems(fewest, false, false, false);
   Frontlight.fitted = true;
   bleturner::statusValue.compiledIn = true;
   SETTINGS.dictionaryName[0] = 'd';
+  KOREADER_STORE.credentials = true;
   EpubReaderMenuActivity::buildMenuItems(all, true, true, true);
-  EXPECT_EQ(all.size() - fewest.size(), 6u);  // footnotes, bookmarks, clippings, light, Bluetooth, lookup
+  // Footnotes, bookmarks, clippings, light, Bluetooth, lookup and sync.
+  EXPECT_EQ(all.size() - fewest.size(), 7u);
 }

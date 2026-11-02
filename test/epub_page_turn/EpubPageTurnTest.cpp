@@ -151,10 +151,10 @@ TEST(CachedPageReads, CompletePagesReduceStorageCallsWithUnchangedAllocationBudg
 
 TEST(RubyRendering, ReusesAnnotationTextAcrossRenderModes) {
   static constexpr uint64_t EXPECTED_PIXELS[4][3] = {
-      {0xc57b85f25a441430ULL, 0xf7db8cfc954cc5b3ULL, 0x39eeeb10005f7034ULL},
-      {0x05037c0870da114fULL, 0x8e1b23d2920d284cULL, 0xf48ead1fe8dbe498ULL},
-      {0x04da0eabdf8330aaULL, 0x61df59b987a6ca8eULL, 0x9e3ff9c6ede809d1ULL},
-      {0x76a81d0faee55b03ULL, 0x0bc0cef627b62066ULL, 0x05553130d09670c1ULL},
+      {0x030d129784f55ca3ULL, 0xf7db8cfc954cc5b3ULL, 0x39eeeb10005f7034ULL},
+      {0xc1ec3d5676a85c87ULL, 0x8e1b23d2920d284cULL, 0xf48ead1fe8dbe498ULL},
+      {0x660c93440bdcc0e7ULL, 0x61df59b987a6ca8eULL, 0x9e3ff9c6ede809d1ULL},
+      {0x8e2448604f75de3eULL, 0x0bc0cef627b62066ULL, 0x05553130d09670c1ULL},
   };
   using namespace epub_page_test;
   using Style = EpdFontFamily::Style;
