@@ -112,7 +112,7 @@ TEST_F(SectionParserIntegration, SpacingSurvivesParagraphTableAndSoftFlushCacheR
   ASSERT_GT(section->pageCount, 1u);
   const auto bytes = readCache();
   ASSERT_GE(bytes.size(), SectionPageReader::HEADER_SIZE);
-  EXPECT_EQ(bytes[0], 71);
+  EXPECT_EQ(bytes[0], 74);
   EXPECT_EQ(SectionPageReader::HEADER_SIZE, 44u);
   size_t words = 0;
   for (uint16_t index = 0; index < section->pageCount; ++index) {
@@ -441,7 +441,7 @@ TEST_F(SectionParserIntegration, SuspendedBuildIsReadableAndOverflowingWatermark
   ASSERT_NE(nullptr, SectionPageReader::load(section->filePath, 0));
   auto bytes = readCache();
   ASSERT_FALSE(bytes.empty());
-  EXPECT_EQ(bytes[0], 211);  // partial sentinel for version 71
+  EXPECT_EQ(bytes[0], 208);  // partial sentinel for version 74
   const uint32_t forgedOffset = UINT32_MAX - 3;
   std::memcpy(bytes.data() + SectionPageReader::HEADER_SIZE - sizeof(uint32_t), &forgedOffset, sizeof(forgedOffset));
   {

@@ -108,7 +108,7 @@ A handoff must include the nested SDK commits, not only the submodule pointer.
   - UC8279 keeps upstream's per-variant AA tables and image-pass resets.
   - Absolute and Direct image planes use the four-tone image bank. Overlay masks below the image threshold keep the text bank.
 - **Window requests:**
-  - UC8279 (`Uc8279X4Driver`) window requests take the default full-screen FAST fallback.
+  - UC8279 (`Uc8279X4Driver`) window requests use upstream's regional refresh (SDK `adc73104`). It falls back to a full-screen FAST refresh when a regional refresh would be invalid.
   - The facade also falls back to a full refresh whenever the display is inverted or an inversion is pending.
   - No UI depends on regional UC8279 refresh.
 - The stock fast-DU shortcut stays off.
@@ -158,7 +158,7 @@ Other behavior:
   - Direct activation, cancellation, recovery and FULL cleanup order.
 
   The SDK's UC8253 and UC8279 X3 runners, and the upstream UC8279 waveform-selection test, guard the shared Direct and bank logic.
-- **`test/refresh_sequences`**: production drivers running Direct cover, abort and B/W workloads, plus UC8279 window fallback on every variant.
+- **`test/refresh_sequences`**: production drivers running Direct cover, abort and B/W workloads on every UC8279 variant. UC8279 regional window refresh has no host test.
 - **`test/gfx_refresh`**: Direct manual FULL promotion, and transparent white preserved in both Direct planes in all four orientations. It starts from a decoded four-tone row and does not test BMP decoding.
 - **`test/sleep_grayscale`**: sleep image paths in each supported grayscale mode.
 - **`test/boot_splash`**: the complete production `onEnter`. Covers:
@@ -181,6 +181,6 @@ Keep these `Co-Authored-By` lines when this work is committed or rebased.
   - [SDK #98](https://github.com/Free-Ink/freeink-sdk/pull/98): Justin Mitchell `<justin@jmitch.com>`, commit `5916724f23f9392a1d75bc2f632780f54b0735fa`.
   - [CrossPoint #3541](https://github.com/crosspoint-reader/crosspoint-reader/pull/3541): Justin Mitchell `<justin@jmitch.com>`, commit `f64a6b2506d3e1bec2a58256e39e3e131e73f1b8`. This covers the Direct-cover, transparent-white and PNG quantization changes to the sleep cover.
   - [UC8279 variant AA restoration](https://github.com/Free-Ink/freeink-sdk/commit/2cca22fe44862215e029a416d5ff6fddcb3e593e): Justin Mitchell `<justin@jmitch.com>`, commit `2cca22fe44862215e029a416d5ff6fddcb3e593e`. Its image-bank selection, image-pass resets and waveform tests are kept.
-  - [SDK #91](https://github.com/Free-Ink/freeink-sdk/pull/91): Mathias Karstaedt `<mathias.karstaedt@gmail.com>`, commit `adc731043b7cb8209c283f630edb861debf53305`. It was open when reviewed and was adapted with post-grayscale and outside-window validation.
+  - [SDK #91](https://github.com/Free-Ink/freeink-sdk/pull/91): Mathias Karstaedt `<mathias.karstaedt@gmail.com>`, commit `adc731043b7cb8209c283f630edb861debf53305`. It is now upstream code in the pinned SDK; the fork carries no change to it.
 
   All of these authors were verified from the GitHub commit records. The SDK's local display commit already carries `Co-Authored-By` lines for Eszter, Justin Mitchell and Mathias Karstaedt.
