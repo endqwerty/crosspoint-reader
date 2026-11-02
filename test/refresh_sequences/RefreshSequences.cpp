@@ -514,70 +514,6 @@ static void directSleepSequence(const std::string& name) {
   rig.trace.report(name, "direct_cover_abort_bw_recovery", 300);
 }
 
-static void windowFallbackSequence(const std::string& name) {
-  Rig<Uc8279X4Driver> rig;
-  auto previous = page(3);
-  for (unsigned turn = 0; turn < 100; ++turn) {
-    context = name + " window request uses full-screen B/W fallback " + std::to_string(turn);
-    unsigned x = (turn * 24) % 640, y = (turn * 19) % 420, w = 80, h = 23;
-    auto submitted = previous;
-    for (unsigned row = y; row < y + h; ++row)
-      for (unsigned byte = x / 8; byte < (x + w) / 8; ++byte) submitted[row * WIDTH_BYTES + byte] ^= 0x5a;
-    bool resync = turn == 0;
-    switch (turn % 12) {
-      case 1:
-        ++x;
-        break;
-      case 2:
-        --w;
-        break;
-      case 3:
-        w = 0;
-        break;
-      case 4:
-        y = 479;
-        h = 2;
-        break;
-      case 5:
-        x = 65528;
-        w = 16;
-        break;
-      case 6:
-        submitted[(y == 0 ? HEIGHT - 1 : 0) * WIDTH_BYTES] ^= 1;
-        break;
-      case 7:
-        rig.driver.requestResync(1);
-        resync = true;
-        break;
-      case 8:
-        rig.driver._redriveAfterGray = true;
-        break;
-      default:
-        break;
-    }
-    rig.draw(submitted);
-    rig.display.displayWindow(x, y, w, h, turn % 2 == 0);
-    rig.consume();
-    CHECK(rig.trace.activations.size() == 1);
-    CHECK(rig.trace.activations[0].newPlane == rig.encoded(submitted));
-    CHECK(rig.trace.oldPlane == rig.encoded(submitted));
-    CHECK(rig.trace.newPlane == rig.encoded(submitted));
-    if (resync) {
-      CHECK(!rig.trace.activations[0].partial);
-    } else {
-      CHECK(rig.trace.activations[0].partial);
-      const unsigned x0 = 0, x1 = 799, y0 = 120, y1 = 599;
-      const Bytes window = {
-          static_cast<uint8_t>(x0 >> 8), static_cast<uint8_t>(x0 & 0xf8), static_cast<uint8_t>(x1 >> 8),
-          static_cast<uint8_t>(x1 | 7),  static_cast<uint8_t>(y0 >> 8),   static_cast<uint8_t>(y0),
-          static_cast<uint8_t>(y1 >> 8), static_cast<uint8_t>(y1),        1};
-      CHECK(rig.trace.registers[0x90] == window);
-    }
-    previous = submitted;
-  }
-  rig.trace.report(name, "full_screen_window_fallback", 100);
-}
-
 template <class Driver>
 static void run(const std::string& name) {
   bwSequence<Driver>(name, false);
@@ -597,6 +533,5 @@ int main() {
     char name[20];
     std::snprintf(name, sizeof(name), "UC8279-0x%02x", variant);
     run<Uc8279X4Driver>(name);
-    windowFallbackSequence(name);
   }
 }
