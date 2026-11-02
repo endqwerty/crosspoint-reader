@@ -188,9 +188,8 @@ text still follows the converter's line break. This behavior defines
 top spacing across soft flushes. Version 53 incorporates upstream's redaction
 glyph widths and retires older version 52 layouts, with partial sentinel 229
 and the same byte layout. Later versions are listed in
-[file-formats.md](file-formats.md); the current one is 71, with partial
-sentinel 211. Version 71 also includes upstream's bounded drop-cap wrapping and
-line spacing as a percentage of font size.
+[file-formats.md](file-formats.md); the current one is 74 (upstream 73 plus
+this handling), with partial sentinel 208.
 
 ## Limits and known gaps
 
