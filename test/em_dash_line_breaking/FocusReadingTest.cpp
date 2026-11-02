@@ -22,7 +22,12 @@ TEST(FocusReading, PreservesLetterOrderAndRunPlacement) {
             ParsedText text(false, focus, blockStyle, 0);
             text.addWord(word, style);
             text.layoutAndExtractLines(
-                renderer, 0, 400, [&](auto block, auto) { block->render(renderer, 0, 0, 0); }, true, tracking);
+                renderer, 0, 400,
+                [&](auto block, auto) {
+                  block->render(renderer, 0, 0, 0);
+                  return true;
+                },
+                true, tracking);
             ASSERT_FALSE(renderer.textDraws.empty());
             std::sort(renderer.textDraws.begin(), renderer.textDraws.end(),
                       [](const auto& a, const auto& b) { return a.x < b.x; });
