@@ -18,7 +18,12 @@ The release `LICENSE` identifies the source revision and the SDK revision.
 It also lists the source packages for the libraries that PlatformIO downloads.
 Keep these sources and this license file available with the firmware downloads.
 
-To build the same source revision:
+For this personal fork, use `https://github.com/endqwerty/crosspoint-reader.git`
+and check out the recorded firmware source revision, rather than an official
+release tag. Its submodule configuration selects the matching fork SDK. See
+[the fork build instructions](../README.md#building).
+
+The following steps describe official upstream releases:
 
 1. Clone the repository with `git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader.git`.
 2. Select the release tag with `git checkout <release-tag>`.
