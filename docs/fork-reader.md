@@ -617,3 +617,10 @@ corresponding adaptations.
   usable email. The engine and
   lifecycle were rewritten to avoid persistent reading instrumentation and to
   bound parser resources.
+
+### Selected-word font prewarming
+
+Built-in font selection redraws reuse the hot-group cache instead of retaining
+page-prewarm slots per selected word. SD and TTF fonts keep their existing
+prewarming and style dispatch. Adapted from [upstream PR #4255](https://github.com/crosspoint-reader/crosspoint-reader/pull/4255)
+by Leopoldo Pla (`606ecf44610157ec42c27493a374bc250eb6e3aa`).
