@@ -69,7 +69,7 @@ def build_license(environment: str, repository: str, packages_dir: Path) -> str:
         f"Notice collection environment: {environment}\n"
         f"Source archive: {source_url}/archive/{revision}.tar.gz\n"
         f"Source and patches: {source_url}/tree/{revision}\n"
-        f"SDK source: https://github.com/Free-Ink/freeink-sdk/tree/{sdk_revision}\n"
+        f"SDK source: https://github.com/endqwerty/freeink-sdk/tree/{sdk_revision}\n"
         f"Build instructions: {source_url}/blob/{revision}/licenses/README.md\n\n"
         "GitHub's source archive omits SDK contents and downloaded libraries.\n"
         "Use the SDK revision and library source packages listed in this file.\n"
