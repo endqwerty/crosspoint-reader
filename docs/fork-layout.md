@@ -236,8 +236,10 @@ this handling), with partial sentinel 208.
   (https://github.com/crosspoint-reader/crosspoint-reader/pull/3675). Its
   additional image prefetch work and window-paused font preparation are not
   imported and remain deferred.
-- The line-break gap window is adapted from open upstream PR #3814 by SeungBeom
+- The line-break gap window is adapted from upstream PR #3814 by SeungBeom
   Choi <puritysb@gmail.com> at `2e53b6f4` (Co-Authored-By on the fork commit).
-  If it merges, the fork's copy should drop out on the next rebase.
+  Its author closed the PR unmerged on 2026-10-30, because upstream's gap
+  rules had changed. The fork's copy already follows those rules and is now
+  fork code: it will not drop out on a rebase.
 - Draft PR #3705 is deferred: its own evidence shows a cold-layout regression
   with varying-width fonts. The sources do not name its author.
