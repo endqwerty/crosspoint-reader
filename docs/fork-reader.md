@@ -591,7 +591,7 @@ corresponding adaptations.
   (`0f1b86eeba28542fc2f5d5e6025806166203d307`), nonblocking render-lock
   scheduling and the `Mode`/`ownsLock` interface: Sung-jin Brian Hong
   <serialx@serialx.net> (verified from GitHub commit records). Both were open
-  and awaiting review when adapted; no upstream acceptance is implied.
+  when adapted; both have since merged upstream (#3652 as `10cb2c3b2`).
 - [Reader #3113](https://github.com/crosspoint-reader/crosspoint-reader/pull/3113),
   focused TryAcquire/locked render-lock API first used for idle prefetch (since
   replaced by the #3652 interface): Erica Jensen <erica@mailershaven.com>.
