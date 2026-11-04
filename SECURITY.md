@@ -17,7 +17,7 @@ network features. They matter only if you use those features.
 | TLS | Certificates are not verified (`setInsecure()` in `src/network/HttpDownloader.cpp`, `lib/KOReaderSync/KOReaderSyncClient.cpp`, `src/clippings/ClippingSync.cpp`). On a hostile network, OPDS and KOReader credentials can be captured. |
 | OTA | The update check downloads over that unverified TLS and checks only the image format, with no publisher signature. Do not use it; it also installs the official firmware, not this fork. |
 | Web server, WebDAV, Calibre wireless | No authentication, CORS enabled, no CSRF protection. Anyone on the same network, or on the open AP-mode hotspot, can read, change and delete files and settings while it runs. |
-| Protected paths | WebDAV does not call the FAT-alias-aware `protectedpaths::isSensitivePath()`, and `/download` checks only the last path component, so protected files can be reached through short-name aliases or sub-folders. |
+| Protected paths | WebDAV and `/download` refuse the credential stores, also through 8.3 short-name aliases (rechecked 2026-11-04). `/download` checks dot and hidden names only in the last path component, so other files inside hidden folders, such as `/.crosspoint/`, can still be downloaded. |
 | OPDS | Absolute links in a feed receive the configured catalog's username and password, even for another host. |
 | Stored passwords | Wi-Fi, OPDS and KOReader passwords on the SD card are Base64 plus XOR with the device MAC address. Treat them as readable by anyone holding the card. |
 | EPUB parsing | Extraction trusts the ZIP's declared size, so a crafted EPUB can waste SD space and time before it is rejected. |
