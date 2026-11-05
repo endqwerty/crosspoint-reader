@@ -328,6 +328,9 @@ commit once upstream merges the PR, or replace it if the PR's head changes.
 - [#4255](https://github.com/crosspoint-reader/crosspoint-reader/pull/4255),
   head `606ecf446`: no page prewarming per selected word for built-in fonts
   (see `docs/fork-reader.md`).
+- [#4329](https://github.com/crosspoint-reader/crosspoint-reader/pull/4329),
+  head `3328142ed`: Home redraws the recent-book cover after a night-mode
+  switch instead of pasting back a snapshot taken in the other polarity.
 
 The line-break gap window from #3814 is not in this list: that PR was closed
 unmerged, so the fork keeps it as its own code (see `docs/fork-layout.md`).
@@ -364,8 +367,12 @@ notes:
 - #3724, unreadable-book wake recovery: Ninos Yomo
   <32492083+SurayaAtouraya@users.noreply.github.com>
 - #3749, preserve leading words in Library sorting/search: Uri Tauber
+- #4255, no per-word page prewarming for built-in fonts: Leopoldo Pla
+  <leopoldo.pla@treelogic.com>
 - #4263, WebDAV credential-store protection: jstader
   <47798010+jstader@users.noreply.github.com>
+- #4329, Home cover polarity after a night-mode switch: Mikalai Kryvusha
+  <59587509+MikalaiKryvusha@users.noreply.github.com>
 
 Other upstream PRs named above, with authors from the upstream commits in the
 base history:
