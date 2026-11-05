@@ -85,6 +85,7 @@ struct ButtonNavigator {
 
 struct CrossPointSettings {
   static constexpr uint8_t TOUCH_READER_OFF = 0;
+  static constexpr uint8_t ORIENTATION_COUNT = 4;
 };
 
 class PanelRenderer : public GfxRenderer {
