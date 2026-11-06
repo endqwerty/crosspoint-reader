@@ -45,6 +45,12 @@ code, upstream and these rules.
   or private paths beyond the existing checkout and `/Volumes/workspace` build-share references;
   point to the homelab repository instead. Security notes live in
   [SECURITY.md](../SECURITY.md).
+- **Upstream references:** in fork issues, PRs, comments and commit messages,
+  write an official or Free-Ink SDK PR or issue as code (`` `#4263` ``), never as
+  a link or `owner/repo#4263`. GitHub notifies the upstream thread on every
+  mention, and an upstream reviewer asked us to stop (2026-11-06, in
+  [#13](https://github.com/endqwerty/crosspoint-reader/issues/13)).
+  Links in committed files and in chat replies to the user do not notify.
 - **Records:** when the user changes how work is done, update these pages in the
   same task.
 
