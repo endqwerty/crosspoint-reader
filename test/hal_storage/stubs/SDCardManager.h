@@ -4,6 +4,7 @@
 #include <StorageTestSupport.h>
 #include <common/FsApiConstants.h>
 
+#include <cstdint>
 #include <cstring>
 #include <utility>
 #include <vector>
@@ -101,6 +102,11 @@ class SDCardManager {
   bool begin() { return true; }
   bool ready() const { return true; }
   void shutdown() {}
+  uint64_t sdTotalBytes() const { return 0; }
+  bool sdUsedBytes(uint64_t& usedBytes) {
+    usedBytes = 0;
+    return false;
+  }
   std::vector<String> listFiles(const char*, int) { return {}; }
   String readFile(const char*) { return {}; }
   bool readFileToStream(const char*, Print&, size_t) { return false; }
