@@ -220,10 +220,12 @@ library-sized stays resident.
 
 ### Build pipeline (`LibraryBuilder`)
 
-- **Shared traversal** over the card (`.epub`, `.txt`, `.md`, `.xtc`; hidden entries and
-  macOS `._*` sidecars excluded), at most five folder levels below the root (a
-  corrupted FAT can contain a self-referencing directory). The probe checks for
-  changes without staging. A rebuild walks again and streams records into
+- **Shared traversal** over the card (`.epub`, `.txt`, `.md`, `.xtc`; hidden entries,
+  macOS `._*` sidecars and the root folders `fonts`, `dictionaries`, `plugins`,
+  `sleep` and `sleep-overlay` in any letter case excluded), at most five folder
+  levels below the root (a corrupted FAT can contain a self-referencing
+  directory). The probe checks for changes without staging. A rebuild walks
+  again and streams records into
   `/.crosspoint/library.stage` in discovery order. The prior matching table stays
   in memory through reconciliation; full metadata records are not retained.
 - **Duplicate dirents** are dropped using a fixed 1,024-key, fallible 8 KiB
