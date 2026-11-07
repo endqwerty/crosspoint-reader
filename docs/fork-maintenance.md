@@ -331,6 +331,10 @@ commit once upstream merges the PR, or replace it if the PR's head changes.
 - [#4329](https://github.com/crosspoint-reader/crosspoint-reader/pull/4329),
   head `3328142ed`: Home redraws the recent-book cover after a night-mode
   switch instead of pasting back a snapshot taken in the other polarity.
+- [#4373](https://github.com/crosspoint-reader/crosspoint-reader/pull/4373),
+  head `a4e034f85`: the Library skips the root folders `fonts`, `dictionaries`,
+  `plugins`, `sleep` and `sleep-overlay`, so a font's license file (such as
+  `OFL.txt` in a `/fonts/` family folder) no longer shows up as a book.
 
 The line-break gap window from #3814 is not in this list: that PR was closed
 unmerged, so the fork keeps it as its own code (see `docs/fork-layout.md`).
@@ -373,6 +377,7 @@ notes:
   <47798010+jstader@users.noreply.github.com>
 - #4329, Home cover polarity after a night-mode switch: Mikalai Kryvusha
   <59587509+MikalaiKryvusha@users.noreply.github.com>
+- #4373, Library skips special root folders: Georg Kaindl <gkaindl@mac.com>
 
 Other upstream PRs named above, with authors from the upstream commits in the
 base history:
