@@ -10,6 +10,7 @@
 #include <Memory.h>
 #include <Utf8.h>
 #include <Xtc.h>
+#include <strings.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -272,6 +273,15 @@ bool isHiddenOrSidecar(const std::string_view name) {
   if (!name.empty() && name.front() == '.') return true;
   for (const auto* item : FsHelpers::HIDDEN_ITEMS) {
     if (name == item) return true;
+  }
+  return false;
+}
+
+bool isLibrarySkipped(const std::string_view name) {
+  // Library-only exclusions: these directories must remain accessible in file managers.
+  constexpr std::string_view ROOTS[] = {"fonts", "dictionaries", "plugins", "sleep", "sleep-overlay"};
+  for (const auto root : ROOTS) {
+    if (name.size() == root.size() && strncasecmp(name.data(), root.data(), root.size()) == 0) return true;
   }
   return false;
 }
@@ -682,6 +692,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     const std::string name(st.nameBuf);
 
     if (isDir) {
+      if (path == "/" && isLibrarySkipped(name)) continue;
       const size_t resumePosition = dir.position();
       dir.close();
       walk(st, joinLibraryPath(path, name), depth + 1);
@@ -1499,10 +1510,15 @@ const char* libraryIndexPath() { return INDEX_PATH; }
 bool isLibraryBookFile(const std::string_view path) {
   // Match the walk's exclusions in every path component. A lone "." names the folder itself.
   size_t start = 0;
+  bool atRoot = true;
   while (start < path.size()) {
     const size_t slash = path.find('/', start);
     const std::string_view name = path.substr(start, slash - start);
     if (name != "." && isHiddenOrSidecar(name)) return false;
+    if (!name.empty() && name != ".") {
+      if (atRoot && isLibrarySkipped(name)) return false;
+      atRoot = false;
+    }
     if (slash == std::string_view::npos) break;
     start = slash + 1;
   }
