@@ -75,6 +75,19 @@ fork effort goes; they never justify diverging from upstream's design.
   `scripts/sync-calibre-library.sh`; update it rather than documenting another
   procedure.
 
+## Recovery priority
+
+On 2026-11-08 the owner said, "Make decisions for me. I’m not too worried
+about recovery tbh. I wipe my device constantly." Treat recovery after power
+loss and interrupted relinks as low priority for this personal fork. Keep the
+existing protections and documented findings, but do not start recovery protocol
+redesigns or present them as maintenance blockers without a new observed need.
+Prioritize ordinary reading, Library correctness and bounded resource use.
+
+The agent closed recovery design issues #12 and #46 as not planned under this
+preference. Reopen them if failures affect ordinary use or the owner changes
+priorities. This preference does not waive checks for new changes.
+
 ## Porting from CrossInk
 
 The remote `crossink` (`https://github.com/uxjulia/CrossInk.git`, fetch
