@@ -325,16 +325,10 @@ commit once upstream merges the PR, or replace it if the PR's head changes.
 - [#4263](https://github.com/crosspoint-reader/crosspoint-reader/pull/4263),
   head `74e0416aa`: WebDAV refuses the credential stores, including their 8.3
   aliases and names that SdFat trims.
-- [#4255](https://github.com/crosspoint-reader/crosspoint-reader/pull/4255),
-  head `606ecf446`: no page prewarming per selected word for built-in fonts
-  (see `docs/fork-reader.md`).
-- [#4329](https://github.com/crosspoint-reader/crosspoint-reader/pull/4329),
-  head `3328142ed`: Home redraws the recent-book cover after a night-mode
-  switch instead of pasting back a snapshot taken in the other polarity.
-- [#4373](https://github.com/crosspoint-reader/crosspoint-reader/pull/4373),
-  head `a4e034f85`: the Library skips the root folders `fonts`, `dictionaries`,
-  `plugins`, `sleep` and `sleep-overlay`, so a font's license file (such as
-  `OFL.txt` in a `/fonts/` family folder) no longer shows up as a book.
+
+Dropped at the 2026-11-08 sync: `#4329` and `#4373` merged upstream, and
+upstream `#4379` replaced the per-word prewarming that the `#4255` adaptation
+changed with one prewarm scope per page redraw.
 
 The line-break gap window from #3814 is not in this list: that PR was closed
 unmerged, so the fork keeps it as its own code (see `docs/fork-layout.md`).
@@ -371,13 +365,8 @@ notes:
 - #3724, unreadable-book wake recovery: Ninos Yomo
   <32492083+SurayaAtouraya@users.noreply.github.com>
 - #3749, preserve leading words in Library sorting/search: Uri Tauber
-- #4255, no per-word page prewarming for built-in fonts: Leopoldo Pla
-  <leopoldo.pla@treelogic.com>
 - #4263, WebDAV credential-store protection: jstader
   <47798010+jstader@users.noreply.github.com>
-- #4329, Home cover polarity after a night-mode switch: Mikalai Kryvusha
-  <59587509+MikalaiKryvusha@users.noreply.github.com>
-- #4373, Library skips special root folders: Georg Kaindl <gkaindl@mac.com>
 
 Other upstream PRs named above, with authors from the upstream commits in the
 base history:
