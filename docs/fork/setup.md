@@ -12,7 +12,7 @@ Both personal forks use a single long-lived `develop` branch:
   Its upstream base is `develop` in
   `https://github.com/crosspoint-reader/crosspoint-reader.git`.
 - SDK fork: `https://github.com/endqwerty/freeink-sdk.git`.
-  Keep its local patch above the SDK revision pinned by the official reader's
+  Keep its local patches above the SDK revision pinned by the official reader's
   `develop`, from `https://github.com/Free-Ink/freeink-sdk.git`. A newer SDK `main`
   does not automatically replace the reader's tested dependency revision.
 
