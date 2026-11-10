@@ -48,7 +48,10 @@ std::string uuidFor(const unsigned book) {
 
 uint64_t digest(const std::vector<uint8_t>& bytes) {
   uint64_t hash = 14695981039346656037ULL;
-  for (const uint8_t b : bytes) {
+  EXPECT_EQ(bytes[offsetof(ClixHeader, foldVersion)], CLIX_FOLD_VERSION);
+  // Keep the recorded fold-7 digest comparable across header-only version bumps.
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    const uint8_t b = i == offsetof(ClixHeader, foldVersion) ? 7 : bytes[i];
     hash ^= b;
     hash *= 1099511628211ULL;
   }
