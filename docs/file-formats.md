@@ -758,10 +758,10 @@ Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
 The arrival permutation runs oldest first, keyed by the record's FAT
 modification time (when the file landed on the card); `firstSeen` — the
 build-assigned discovery counter — breaks ties and carries books whose
-filesystem reports no time. Fold version 3 introduced the timestamp key; a
+filesystem reports no time. Fork fold version 5 introduced the timestamp key; a
 fold bump rebuilds ranks while preserving `firstSeen`.
-Fold version 4 preserves leading articles in title sort and search keys.
-Fork fold version 7 drops all Unicode 18.0 Hebrew combining marks, including U+05C8 and U+05C9.
+Fork fold version 6 preserves leading articles in title sort and search keys.
+Fork fold version 8 drops all Unicode 18.0 Hebrew combining marks, including U+05C8 and U+05C9.
 
 Sections are 512-byte aligned so each starts on an SD block boundary.
 
