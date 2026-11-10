@@ -1535,7 +1535,12 @@ TEST_F(LibraryBuilderTest, SharedSurnameKeysPreserveInterleavedCanonicalSources)
   const auto bytes = fake::bytesRead;
   const auto& image = fake::files[INDEX]->bytes;
   uint64_t hash = 14695981039346656037ULL;
-  for (const auto byte : image) hash = (hash ^ byte) * 1099511628211ULL;
+  ASSERT_EQ(image[offsetof(ClixHeader, foldVersion)], CLIX_FOLD_VERSION);
+  // Keep the recorded fold-7 digest comparable across header-only version bumps.
+  for (size_t i = 0; i < image.size(); ++i) {
+    const uint8_t byte = i == offsetof(ClixHeader, foldVersion) ? 7 : image[i];
+    hash = (hash ^ byte) * 1099511628211ULL;
+  }
   std::printf("SURNAME_REUSE books=%u groups=%u reads=%u seeks=%u bytes=%zu image_bytes=%zu hash=%016llx delays=%u\n",
               GROUPS * PER_GROUP, GROUPS, reads, seeks, bytes, image.size(), static_cast<unsigned long long>(hash),
               fake::delays);
