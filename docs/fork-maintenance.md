@@ -319,12 +319,9 @@ subsequent imports carry their validation in the task issue and pull request.
 
 ### Imported before upstream merged them
 
-These open upstream PRs are carried as separate commits. At each sync, drop the
-commit once upstream merges the PR, or replace it if the PR's head changes.
-
-- [#4263](https://github.com/crosspoint-reader/crosspoint-reader/pull/4263),
-  head `74e0416aa`: WebDAV refuses the credential stores, including their 8.3
-  aliases and names that SdFat trims.
+No imported-ahead PR remains. At the 2026-11-10 sync, `#4263` merged
+upstream; its duplicate WebDAV credential-store protection commit was dropped.
+Upstream now supplies the protection for 8.3 aliases and names SdFat trims.
 
 Dropped at the 2026-11-08 sync: `#4329` and `#4373` merged upstream, and
 upstream `#4379` replaced the per-word prewarming that the `#4255` adaptation
