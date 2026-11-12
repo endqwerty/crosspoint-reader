@@ -31,6 +31,7 @@ std::vector<Line> layout(const std::vector<const char*>& words, const bool hyphe
       line.words.emplace_back(block->wordText(i));
       line.xpos.push_back(block->wordXpos(i));
     }
+    return true;
   });
   return lines;
 }
@@ -122,6 +123,7 @@ TEST(PartialLineLayout, WiderRemainderDoesNotKeepSpeculativeHyphens) {
             [&](std::unique_ptr<TextBlock>, auto) {
               ++narrowLines;
               EXPECT_EQ(text.linesAfterCurrentLine(), -1);
+              return true;
             },
             includeLastLine, 0, 100, limit);
         EXPECT_EQ(narrowLines, limit);
@@ -134,6 +136,7 @@ TEST(PartialLineLayout, WiderRemainderDoesNotKeepSpeculativeHyphens) {
             }
             remainingWords.emplace_back(block->wordText(i));
           }
+          return true;
         });
         EXPECT_NE(std::find(remainingWords.begin(), remainingWords.end(), lastWord), remainingWords.end());
         EXPECT_TRUE(text.isEmpty());
@@ -147,7 +150,10 @@ TEST(PartialLineLayout, HoldsTheParagraphLastLineUntilItIsComplete) {
   ParsedText text(true, false, BlockStyle{}, 0);
   for (const char* word : {"one", "two", "three"}) text.addWord(word, EpdFontFamily::REGULAR);
   size_t lines = 0;
-  const auto collect = [&](std::unique_ptr<TextBlock>, auto) { ++lines; };
+  const auto collect = [&](std::unique_ptr<TextBlock>, auto) {
+    ++lines;
+    return true;
+  };
   text.layoutAndExtractLines(renderer, 0, 60, collect, false, 0, 100, 1);
   EXPECT_EQ(lines, 1u);
   text.layoutAndExtractLines(renderer, 0, 200, collect, false, 0, 100, 3);
@@ -165,8 +171,10 @@ TEST(PartialLineLayout, LastEmittedLineStillJustifiesWhenMoreTextRemains) {
     text.layoutAndExtractLines(
         renderer, 0, 80,
         [&](std::unique_ptr<TextBlock> line, auto) {
-          ASSERT_EQ(line->wordCount(), 2);
+          EXPECT_EQ(line->wordCount(), 2);
+          if (line->wordCount() != 2) return false;
           EXPECT_EQ(line->wordXpos(1), 56);
+          return true;
         },
         true, 0, 100, 1);
   }
@@ -182,8 +190,12 @@ TEST(PartialLineLayout, BoundedLinesReserveRubyOverhangAtBothMargins) {
       text.addWord("tail", EpdFontFamily::REGULAR);
       text.setRubyForWordAt(rubyFirst ? 0 : 1, "ruby");
       text.layoutAndExtractLines(
-          renderer, 0, 52, [&](std::unique_ptr<TextBlock> line, auto) { EXPECT_EQ(line->wordCount(), 1); }, true, 0,
-          100, 1);
+          renderer, 0, 52,
+          [&](std::unique_ptr<TextBlock> line, auto) {
+            EXPECT_EQ(line->wordCount(), 1);
+            return true;
+          },
+          true, 0, 100, 1);
     }
   }
 }
@@ -199,7 +211,11 @@ TEST(PartialLineLayout, FollowingTextCanAbsorbRubyOverhang) {
         text.addWord("b", EpdFontFamily::REGULAR, false, attached);
         text.layoutAndExtractLines(
             renderer, 0, attached ? 38 : 58,
-            [&](std::unique_ptr<TextBlock> line, auto) { EXPECT_EQ(line->wordCount(), 2); }, true, 0, 100, limit);
+            [&](std::unique_ptr<TextBlock> line, auto) {
+              EXPECT_EQ(line->wordCount(), 2);
+              return true;
+            },
+            true, 0, 100, limit);
         EXPECT_TRUE(text.isEmpty());
       }
     }

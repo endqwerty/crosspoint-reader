@@ -174,11 +174,11 @@ struct StorageFake {
 };
 inline StorageFake Storage;
 
-// These fixtures open every book as a plain ZIP; no entry is protected.
-namespace freeink::content {
-struct ContentDecryptor {};
-inline std::unique_ptr<ContentDecryptor> openProtectedBook(const std::string&, std::string&) { return nullptr; }
-}  // namespace freeink::content
+struct ZipFile {
+  explicit ZipFile(const std::string&) {}
+  bool open() { return true; }
+  bool close() { return true; }
+};
 
 class Epub {
  public:
@@ -191,8 +191,10 @@ class Epub {
   }
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   std::unique_ptr<CssParser> cssParser;
+  void* decryptor = nullptr;
   bool load(bool buildIfMissing = true, bool skipLoadingCss = false);
-  bool parseContentOpf(BookMetadataCache::BookMetadata& metadata, bool = true) {
+  bool parseContentOpf(BookMetadataCache::BookMetadata& metadata, bool = true, bool = false, ZipFile* = nullptr,
+                       bool = false) {
     load_test::state.opfInputEmpty = metadata.title.empty() && metadata.author.empty() && metadata.language.empty() &&
                                      metadata.coverItemHref.empty() && metadata.textReferenceHref.empty();
     metadata.title.assign(4096, 't');
@@ -203,18 +205,18 @@ class Epub {
     ++load_test::state.opfCalls;
     return load_test::state.fault != load_test::Fault::ParseOpf;
   }
-  void discoverCssFilesFromZip() { ++load_test::state.discoveries; }
+  void discoverCssFilesFromZip(ZipFile* = nullptr) { ++load_test::state.discoveries; }
   CssParser::ParseResult parseCssFiles(CssParser::CacheStatus) {
     ++load_test::state.cssParses;
     load_test::state.metadataValuesDuringCss = load_test::state.metadataValuesLive;
     load_test::state.events.emplace_back("parseCss");
     return CssParser::parseResult;
   }
-  bool parseTocNavFile() {
+  bool parseTocNavFile(ZipFile*) {
     ++load_test::state.navCalls;
     return load_test::state.navOk;
   }
-  bool parseTocNcxFile() {
+  bool parseTocNcxFile(ZipFile*) {
     ++load_test::state.ncxCalls;
     return load_test::state.ncxOk;
   }

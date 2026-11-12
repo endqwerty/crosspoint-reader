@@ -6,6 +6,8 @@
 class ZipFile : public IndexedZipFile {
  public:
   using IndexedZipFile::IndexedZipFile;
+  void restartMemberSearch() {}
+  bool getInflatedFileSize(const char* path, size_t* size) { return index_test::size(path, size); }
   bool readFileToStream(const char* path, Print& output, size_t chunk, bool shortOk = false) {
     return index_test::stream(path, output, chunk, shortOk);
   }
