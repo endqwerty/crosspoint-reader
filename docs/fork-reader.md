@@ -165,18 +165,14 @@ cold-layout regression with varying-width fonts.
 
 ## Rendering, grayscale and refresh
 
-### Whole-plane grayscale composition
+### Buffered grayscale composition
 
-The buffered AA path allocates one or two complete planes, subject to free-heap
-and largest-block headroom checks, and renders each as one full-height target
-instead of walking the page once per 80-row band (one traversal per plane
-instead of six on a 480-row panel; glyphs crossing band boundaries are decoded
-once). This reduces CPU work, not waveform duration, and adds no allocations.
-The 80-row scratch path remains the fallback when full planes do not fit. The
-B/W framebuffer stays intact while the panel is busy. Capability checks restrict
-this to the buffered overlap path; the UC8179/UC8279 X4 Pro drivers use a
-different path. Band culling already skipped many off-screen glyphs, so fewer
-traversals do not mean proportionally less bitmap work.
+The reader follows upstream's 80-row strip loop, including when full-plane
+buffers fit in memory. The former fork optimization that rendered each complete
+plane in one traversal was dropped during the November 14 upstream rebase.
+The buffer headroom checks and scratch fallback remain. The B/W framebuffer
+stays intact while a deferred panel refresh is busy. Host whole-plane comparison
+fixtures remain algorithm experiments, not evidence of production traversal counts.
 
 ### Skipping unnecessary grayscale
 
@@ -188,7 +184,9 @@ traversals do not mean proportionally less bitmap work.
   paths keep their capability selection, including the low-memory strip
   fallback.
 - Monochrome text: EPUB (including TXT/Markdown) skips text AA when the body draw uses only black
-  1-bit text (or no text) and there are no images. GfxRenderer conservatively
+  1-bit text (or no text) and there are no grayscale images. With upstream's
+  Black & White image setting, images are dithered in the B/W pass and never
+  drawn into the gray planes, so they do not count. GfxRenderer conservatively
   tracks the resolved family/style; any 2-bit font, white text or unknown font
   data keeps the AA pass. This covers fallback, rotated and scaled text without
   a pixel scan. Tracking excludes the font-prewarm scan and status bar. It adds
@@ -234,15 +232,11 @@ page cannot reappear after an empty chapter or failed load.
 
 ### Display commit failures
 
-HAL and renderer expose the driver commit result. An EPUB render keeps its
-cleanup request and refresh cadence until the complete page succeeds, including
-deferred and grayscale work (`ReaderRefreshTransaction`, a small stack
-transaction holding references and prior cadence/flag values). A placeholder
-image does not certify the page. Failed output stops automatic page turns and
-returns before saving progress; a queued manual refresh stays available for the
-next submission. Typed grayscale recovery preserves the canvas even in
-dual-buffer builds. BUSY-failure latching in the bus/driver is covered by the
-storage and display reliability document.
+HAL and renderer expose upstream's driver commit result. The reader preserves
+its cleanup request and cadence when a driver reports failure. SSD1677 panels,
+including X4 Pro, report true under the upstream implementation, so this does
+not detect BUSY timeouts. The fork's bus-failure latch was removed in favor of
+upstream display behavior. See `fork-storage-display.md`.
 
 ## Navigation
 

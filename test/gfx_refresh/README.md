@@ -2,14 +2,18 @@
 
 `GfxRefreshTest` links the production renderer, `EpdFont` / `EpdFontFamily`,
 font scan/prewarm cache, compressed-font decoder, `InflateReader`, bundled uzlib,
-UTF-8 and bidi code. Its fixtures use the actual compressed Noto Serif 14 font in
+UTF-8 and bidi code. Its fixtures use the actual compressed Noto Sans 14 font in
 all four styles. Hardware, memory-pressure callbacks and unused SD-font entry
 points are stubbed; any unexpected SD-font call terminates the test instead of
 returning fake glyphs. Font buffers use the SDK host allocator. These built-in
 font fixtures keep the TrueType compile gate off; `test/ttf_epd_font` separately
 links the real TrueType adapter and FreeType backend.
 
-The reference is the previous 80-row traversal of each grayscale plane. Tests
+The whole-plane comparison is an algorithm experiment. Production follows
+upstream's 80-row loop again after the November 14 sync; its traversal count
+is not established by this fixture.
+
+The reference uses an 80-row traversal of each grayscale plane. Tests
 compare its output byte-for-byte with one full-height traversal per plane and
 check that both leave the monochrome framebuffer unchanged. Cases include all
 four orientations, overlay and absolute encoding, no-prewarm and prewarmed fonts,

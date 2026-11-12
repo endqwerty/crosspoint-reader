@@ -1,5 +1,15 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cmath>
+
+namespace BoardConfig {
+inline struct {
+  int bottomCornerRadius = 0;
+  int cornerRadius = 0;
+} ACTIVE;
+}  // namespace BoardConfig
+
 struct HalDisplay {
   enum RefreshMode { FULL_REFRESH, HALF_REFRESH, FAST_REFRESH };
   bool inverted = false;
@@ -25,6 +35,9 @@ struct Renderer {
   mutable int images = 0, bwSubmissions = 0, grayscaleSubmissions = 0;
   mutable HalDisplay::RefreshMode refresh = HalDisplay::FULL_REFRESH;
   int getScreenHeight() const { return 800; }
+  void getOrientedViewableTRBL(int* top, int* right, int* bottom, int* left) const {
+    *top = *right = *bottom = *left = 0;
+  }
   void drawImage(int, int, int, int, int) const { ++images; }
   void displayBuffer(HalDisplay::RefreshMode value) const {
     ++bwSubmissions;

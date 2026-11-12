@@ -50,8 +50,8 @@
 #include "QrDisplayActivity.h"
 #include "ReaderActivity.h"
 #include "ReaderFontSizes.h"
-#include "ReaderLineSpacing.h"
 #include "ReaderGrayscalePlan.h"
+#include "ReaderLineSpacing.h"
 #include "ReaderRefreshTransaction.h"
 #include "ReaderToolbarUi.h"
 #include "ReaderUtils.h"
@@ -73,8 +73,8 @@
 namespace {
 // The X4 Pro and X4 Classic carry the X4's panel but sit outside isXteinkDevice()
 // (that helper also gates power management). Overlay refresh choices are per-panel:
-// this family runs the grayscale anti-aliasing pass, so chrome painted over a
-// fresh page needs the HALF ghost-cleanup and closing re-renders the page.
+// grayscale pages re-render after overlays; monochrome pages restore the snapshot.
+// A4 always re-renders and schedules its cleanup refresh.
 bool xteinkClassPanel() {
   return gpio.isXteinkDevice() || BoardConfig::isX4Pro() || BoardConfig::isX4Classic() || BoardConfig::isEegoA4();
 }
@@ -440,10 +440,10 @@ bool EpubReaderActivity::resolvePendingSectionJump() {
 // A started build runs to the end of the chapter, one bounded step per idle loop frame, so the
 // parser and its page LUT are freed soon (and a radio stopped for the build comes back with no
 // parser alive). Not while the radio holds the heap, and not in a spine whose background build
-// failed.
+// failed unless a pending jump into it needs the build.
 bool EpubReaderActivity::backgroundBuildWanted() const {
   return !pendingBuildError && section && section->isBuilding() && !bleturner::holdsHeap() &&
-         currentSpineIndex != backgroundBuildFailedSpine;
+         (currentSpineIndex != backgroundBuildFailedSpine || hasPendingSectionJump());
 }
 
 // Starts the deferred extension of a partial section once the reader nears its watermark; the
@@ -539,6 +539,8 @@ void EpubReaderActivity::startClipSelection(const int initialX, const int initia
                                             const ClipSelectionActivity::Mode mode) {
   const auto restoreSelection = pendingLookupSelection;
   pendingLookupSelection = {};
+  // The render task can reset the section or move its file cursor: snapshot the pages under the lock.
+  RenderLock lock;
   if (!section || !epub || section->currentPage < 0 || section->currentPage >= section->pageCount) return;
 
   const int pageNumber = section->currentPage;
@@ -551,7 +553,6 @@ void EpubReaderActivity::startClipSelection(const int initialX, const int initia
     auto page = section->loadPage(pageNumber + pageOffset);
     if (!page) break;
     if (pageOffset == 0 && initialX >= 0 && CLIPPINGS.hasClippings()) {
-      RenderLock lock;
       const int clippingIndex = clippingAtPoint(*page, initialX, initialY);
       if (clippingIndex >= 0) {
         const bool removed = CLIPPINGS.removeClippingAt(static_cast<size_t>(clippingIndex));
@@ -565,6 +566,7 @@ void EpubReaderActivity::startClipSelection(const int initialX, const int initia
     }
     pages.push_back(std::move(page));
   }
+  lock.unlock();
   if (pages.empty()) {
     LOG_ERR("CLIP", "Failed to load page %d for clipping selection", pageNumber);
     requestUpdate();
@@ -1165,7 +1167,8 @@ void EpubReaderActivity::jumpToByteOffset(size_t targetSize) {
   int targetSpineIndex = spineCount - 1;
   size_t prevCumulative = 0;
 
-  const int found = epub->getSpineIndexForSize(targetSize);
+  // A target on a chapter boundary opens the next chapter's start, not the previous chapter's end.
+  const int found = epub->getSpineIndexForSize(targetSize + 1);
   if (found >= 0) {
     targetSpineIndex = found;
     prevCumulative = (found > 0) ? epub->getCumulativeSpineItemSize(found - 1) : 0;
@@ -2284,8 +2287,6 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool manualRefreshPending = forcedRefreshPending;
   forcedRefreshPending = false;
   const bool cleanImageBasePending = manualRefreshPending || pagesUntilFullRefresh <= 1;
-  const bool needsTextGrayscale = SETTINGS.textAntiAliasing;
-  const bool needsAnyGrayscale = needsTextGrayscale || (pageHasImages && !BoardConfig::isEegoA4());
   const bool absoluteImageGrayscale =
       pageHasImages && !gpio.deviceIsX3() &&
       (display.getController() == HalDisplay::Controller::UC8279 || BoardConfig::isPicco()) &&
@@ -2306,9 +2307,8 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool bodyTextNeedsGrayscale = renderer.endTextGrayscaleTracking();
   renderStatusBar();
   const auto tBwRender = millis();
-  const auto grayPlan =
-      ReaderGrayscalePlan::forPage(SETTINGS.textAntiAliasing, pageHasImages, grayscale, bodyTextNeedsGrayscale,
-                                    !BoardConfig::isEegoA4());
+  const auto grayPlan = ReaderGrayscalePlan::forPage(SETTINGS.textAntiAliasing, pageHasImages, grayscale,
+                                                     bodyTextNeedsGrayscale, !BoardConfig::isEegoA4());
   renderedPageNeedsGrayscale = grayPlan.enabled;
   auto renderGrayscalePass = [&]() {
     // A4 gray planes replace the full page, including its clipping highlights.
@@ -2902,7 +2902,8 @@ void EpubReaderActivity::closeOverlayToPage() {
   overlayPopup.dismiss();  // an option picker cannot outlive its panel
   toolbarUi.reset();       // ~1 KB of interaction table + props, only needed while open
   if (BoardConfig::isEegoA4()) pagesUntilFullRefresh = 1;
-  if (!BoardConfig::isEegoA4() && overlayPageStored && !forcedRefreshPending && (!xteinkClassPanel() || !renderedPageNeedsGrayscale)) {
+  if (!BoardConfig::isEegoA4() && overlayPageStored && !forcedRefreshPending &&
+      (!xteinkClassPanel() || !renderedPageNeedsGrayscale)) {
     // No baseline resync: the glass shows the chrome, and erasing it needs
     // the differential to keep diffing against the last pushed frame.
     renderer.restoreBwBuffer(/*resyncPanelBaseline=*/false);

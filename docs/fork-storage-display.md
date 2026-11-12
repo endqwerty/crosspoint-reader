@@ -4,7 +4,7 @@ This covers:
 
 - storage failures reported through `HalStorage`;
 - the patched SdFat FAT cache;
-- display driver hardening with Direct-grayscale sleep covers;
+- upstream display drivers with Direct-grayscale sleep covers;
 - the always-dark boot splash.
 
 None of these change a cache, settings, bookmark, Library index or reading-position format. Those formats are described in `docs/file-formats.md`.
@@ -69,51 +69,25 @@ copy. Section-cache cleanup and Calibre deletions use the same filesystem
 ordering. Host I/O-failure tests do not model these interrupted sector writes;
 operation-aware recovery remains future work.
 
-## Display commit failures and BUSY latching
+## Upstream display implementation
 
-Active-high display waits report failure when BUSY stays asserted. The bus
-latches that failure and suppresses later SPI command and data writes. Driver
-and display state must not then certify the failed frame, a pending cleanup,
-gray state or the shadow/baseline as synchronized. Recovery requires a
-controller reset and initialization followed by a successful full frame. The
-UC8179/UC8279 level-based wait behavior and waveform tables are unchanged.
+The SDK uses upstream `a8acebf` display code, including direct text AA on X4 Pro.
+The fork's SSD1677 transaction hardening was removed when upstream changed the
+display contract. Upstream owns waveforms, BUSY waits, first-paint handling and
+recovery behavior. The only remaining SDK patch extends text-area wrapping.
+SecureNet header handling is now upstream.
 
-The HAL and renderer return the driver's commit result, so the reader can keep
-its cleanup request and refresh cadence until a complete page succeeds (see
-`fork-reader.md`, "Display commit failures"). Host coverage: `test/epd_bus`,
-`test/refresh_sequences`, `test/manual_refresh`.
+HAL and renderer still expose upstream's `displayCommitted()` contract. On
+SSD1677 panels it reports true, so it cannot detect a stuck BUSY signal or
+certify that pixels reached the panel. Reader transaction bookkeeping remains
+useful for drivers that report failure, but provides no X4 Pro BUSY guarantee.
+The former `test/epd_bus` suite asserted removed fork behavior and was deleted.
+Use the SDK's bus and panel host suites and the reader's refresh sequence tests.
+These checks do not establish optical quality, ghosting or device latency.
 
-## Display hardening and Direct sleep covers
-
-The drivers live in the `freeink-sdk` submodule (`libs/display/FreeInkDisplay`). The pinned revision contains:
-
-- the RC02 baseline (`2cca22fe`);
-- Direct grayscale and `UltraChipDirectGrayLuts.h`;
-- two local commits: the fork's display hardening, and the list and text-area
-  extensions the reader uses.
-
-A handoff must include the nested SDK commits, not only the submodule pointer.
-
-- **SSD1677 first paint after boot or wake:** the one-shot cleanup always runs, including when the sunlight fading fix powers the panel off after every refresh. A FAST first paint is promoted to HALF, or to FULL on boards without a HALF sequence. An explicit HALF or FULL simply consumes the one-shot. Ordinary FAST turns keep their waveform.
-- **Sleep covers** use the best grayscale mode the driver supports, in this order: Direct (UC8179 and UC8279), then Absolute, then Overlay, then B/W HALF.
-  - Direct sends both complete planes and then activates once.
-  - Transparent white overlay pixels keep the existing background in both planes.
-- **Direct with FULL:** an explicit or queued FULL is painted as a full-screen B/W cleanup before the Direct pass. That adds one activation.
-  - HALF and FAST Direct passes still wait for both planes before activating.
-  - The cleanup keeps the canvas pointer and its content, in both single- and dual-buffer builds.
-- **Direct cancellation** rejects incomplete planes and requests a coherent B/W resync. Leaving a finished Direct image uses upstream's explicit redraw and cleanup of the destination. It is never treated as a fast text turn.
-- **Text anti-aliasing is unchanged:**
-  - Overlay text waveforms, the reader's refresh cadence and manual FULL promotion all stay the same.
-  - The UC8179 dark-gray split and the UC8279 quality bank are never forced onto sparse text AA.
-  - UC8279 keeps upstream's per-variant AA tables and image-pass resets.
-  - Absolute and Direct image planes use the four-tone image bank. Overlay masks below the image threshold keep the text bank.
-- **Window requests:**
-  - UC8279 (`Uc8279X4Driver`) window requests take the default full-screen FAST fallback.
-  - The facade also falls back to a full refresh whenever the display is inverted or an inversion is pending.
-  - No UI depends on regional UC8279 refresh.
-- The stock fast-DU shortcut stays off.
-- **Memory:** no framebuffer or heap allocation is added, only small driver state fields and constant waveform data. The UC8279 quality bank is built at compile time (`constexpr makeQualityBank()`) instead of being a mutable runtime bank.
-- **Limits:** the tests check controller payloads and activation counts. They do not measure ink motion, ghosting or latency.
+Sleep covers still select Direct, Absolute, Overlay, then B/W according to the
+upstream capabilities. Upstream reader refresh scope selects reading waveforms.
+No local display-driver patch is retained to preserve old fork behavior.
 
 ## Always-dark boot splash
 
@@ -155,10 +129,10 @@ Other behavior:
   - Sanitizer runs use no suppressions.
 - **`freeink-sdk/.../FreeInkDisplay/test/host/run_pro.py`**: the real facade and drivers in single- and dual-buffer builds. Covers:
   - wake cleanup with power-off;
-  - Direct activation, cancellation, recovery and FULL cleanup order.
+  - Direct activation, cancellation, recovery and deferred FULL-base behavior.
 
   The SDK's UC8253 and UC8279 X3 runners, and the upstream UC8279 waveform-selection test, guard the shared Direct and bank logic.
-- **`test/refresh_sequences`**: production drivers running Direct cover, abort and B/W workloads, plus UC8279 window fallback on every variant.
+- **`test/refresh_sequences`**: production drivers running Direct cover, abort and B/W workloads on every UC8279 variant. UC8279 regional window refresh has no host test.
 - **`test/gfx_refresh`**: Direct manual FULL promotion, and transparent white preserved in both Direct planes in all four orientations. It starts from a decoded four-tone row and does not test BMP decoding.
 - **`test/sleep_grayscale`**: sleep image paths in each supported grayscale mode.
 - **`test/boot_splash`**: the complete production `onEnter`. Covers:
@@ -181,6 +155,6 @@ Keep these `Co-Authored-By` lines when this work is committed or rebased.
   - [SDK #98](https://github.com/Free-Ink/freeink-sdk/pull/98): Justin Mitchell `<justin@jmitch.com>`, commit `5916724f23f9392a1d75bc2f632780f54b0735fa`.
   - [CrossPoint #3541](https://github.com/crosspoint-reader/crosspoint-reader/pull/3541): Justin Mitchell `<justin@jmitch.com>`, commit `f64a6b2506d3e1bec2a58256e39e3e131e73f1b8`. This covers the Direct-cover, transparent-white and PNG quantization changes to the sleep cover.
   - [UC8279 variant AA restoration](https://github.com/Free-Ink/freeink-sdk/commit/2cca22fe44862215e029a416d5ff6fddcb3e593e): Justin Mitchell `<justin@jmitch.com>`, commit `2cca22fe44862215e029a416d5ff6fddcb3e593e`. Its image-bank selection, image-pass resets and waveform tests are kept.
-  - [SDK #91](https://github.com/Free-Ink/freeink-sdk/pull/91): Mathias Karstaedt `<mathias.karstaedt@gmail.com>`, commit `adc731043b7cb8209c283f630edb861debf53305`. It was open when reviewed and was adapted with post-grayscale and outside-window validation.
+  - [SDK #91](https://github.com/Free-Ink/freeink-sdk/pull/91): Mathias Karstaedt `<mathias.karstaedt@gmail.com>`, commit `adc731043b7cb8209c283f630edb861debf53305`. It is now upstream code in the pinned SDK; the fork carries no change to it.
 
-  All of these authors were verified from the GitHub commit records. The SDK's local display commit already carries `Co-Authored-By` lines for Eszter, Justin Mitchell and Mathias Karstaedt.
+  All of these authors were verified from the GitHub commit records. The former SDK display patch credited Eszter, Justin Mitchell and Mathias Karstaedt; that patch was removed when adopting upstream's display implementation.

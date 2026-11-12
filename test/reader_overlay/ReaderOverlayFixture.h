@@ -8,8 +8,14 @@
 #include <memory>
 #include <vector>
 
+#include "../reader_ble_stub/ReaderBleStub.h"
 #include "ReaderNavigationHistory.h"
 #include "components/HeaderBackTapTarget.h"
+
+inline bool eegoA4Panel = false;
+namespace BoardConfig {
+inline bool isEegoA4() { return eegoA4Panel; }
+}  // namespace BoardConfig
 
 inline bool xteinkPanel = true;
 inline bool xteinkClassPanel() { return xteinkPanel; }
@@ -121,7 +127,8 @@ class EpubReaderActivity : public OverlayActivityFixture {
 
 class OverlayActivityManagerFixture {
  public:
-  enum class PendingAction { None, Replace, Push };
+  enum class PendingAction { None, Replace, ReplaceForSleep, Push };
+  uint32_t screenVisit = 0;
   PendingAction pendingAction = PendingAction::Push;
   std::unique_ptr<OverlayActivityFixture> currentActivity;
   std::unique_ptr<OverlayActivityFixture> pendingActivity;

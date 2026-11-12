@@ -102,13 +102,19 @@ cache for that load. No version field: the file has one layout.
 
 ## `section.bin`
 
-### Version 75 (fork)
+### Version 76 (fork)
 
-The byte layout is upstream version 74's, with the fork's pagebreak-marker
-handling. Version 75 rebuilds completed and partial sections from both lineages,
-including fork version 74, which used upstream version 73's layout. Reading
-positions, bookmarks and Library metadata are preserved. The partial-section
-sentinel is 207.
+The byte layout is upstream version 75's, with the fork's pagebreak-marker
+handling. Version 76 rebuilds completed and partial sections from both lineages,
+including fork version 75, which used upstream version 74's layout and still
+hyphenated headings. Reading positions, bookmarks and Library metadata are
+preserved. The partial-section sentinel is 206.
+
+### Version 75
+
+Version 75 keeps the binary layout and rebuilds completed and partial sections.
+Headings (`h1` to `h6`) are no longer hyphenated, which can change cached line
+breaks. Book metadata and saved progress are kept.
 
 ### Version 74
 
@@ -470,7 +476,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 68
+#define EXPECTED_VERSION 69
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 256
@@ -742,6 +748,9 @@ The index migration does not change EPUB reading-position or section-cache files
 Fold/sort revision 6 preserves leading words in title and series sorting and search,
 adopting upstream fold revision 4 while retaining the local author and arrival rules.
 Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
+Fold/sort revision 7 reparses series metadata using upstream's explicitly typed
+EPUB 3 collection selection and finite numeric positions; untyped collections
+are no longer inferred to be series. Arrival history and reading state survive.
 
 ### Layout
 

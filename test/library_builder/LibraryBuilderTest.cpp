@@ -290,8 +290,8 @@ TEST_F(LibraryBuilderTest, SubRootScansKeepNestedAndSubstringResourceNames) {
 TEST_F(LibraryBuilderTest, XtcTitleAndAuthorComeFromTheFile) {
   fake::add("/Comics/one.xtc");
   fake::add("/Comics/two.xtch");
-  bookMetadata["/Comics/one.xtc"] = {"Go Problems", "Cho Chikun", true};
-  bookMetadata["/Comics/two.xtch"] = {"Sakata no Go", "Sakata Eio", true};
+  bookMetadata["/Comics/one.xtc"] = {.title = "Go Problems", .author = "Cho Chikun", .success = true};
+  bookMetadata["/Comics/two.xtch"] = {.title = "Sakata no Go", .author = "Sakata Eio", .success = true};
   initial();
 
   LibraryIndexFile index;
@@ -1546,7 +1546,7 @@ TEST_F(LibraryBuilderTest, SharedSurnameKeysPreserveInterleavedCanonicalSources)
               fake::delays);
   EXPECT_EQ(reads, 2530u);
   EXPECT_EQ(seeks, 2529u);
-  EXPECT_EQ(hash, 0xe14a1d1ddfb4e9fbULL);
+  EXPECT_EQ(hash, 0x8da9ba5fb347a9f4ULL);
   LibraryIndexFile index;
   ASSERT_TRUE(index.open(INDEX));
   ASSERT_EQ(index.bookCount(), GROUPS * PER_GROUP);
