@@ -500,7 +500,7 @@ TEST_F(ParserFailureTest, ExtremeImageAspectRatiosKeepBothRenderedDimensionsPosi
   for (const bool wide : {false, true}) {
     auto epub = std::make_shared<Epub>();
     epub->imageBytes = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13,
-                         'I',  'H',  'D',  'R',  0,    0,    0,    1,    0, 0, 0, 1};
+                        'I',  'H',  'D',  'R',  0,    0,    0,    1,    0, 0, 0, 1};
     const size_t dimension = wide ? 18 : 22;
     epub->imageBytes[dimension] = 0x7f;
     epub->imageBytes[dimension + 1] = 0xff;
@@ -524,7 +524,8 @@ struct AllocationCase {
 void PrintTo(const AllocationCase& parameter, std::ostream* output) { *output << parameter.name; }
 
 // TextBlock stores word offset, X, style, and a NUL-terminated word in its arena.
-constexpr size_t LOST_WORD_ARENA_BYTES = sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t) + sizeof("lostword");
+constexpr size_t LOST_WORD_ARENA_BYTES =
+    sizeof(TextBlock::SourceRange) + sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t) + sizeof("lostword");
 constexpr size_t FOCUS_WORD_ARENA_BYTES = LOST_WORD_ARENA_BYTES + sizeof(uint16_t) + sizeof(uint8_t);
 
 class ParserAllocationFailureTest : public ParserFailureTest, public ::testing::WithParamInterface<AllocationCase> {};

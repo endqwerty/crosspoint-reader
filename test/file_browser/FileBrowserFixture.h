@@ -52,6 +52,7 @@ struct Input {
 using MappedInputManager = Input;
 struct Settings {
   bool showHiddenFiles = false;
+  bool showFileExtensions = true;
 };
 inline Settings SETTINGS;
 struct UITheme {
@@ -108,7 +109,9 @@ struct Popup {
   std::function<void(int)> callback;
   int inputCalls = 0;
   bool isActive() const { return active; }
-  void show(StrId, const StrId*, int, int, std::function<void(int)> cb) {
+  std::string title;
+  void show(const char*, const char* text, const char* const*, int, int, std::function<void(int)> cb) {
+    title = text;
     active = true;
     callback = std::move(cb);
   }
@@ -143,6 +146,8 @@ struct State {
   }
 };
 inline State APP_STATE;
+inline std::vector<std::string> sleepImageChanges;
+inline void sleepImageChanged(const char* path) { sleepImageChanges.emplace_back(path); }
 namespace library {
 inline unsigned dirtyCalls = 0;
 inline bool markLibraryIndexDirty() {

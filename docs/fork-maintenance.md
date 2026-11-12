@@ -59,10 +59,9 @@ at CMake configure time and compiles them against narrow fixtures:
   (brace-balanced method extraction that skips comments and string literals;
   file browser also generates a `StrId` shim for referenced `STR_*` keys),
   `test/sleep_grayscale/extract_functions.py`, `test/sleep_quick_resume/extract.py`.
-- Whole-file compilation with hardware seams: `test/epd_bus` compiles the SDK's
-  complete `EpdBus.cpp` with virtual GPIO levels, a deterministic virtual clock,
-  ISR edges and semaphore tokens; the refresh-sequence runner copies production
-  driver sources beside SDK host stubs.
+- Whole-file compilation with hardware seams: the refresh-sequence runner
+  copies production driver sources beside SDK host stubs. The SDK's own bus
+  suite covers its current bus contract.
 
 Rules: configuration must fail (`SEND_ERROR`, `FATAL_ERROR` or raised exception)
 when a marker is missing, appears more than once where one is expected, or braces
@@ -119,11 +118,9 @@ ordinary regressions:
    (`test/section_persistence`, `test/epub_page_turn`).
 3. Library recovery keeps a valid backup until the live index or its replacement
    validates (`test/library_builder`, `test/library_index_file`).
-4. A stuck ActiveHigh BUSY wait or the no-semaphore refresh fallback cannot
-   report ready. `EpdBus` waits return `bool`, latch a failure that blocks every
-   later SPI entry until reset reaches idle, and the fallback applies the
-   delayed-assertion grace. The UC level-based wait has no fixed timeout and
-   passes a simulated 45-second wait (`test/epd_bus`).
+4. Display behavior follows the upstream SDK. X4 Pro no longer has the fork's
+   BUSY-failure latch or failed-frame detection. SDK host tests cover upstream
+   bus and panel sequences, without a physical-device guarantee.
 5. Fixed-size link and footnote fields are serialized as the string plus zero
    padding, so unspecified tail bytes are never persisted (`test/epub_page_turn`).
 
@@ -263,8 +260,8 @@ subsequent imports carry their validation in the task issue and pull request.
   chunk loop is retired).
 - Display: UC8279 RC02 text-AA waveform restoration, absolute image-bank selection
   and lifecycle resets; UC8179 distinct light/dark gray waveforms (custom overlay
-  exception retired); UC8279 X4 whole-screen FAST fallback (custom regional
-  window retired). The optional SSD1677 fast-DU shortcut is upstream code and
+  exception retired); UC8279 X4 regional window refresh follows upstream SDK
+  `adc73104` (the fork's custom regional window is retired). The optional SSD1677 fast-DU shortcut is upstream code and
   stays disabled. The fork adds no waveform bytes or timing shortcuts.
 - Library normalization (#3749): leading words are preserved in title and series
   sorting/search; the article-stripping API is removed, not kept as an option.
@@ -281,14 +278,11 @@ subsequent imports carry their validation in the task issue and pull request.
   accepting upstream spacing settings. If WordStore's retry also fails, the parser
   latches the error before a table or rule can replace the empty block and hide
   the dropped word; neither complete nor partial caches commit.
-- Display transactions: BUSY-failure and driver-transaction protections are
-  independent of waveform selection. Upstream asynchronous overlay refresh needs a
-  settle point before a pushed activity paints: `Activity::onSuspend()` (default
-  no-op) runs under the existing render lock, and the EPUB reader settles the
-  pending refresh without reacquiring it. Failed completion invalidates the
-  optimistic baseline and requests a full redraw; overlay close also settles.
-  #3724's remember-once marker is published only after the fork's display-commit
-  check, which also guards the end-of-book screen (per-reader scalars only).
+- Display transactions use the upstream SDK result. X4 Pro reports success
+  without the old fork BUSY-failure latch. Activity suspension still settles
+  pending refreshes under the render lock. The remember-once marker and the
+  end-of-book screen use the driver's result, which cannot detect X4 Pro BUSY
+  failures. See `fork-storage-display.md`.
 - Footnote and dictionary snapshots take the existing render lock and release it
   before navigation or child launch; popup slider input holds it while
   dispatching. The single-footnote shortcut copies its href temporarily rather

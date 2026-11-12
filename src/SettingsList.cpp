@@ -70,8 +70,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   // --- Reader ---
   // Built-in font-family entry. Replaced per-call with a registry-aware
   // version when SD fonts are installed.
-  emit(SettingInfo::Enum(StrId::STR_FONT_FAMILY, &CrossPointSettings::fontFamily, {StrId::STR_LIBRON, StrId::STR_NOTO_SANS}, "fontFamily",
-                         StrId::STR_CAT_READER)
+  emit(SettingInfo::Enum(StrId::STR_FONT_FAMILY, &CrossPointSettings::fontFamily,
+                         {StrId::STR_LIBRON, StrId::STR_NOTO_SANS}, "fontFamily", StrId::STR_CAT_READER)
            .withTextSettings());
   // Placeholder: the selectable sizes depend on the active font family, so
   // UI callers replace this entry with buildFontSizeSetting(). It only
@@ -218,8 +218,7 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                            "showFileExtensions", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_LIBRARY_USE_METADATA, &CrossPointSettings::libraryUseMetadata,
                            "libraryUseMetadata", StrId::STR_CAT_SYSTEM));
-  emit(SettingInfo::Toggle(StrId::STR_LIBRARY_RECENT_OPENED_ONLY, &CrossPointSettings::libraryRecentOpenedOnly,
-                           "libraryRecentOpenedOnly", StrId::STR_CAT_SYSTEM));
+  // Fork: no libraryRecentOpenedOnly row; the fork Library's Recent tab lists only opened books.
   emit(SettingInfo::Toggle(StrId::STR_LIBRARY_GROUP_SERIES, &CrossPointSettings::libraryGroupBySeries,
                            "libraryGroupBySeries", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_REMOVE_READ_FROM_RECENTS, &CrossPointSettings::removeReadBooksFromRecents,
@@ -353,7 +352,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                            "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR));
   emit(SettingInfo::Enum(StrId::STR_PAGE_NUMBERS, &CrossPointSettings::statusBarPageNumbers,
-                         {StrId::STR_CHAPTER, StrId::STR_BOOK}, "statusBarPageNumbers", StrId::STR_CUSTOMISE_STATUS_BAR));
+                         {StrId::STR_CHAPTER, StrId::STR_BOOK}, "statusBarPageNumbers",
+                         StrId::STR_CUSTOMISE_STATUS_BAR));
   emit(SettingInfo::Toggle(StrId::STR_BOOK_PROGRESS_PERCENTAGE, &CrossPointSettings::statusBarBookProgressPercentage,
                            "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR));
   emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR, &CrossPointSettings::statusBarProgressBar,

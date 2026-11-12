@@ -1,8 +1,8 @@
 #include <FontCacheManager.h>
 #include <FontDecompressor.h>
-#include <builtinFonts/notosans_8_regular.h>
 #include <builtinFonts/ubuntu_10_bold.h>
 #include <builtinFonts/ubuntu_10_regular.h>
+#include <builtinFonts/ubuntu_8_regular.h>
 
 #include <bit>
 #include <tuple>
@@ -13,9 +13,9 @@ HalDisplay display;
 namespace {
 const EpdFont regular(&ubuntu_10_regular);
 const EpdFont bold(&ubuntu_10_bold);
-const EpdFont small(&notosans_8_regular);
-const EpdFontFamily uiFamily(&regular, &bold);
-const EpdFontFamily smallFamily(&small);
+const EpdFont small(&ubuntu_8_regular);
+const EpdFontFamily uiFamily(10, &regular, &bold);
+const EpdFontFamily smallFamily(8, &small);
 
 class BootSplash : public testing::TestWithParam<std::tuple<GfxRenderer::Orientation, bool, bool>> {
  protected:

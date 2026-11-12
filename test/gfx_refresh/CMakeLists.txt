@@ -11,6 +11,7 @@ set(GFX_HOST_SOURCES
   ${REPO_ROOT}/lib/MiniBidi/BidiUtils.cpp
   ${REPO_ROOT}/lib/MiniBidi/minibidi.c
   ${REPO_ROOT}/lib/Utf8/Utf8.cpp
+  ${REPO_ROOT}/lib/Utf8/IndicReorder.cpp
 )
 function(configure_gfx_host target)
 target_include_directories(${target} PUBLIC
@@ -58,7 +59,8 @@ add_test(NAME GlyphRasterParity COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SO
   $<TARGET_FILE:GfxGlyphReferenceProbe> $<TARGET_FILE:GfxGlyphProbe>)
 
 add_executable(GfxRefreshTest BitmapOverlayTest.cpp GfxRefreshTest.cpp RealFontPageTest.cpp TextGrayscaleTrackingTest.cpp
-  RefreshCommitTest.cpp TextSpacingTest.cpp LibronCoverageTest.cpp)
+  RefreshCommitTest.cpp TextSpacingTest.cpp LibronCoverageTest.cpp ImageDitherTest.cpp)
+target_include_directories(GfxRefreshTest PRIVATE ${REPO_ROOT}/lib/Epub)
 target_link_libraries(GfxRefreshTest PRIVATE GfxRefreshHost GTest::gtest_main)
 gtest_discover_tests(GfxRefreshTest)
 
