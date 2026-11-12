@@ -53,6 +53,16 @@ ahead.
    baseline as `origin/develop`, so this rebases the downstream series; with
    task commits, they ride on top of it. Identify the sync candidate separately.
    Resolve conflicts by the "Upstream first" rules.
+   Fixes that only adapt fork patches to the new upstream (build breaks, test
+   stubs, test expectations for cache versions) go into the series' one
+   `fix: adapt fork patches to upstream` commit: commit them with
+   `git commit --fixup=<that commit>` and squash with
+   `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash official/develop`. Do not
+   add a dated adaptation commit per sync. Fix code that a commit above the
+   adaptation commit added in that commit instead (`--fixup=<that commit>`),
+   and resolve a conflict inside one feature's commit, such as a cache-version
+   bump, in that commit. Commits keep their subjects, so later `sync-publish`
+   runs need no override.
 2. Validate the rebased series with `scripts/fork-workflow.sh check`, unless
    upstream changed only files the build and tests do not read. Add static
    analysis or targeted compatibility builds as required by the diff under
