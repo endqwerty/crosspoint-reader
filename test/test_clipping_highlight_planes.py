@@ -7,7 +7,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "src/activities/reader/EpubReaderActivity.cpp").read_text()
 fill = "const auto fillHighlight =" + source.split("const auto fillHighlight =", 1)[1].split("\n  uint16_t pageWordIndex", 1)[0]
-render = "auto renderGrayscalePass =" + source.split("auto renderGrayscalePass =", 1)[1].split("\n\n  if (pageHasImagesNeedingDecode)", 1)[0]
+render = "auto renderGrayscalePass =" + source.split("auto renderGrayscalePass =", 1)[1].split("\n\n  if (absoluteImageGrayscale) {", 1)[0]
 harness = r"""
 #include <cassert>
 #include <memory>
@@ -49,7 +49,9 @@ int main() {
   auto page = std::make_unique<Page>(order);
   const int fontId = 0, orientedMarginTop = 0, orientedMarginLeft = 0;
   const bool absoluteImageGrayscale = false;
-  bool needsTextGrayscale = true;
+  struct {
+    bool text = true;
+  } grayPlan;
   auto drawClippingHighlights = [&](Page&, int, int, int) { assert(++order == 1); };
   auto renderStatusBar = [&] { assert(++order == 3); };
 """ + render + r"""
@@ -57,7 +59,7 @@ int main() {
   renderGrayscalePass();
   assert(order == 3);
   order = 0;
-  needsTextGrayscale = false;
+  grayPlan.text = false;
   renderGrayscalePass();
   assert(order == 3);
 }

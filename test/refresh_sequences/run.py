@@ -25,6 +25,7 @@ def main():
     args = parser.parse_args()
     sources = ["src/FreeInkDisplay.cpp", "src/driver/PanelDriver.h",
                "include/FreeInkDisplay.h", "include/GrayscaleCapabilities.h",
+               "src/driver/X4ProTextAa.h", "src/lut/X4ProTextAaLuts.h", "src/lut/X4ProImageLuts.h",
                "src/lut/Ssd1677Luts.h", "src/lut/Uc8279X3Luts.h", "src/lut/UltraChipDirectGrayLuts.h"]
     sources += [f"src/driver/{driver}Driver.{ext}" for driver in DRIVERS for ext in ("cpp", "h")]
     report = {

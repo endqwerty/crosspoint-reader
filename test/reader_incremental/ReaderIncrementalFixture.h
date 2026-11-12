@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "../reader_ble_stub/ReaderBleStub.h"
 #include "ReaderProgressState.h"
 
 #define LOG_ERR(...) \
@@ -24,7 +25,16 @@ inline constexpr int BOLD = 1;
 }
 inline unsigned long millis() { return 1000; }
 struct ReaderRenderSpec {};
+namespace BoardConfig {
+inline struct {
+  int statusBarOffsetY = 0;
+} ACTIVE;
+}  // namespace BoardConfig
+struct IncrementalStatusBarSpec {
+  bool textLaneVisible(bool) const { return true; }
+};
 struct IncrementalSettings {
+  IncrementalStatusBarSpec statusBarSpec() const { return {}; }
   uint8_t screenMargin = 0;
   int getReaderFontId() const { return 1; }
   ReaderRenderSpec readerRenderSpec(int, int) const { return {}; }
@@ -61,15 +71,22 @@ struct RenderLock {
 struct GfxRenderer {
   struct FontCache {
     int releases = 0;
-    int scans = 0, prewarms = 0;
+    int scans = 0, prewarms = 0, accumulatingScans = 0;
+    int lookahead = 1;
+    bool prewarmOk = true;
     struct Scope {
       FontCache* owner;
-      void endScanAndPrewarm() { ++owner->prewarms; }
+      bool endScanAndPrewarm() {
+        ++owner->prewarms;
+        return owner->prewarmOk;
+      }
     };
-    Scope createPrewarmScope() {
+    Scope createPrewarmScope(bool accumulate = false) {
       ++scans;
+      if (accumulate) ++accumulatingScans;
       return {this};
     }
+    int getIdleLookaheadPages(int) const { return lookahead; }
     void releaseSdFontCaches() { ++releases; }
   } fonts;
   std::vector<int> ttfFonts;
@@ -101,6 +118,7 @@ struct GfxRenderer {
   bool displayCommitted() const { return committed; }
 };
 struct UITheme {
+  static uint8_t getReaderStatusBarHeight() { return 10; }
   struct Metrics {
     int statusBarVerticalMargin = 0;
   };
@@ -141,6 +159,17 @@ struct IncrementalStorage {
   bool readFails = false;
 };
 inline IncrementalStorage* activeStorage = nullptr;
+inline bool contactClosed = false;
+inline bool buttonContactClosed() { return contactClosed; }
+struct IncrementalGpio {
+  bool touch = false;
+  bool hasTouch() const { return touch; }
+  bool isTouchHeldAt(float&, float&) const { return touch; }
+};
+inline IncrementalGpio gpio;
+struct MappedInputManager {
+  enum class Button { Back, Confirm, Left, Right, Up, Down, Power };
+};
 struct Epub {
   struct Spine {
     std::string href = "chapter.xhtml";
@@ -190,7 +219,7 @@ struct Section {
     return true;
   }
   bool loanOnBuild = false;
-  bool buildSomeMore(int budget) {
+  bool buildSomeMore(int budget, bool (*)() = nullptr) {
     if (loanOnBuild) ++renderer.loans;
     ++storage.chunks;
     storage.largestChunk = std::max(storage.largestChunk, budget);
@@ -211,6 +240,10 @@ struct Section {
   }
   std::optional<uint16_t> getPageForAnchor(const std::string&) const { return 4; }
   std::optional<uint16_t> findAnchor(const std::string&) const { return 4; }
+  // As in Section: during a build only the pages laid out so far are known.
+  std::optional<uint16_t> findAnchorDuringBuild(const std::string&) const {
+    return built > 4 ? std::optional<uint16_t>(4) : std::nullopt;
+  }
   std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset) const { return offset / 100; }
   bool buildReachedVisibleTextOffset(uint32_t offset) const { return built > static_cast<int>(offset / 100); }
   void abandonBuild() { building = false; }
@@ -271,7 +304,7 @@ struct EpubReaderActivity {
   std::vector<int> currentPageFootnotes, currentPageLinks;
   int currentPageLinkMarginLeft = 0, currentPageLinkMarginTop = 0;
   unsigned long lastRenderCompleteMs = 0;
-  int idlePrewarmSpine = -1, idlePrewarmPage = -1;
+  int idlePrewarmSpine = -1, idlePrewarmPage = -1, idlePrewarmOffset = 0;
   int updates = 0, renderedPage = -1, saves = 0, savedPage = -1;
   EpubReaderActivity() {
     activeStorage = &storage;
@@ -279,12 +312,16 @@ struct EpubReaderActivity {
     GUI = {};
     RenderLock::busy = RenderLock::failTryAcquire = false;
     RenderLock::tryAttempts = RenderLock::peekCalls = 0;
+    bleturner::heapHeld = false;
+    contactClosed = false;
+    gpio.touch = false;
   }
   struct Input {
     struct Labels {
       const char *btn1, *btn2, *btn3, *btn4;
     };
     Labels mapLabels(const char* a, const char* b, const char* c, const char* d) { return {a, b, c, d}; }
+    bool isPressed(MappedInputManager::Button) const { return false; }
   } mappedInput;
   bool pageRendered = false;
   void markPageRendered() { pageRendered = true; }
@@ -302,11 +339,25 @@ struct EpubReaderActivity {
   enum class Overlay { None, Test };
   Overlay overlay = Overlay::None;
   bool pageBufferStale = false;
-  void runIdlePrewarm();
+  void runIdlePrewarm() { idlePrewarmTick(); }
+  void idlePrewarmTick();
   bool backgroundBuildWanted() const;
   bool buildTickHeapGate();
   bool resolvePendingSectionJump();
   void advanceSectionBuild();
+  // One idle loop frame: start a deferred partial extension, then advance the build.
+  void idleTick() {
+    advanceSectionBuild();
+    backgroundBuildTick();
+  }
+  int backgroundBuildFailedSpine = -1;
+  bool anyButtonPressed() const;
+  bool backgroundBuildTick();
+  int roomRequests = 0;
+  bool makeRoomForChapterBuild() {
+    ++roomRequests;
+    return true;
+  }
   void showBuildPopup(GfxRenderer&, int&);
   bool skipLoopDelay();
   void renderBook();
