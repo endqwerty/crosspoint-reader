@@ -36,6 +36,11 @@ fork is a linear series of local patches on top of upstream `develop`.
   requires a force push, use `--force-with-lease`, never an unconditional force
   push.
 
+The owner reaffirmed on 2026-11-14: "The goal is to always use upstream and
+then change as necessary." This includes rewriting fork code and losing any or
+all fork features. Resolve integration work on that basis without asking to
+preserve a conflicting fork implementation.
+
 ## Syncing with upstream
 
 The agent does this as part of resolving work, without a pull request: at the

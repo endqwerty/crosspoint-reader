@@ -52,6 +52,7 @@ struct Input {
 using MappedInputManager = Input;
 struct Settings {
   bool showHiddenFiles = false;
+  bool showFileExtensions = true;
 };
 inline Settings SETTINGS;
 struct UITheme {

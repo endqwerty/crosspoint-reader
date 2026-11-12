@@ -1,6 +1,7 @@
 #include "Section.h"
 
 #include <BufferedFile.h>
+#include <FontCacheManager.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <Logging.h>

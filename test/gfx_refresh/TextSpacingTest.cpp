@@ -27,7 +27,7 @@ class TextSpacing : public testing::Test {
   GfxRenderer renderer{display};
   void SetUp() override {
     renderer.begin();
-    renderer.insertFont(FONT, EpdFontFamily(&font));
+    renderer.insertFont(FONT, EpdFontFamily(8, &font));
   }
 };
 

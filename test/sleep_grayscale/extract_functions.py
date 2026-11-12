@@ -8,6 +8,8 @@ starts = (
     "void cleanBeforeAbsoluteGray(",
     "HalDisplay::GrayscaleMode sleepGrayscaleMode(",
     "bool displayBwIfSleepGrayscaleUnsupported(",
+    "class BwFrameKeeper {",
+    "bool beginOverlayGrayPlane(",
     "AlphaOverlayResult tryRenderTransparentOverlayBmp(",
     "void SleepActivity::renderBitmapSleepScreen(",
     "bool SleepActivity::renderTransparentOverlayPng(",
@@ -22,6 +24,7 @@ for marker in starts:
     if source.count(marker) != 1:
         raise SystemExit(f"Expected one production function: {marker}")
     start = source.index(marker)
-    end = source.index("\n}\n", start) + 3
+    close = "\n};\n" if marker.startswith("class ") else "\n}\n"
+    end = source.index(close, start) + len(close)
     functions.append(source[start:end])
 pathlib.Path(sys.argv[2]).write_text("\n".join(functions))

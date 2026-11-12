@@ -26,7 +26,8 @@ TEST(ReaderFontSizes, BitmapSizesRemainExactlyThoseInstalled) {
   SdCardFontRegistry registry;
   family = {};
   family.name = "Bitmap";
-  family.files = {{"small.cpfont", 9, 0}, {"large.cpfont", 21, 0}};
+  family.files.push_back({nullptr, 9, 0});
+  family.files.push_back({nullptr, 21, 0});
   EXPECT_EQ(readerFontPointSizes(&registry, "Bitmap"), (std::vector<uint8_t>{9, 21}));
 }
 TEST(ReaderFontSizes, UnavailableOrEmptyFamiliesFallBackToBuiltins) {
