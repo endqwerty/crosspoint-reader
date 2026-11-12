@@ -44,9 +44,14 @@ inline constexpr char CLIX_MAGIC[4] = {'C', 'L', 'X', '1'};
 inline constexpr uint8_t CLIX_FORMAT_VERSION = 5;
 inline constexpr size_t CLIX_UUID_BYTES = 16;
 
-// Bump when folding or sort ordering changes. Preserve arrival history.
-// 7: strip Hebrew and Arabic combining marks before folding.
-inline constexpr uint8_t CLIX_FOLD_VERSION = 7;
+// Bump when folding or sort ordering changes. Forces fold and ranks to be
+// rebuilt while firstSeen values are preserved, so "recently added" survives.
+// 4: fingerprint complete author identities before spelling reconciliation.
+// 5: order arrivals by modification time, with firstSeen breaking ties.
+// 6: preserve leading words in title and series sorting and search.
+// 7: reparse series using upstream explicitly typed collection selection.
+// 8: strip Hebrew and Arabic combining marks before folding.
+inline constexpr uint8_t CLIX_FOLD_VERSION = 8;
 
 inline constexpr uint32_t CLIX_ALIGN = 512;
 inline constexpr size_t CLIX_FOLD_BYTES = 96;

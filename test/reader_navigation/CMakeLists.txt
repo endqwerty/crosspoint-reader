@@ -10,7 +10,7 @@ crosspoint_extract_between(epub_automatic_wait ${REPO_ROOT}/src/activities/reade
   "    if (RenderLock::peek())")
 crosspoint_extract_between(epub_automatic ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "    if ((millis() - lastPageTurnTime) >= pageTurnDuration) {"
-  "\n  }\n\n  // While the end-of-book")
+  "\n  }\n\n  if (showClippingMessage")
 crosspoint_extract_between(epub_input ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "  constexpr unsigned long kMinManualTurnGapMs = 200;"
   "\n}\n\nvoid EpubReaderActivity::jumpToPercent(")

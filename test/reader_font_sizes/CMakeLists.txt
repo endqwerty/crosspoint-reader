@@ -12,6 +12,10 @@ if(font_id MATCHES "getFontRegistry|readerFontPointSizes|std::vector|new |malloc
 endif()
 crosspoint_extract_between(line_compression ${SETTINGS_SOURCE}
   "float CrossPointSettings::getReaderLineCompression() const" "unsigned long CrossPointSettings::getSleepTimeoutMs() const")
+crosspoint_extract_between(line_multipliers ${REPO_ROOT}/src/ReaderLineSpacing.h
+  "inline constexpr float LINE_SPACING_MULTIPLIERS[]" "static_assert(")
+crosspoint_extract_between(line_json ${SETTINGS_SOURCE}
+  "  // \"lineSpacing\" saves predate the 1.0 option" "  // Front button remap")
 crosspoint_extract_between(family_json ${SETTINGS_SOURCE}
   "  // Font family — uses dynamic getter" "  // These controls use board-specific")
 crosspoint_extract_between(sd_json ${SETTINGS_SOURCE}
@@ -20,11 +24,12 @@ crosspoint_extract_between(font_enum ${REPO_ROOT}/src/CrossPointSettings.h
   "  enum FONT_FAMILY {" "  static constexpr uint8_t BUILTIN_FONT_COUNT")
 crosspoint_extract_between(line_enum ${REPO_ROOT}/src/CrossPointSettings.h
   "  enum LINE_COMPRESSION {" "  enum PARAGRAPH_ALIGNMENT {")
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderFontPolicyProduction.inc "${font_id}\n${line_compression}\n")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderFontPolicyProduction.inc "${line_multipliers}\n${font_id}\n${line_compression}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderFontPolicyEnums.inc
   "${font_enum}\n  static constexpr uint8_t BUILTIN_FONT_COUNT = FONT_FAMILY_COUNT;\n${line_enum}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderFontFamilyJson.inc "${family_json}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderFontSdJson.inc "${sd_json}\n")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderLineSpacingJson.inc "${line_json}\n")
 add_executable(ReaderFontPolicyTest ReaderFontPolicyTest.cpp ${REPO_ROOT}/src/ReaderFontSizes.cpp)
 target_include_directories(ReaderFontPolicyTest PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${REPO_ROOT}/src ${REPO_ROOT}/lib/EpdFont)
 target_link_libraries(ReaderFontPolicyTest PRIVATE crosspoint_test_common ArduinoJson GTest::gtest_main)

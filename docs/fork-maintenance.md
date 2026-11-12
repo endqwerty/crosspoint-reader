@@ -263,8 +263,8 @@ subsequent imports carry their validation in the task issue and pull request.
   chunk loop is retired).
 - Display: UC8279 RC02 text-AA waveform restoration, absolute image-bank selection
   and lifecycle resets; UC8179 distinct light/dark gray waveforms (custom overlay
-  exception retired); UC8279 X4 whole-screen FAST fallback (custom regional
-  window retired). The optional SSD1677 fast-DU shortcut is upstream code and
+  exception retired); UC8279 X4 regional window refresh follows upstream SDK
+  `adc73104` (the fork's custom regional window is retired). The optional SSD1677 fast-DU shortcut is upstream code and
   stays disabled. The fork adds no waveform bytes or timing shortcuts.
 - Library normalization (#3749): leading words are preserved in title and series
   sorting/search; the article-stripping API is removed, not kept as an option.

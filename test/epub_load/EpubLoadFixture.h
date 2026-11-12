@@ -174,12 +174,6 @@ struct StorageFake {
 };
 inline StorageFake Storage;
 
-// These fixtures open every book as a plain ZIP; no entry is protected.
-namespace freeink::content {
-struct ContentDecryptor {};
-inline std::unique_ptr<ContentDecryptor> openProtectedBook(const std::string&, std::string&) { return nullptr; }
-}  // namespace freeink::content
-
 class Epub {
  public:
   std::string filepath = "/book.epub", cachePath = "/cache", tocNavItem = "nav.xhtml", tocNcxItem = "toc.ncx";
