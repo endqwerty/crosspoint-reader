@@ -9,12 +9,28 @@
 
 #include "activities/ActivityResult.h"
 #include "util/HomeButtonInput.h"
+#include "util/PowerButtonClickInput.h"
+#include "util/PowerButtonInput.h"
 
 inline bool searchTestRenderLockHeld = false;
 inline bool searchTestReadActive = false;
 inline uint32_t millis() { return 0; }
 struct CrossPointSettings {
   enum { VIBRATION_OFF, VIBRATION_TOUCH_PAGE };
+  enum {
+    IGNORE,
+    SLEEP,
+    PAGE_TURN,
+    FORCE_REFRESH,
+    FOOTNOTES,
+    PWR_CONFIRM,
+    CREATE_CLIPPING,
+    PWR_BOOKMARK,
+    PWR_SYNC,
+    PWR_READER_MENU,
+    PWR_FRONTLIGHT
+  };
+  static bool hasPowerDoubleClick();
 };
 struct HalHaptics {
   static void feedback(bool, bool, uint8_t) {}
@@ -26,7 +42,25 @@ struct SearchSettingsFixture {
   HomeButtonAction homeButtonTapAction = HomeButtonAction::Home;
   HomeButtonAction homeButtonDoubleTapAction = HomeButtonAction::Ignore;
   HomeButtonAction homeButtonLongPressAction = HomeButtonAction::ReaderMenu;
+  uint8_t shortPwrBtn = CrossPointSettings::IGNORE;
+  uint8_t doublePwrBtn = CrossPointSettings::IGNORE;
+  uint16_t getPowerButtonDuration() const { return PowerButtonInput::LONG_PRESS_MS; }
 };
+struct HalGPIO {
+  enum : uint8_t { BTN_CONFIRM = 1, BTN_DOWN = 3, BTN_POWER = 6 };
+  bool wasReleased(uint8_t) const { return false; }
+};
+namespace BoardConfig {
+inline bool isX4Pro() { return false; }
+enum class InputStyle : uint8_t { XteinkAdcLadder, DigitalConfirmPowerHold };
+struct ActiveBoard {
+  InputStyle inputStyle = InputStyle::XteinkAdcLadder;
+};
+inline ActiveBoard ACTIVE;
+}  // namespace BoardConfig
+inline bool CrossPointSettings::hasPowerDoubleClick() {
+  return BoardConfig::ACTIVE.inputStyle != BoardConfig::InputStyle::DigitalConfirmPowerHold;
+}
 inline SearchSettingsFixture SETTINGS;
 class GfxRenderer {
  public:
@@ -47,7 +81,7 @@ class GfxRenderer {
 };
 class MappedInputManager {
  public:
-  enum class Button { Back, ScreenDown = 14 };
+  enum class Button { Back, Power = 6, ScreenDown = 14 };
   enum class SwipeDir { None };
   struct Labels {
     const char* btn1;
@@ -65,12 +99,28 @@ class MappedInputManager {
     bool wasHomeKeyTapped() const { return tapAt && updates == tapAt; }
     bool wasHomeKeyLongPressed() const { return holdAt && updates == holdAt; }
     bool wasHomeKeyPressed() const { return false; }
+    bool isPressed(uint8_t) const { return false; }
+    bool wasReleased(uint8_t) const { return false; }
+    unsigned long getPowerButtonHeldTime() const { return 0; }
   } gpio;
   unsigned& updates = gpio.updates;
   mutable HomeButtonInput homeButtonInput;
+  mutable PowerButtonInput powerButtonInput;
+  mutable PowerButtonClickInput powerButtonClickInput;
+  bool isPowerHeld() const { return false; }
+  bool wasShortPowerReleased() const { return false; }
+  bool wasPowerReleaseConsumed() const { return powerButtonInput.wasReleaseConsumed(); }
+  mutable bool powerSingleClickFrame = false;
+  mutable bool powerSleepFrame = false;
+  mutable bool deferredPowerSleepFrame = false;
   mutable HomeButtonAction homeAction = HomeButtonAction::Ignore;
   mutable HomeButtonAction deferredHomeAction = HomeButtonAction::Ignore;
   mutable uint32_t longPressFiredButtons = 0;
+  struct RemoteInputFixture {
+    void reset() {}
+  };
+  mutable RemoteInputFixture remoteInput;
+  bool mapButton(Button, bool (HalGPIO::*)(uint8_t) const) const { return false; }
   unsigned cancelAt = 0;
   bool releaseBack = false;
   bool backGesture = false;

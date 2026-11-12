@@ -1,5 +1,5 @@
-#include <Epub.h>
 #include <BidiUtils.h>
+#include <Epub.h>
 #include <Epub/Page.h>
 #include <Epub/TokenBoundary.h>
 #include <Epub/blocks/ImageBlock.h>

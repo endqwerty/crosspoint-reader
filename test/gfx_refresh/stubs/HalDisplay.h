@@ -10,6 +10,7 @@
 
 class HalDisplay {
  public:
+  bool displayRetainedGrayscaleOverlay(uint16_t, uint16_t, uint16_t, uint16_t, bool) { return false; }
   enum RefreshMode { FULL_REFRESH, HALF_REFRESH, FAST_REFRESH };
   enum class GrayscaleMode { Overlay, Absolute, Direct };
   enum class GrayscaleBase { Separate, Combined };

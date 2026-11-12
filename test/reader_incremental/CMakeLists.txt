@@ -6,7 +6,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${READER_HEADER})
 file(READ ${READER_HEADER} header)
 set(constants "")
 foreach(name BUILD_PAGES_PER_CHUNK BACKGROUND_BUILD_PAGES_PER_TICK BACKGROUND_BUILD_MIN_FREE_HEAP
-    RENDER_MIN_FREE_HEAP BACKGROUND_BUILD_MIN_MAX_ALLOC BUILD_WINDOW_AHEAD PARTIAL_REBUILD_START_MARGIN BUILD_POPUP_PAGE_THRESHOLD
+    RENDER_MIN_FREE_HEAP BACKGROUND_BUILD_MIN_MAX_ALLOC PARTIAL_REBUILD_START_MARGIN BUILD_POPUP_PAGE_THRESHOLD
     BUILD_POPUP_BYTE_THRESHOLD BUILD_POPUP_DEADLINE_MS)
   string(REGEX MATCH "static constexpr [^;\n]+ ${name} = [^;]+;" declaration "${header}")
   if(NOT declaration)
@@ -23,9 +23,8 @@ crosspoint_extract_between(build_methods ${READER_SOURCE} "bool EpubReaderActivi
 crosspoint_extract_between(render_path ${READER_SOURCE} "bool EpubReaderActivity::skipLoopDelay()" "\n  showPendingSyncSaveError();")
 crosspoint_extract_between(deferred_methods ${READER_SOURCE} "bool EpubReaderActivity::applyDeferredReposition()" "bool EpubReaderActivity::saveProgress(")
 crosspoint_extract_between(page_navigation ${READER_SOURCE} "bool EpubReaderActivity::pageTurn(" "bool EpubReaderActivity::handleLoadFailure()")
-crosspoint_extract_between(idle_prewarm ${READER_SOURCE} "  constexpr unsigned long IDLE_PREWARM_DEBOUNCE_MS" "\n  advanceSectionBuild();")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderIncrementalProduction.cpp
-  "#include \"ReaderIncrementalFixture.h\"\n${build_methods}\n${deferred_methods}\n${page_navigation}\n${render_path}\n}\nvoid EpubReaderActivity::runIdlePrewarm() {\n${idle_prewarm}\n}\n")
+  "#include \"ReaderIncrementalFixture.h\"\n${build_methods}\n${deferred_methods}\n${page_navigation}\n${render_path}\n}\n")
 add_executable(ReaderIncrementalTest ReaderIncrementalTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/ReaderIncrementalProduction.cpp)
 target_include_directories(ReaderIncrementalTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${REPO_ROOT}/src/activities/reader ${REPO_ROOT}/lib/Epub)
 target_link_libraries(ReaderIncrementalTest PRIVATE GTest::gtest_main)

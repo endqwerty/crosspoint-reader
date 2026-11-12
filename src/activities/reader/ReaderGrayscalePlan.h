@@ -13,13 +13,14 @@ struct ReaderGrayscalePlan {
 
   static constexpr ReaderGrayscalePlan forPage(bool textAntiAliasing, bool hasImages,
                                                HalDisplay::GrayscaleCapabilities capabilities,
-                                               bool bodyTextNeedsGrayscale = true, bool imageGrayscale = true) {
+                                               bool bodyTextNeedsGrayscale = true, bool combineImagePages = false) {
     // Image compositing retains its existing text pass and mask behavior.
+    // combineImagePages: the driver shows base and grays of an image page itself (EEGO A4).
     const bool text = textAntiAliasing && (hasImages || bodyTextNeedsGrayscale);
-    const bool enabled = capabilities.supported() && (text || (hasImages && imageGrayscale));
+    const bool enabled = capabilities.supported() && (text || hasImages);
     const bool tiled = enabled && capabilities.stripUploads;
     return {enabled && text, enabled, tiled,
-            tiled && !hasImages && capabilities.base == HalDisplay::GrayscaleBase::Combined,
+            tiled && (!hasImages || combineImagePages) && capabilities.base == HalDisplay::GrayscaleBase::Combined,
             tiled && !hasImages && capabilities.asyncBase};
   }
 };

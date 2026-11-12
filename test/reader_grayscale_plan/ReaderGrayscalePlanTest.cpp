@@ -67,6 +67,17 @@ TEST(ReaderGrayscalePlan, CombinedBaseRemainsLimitedToTiledTextPages) {
   }
 }
 
+// EEGO A4: image pages get grayscale even with AA off, and the driver combines base and grays.
+TEST(ReaderGrayscalePlan, CombineImagePagesExtendsCombinedBaseToImagePages) {
+  for (bool images : {false, true}) {
+    const GrayscaleCapabilities caps{GrayscaleEncoding::OverlayMasks, GrayscaleBase::Combined, true, true, true};
+    const auto plan = ReaderGrayscalePlan::forPage(false, images, caps, true, true);
+    EXPECT_EQ(plan.enabled, images);
+    EXPECT_EQ(plan.combinedBase, images);
+    EXPECT_FALSE(plan.overlap);
+  }
+}
+
 TEST(ReaderGrayscalePlan, NightModeTransitionDoesNotChangeSavedAaChoice) {
   constexpr bool savedAa = true;
   constexpr GrayscaleCapabilities day{GrayscaleEncoding::OverlayMasks, GrayscaleBase::Separate, true, true, false};

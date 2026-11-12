@@ -129,6 +129,9 @@ class EpubReaderActivity final : public ReaderActivity {
   bool partialRebuildStartFailed = false;
 
   ReaderProgressState progressState;
+  // Last page whose refresh committed; Sync On Sleep sends only the page on the glass.
+  std::optional<ReaderProgressState::Position> displayedPosition;
+  bool finishedScreenShown = false;  // the finished screen committed; no book page has replaced it yet
   // Chapter title shown in the status bar, cached per spine item.
   mutable int statusTitleSpine = -1;
   mutable std::string statusTitle;

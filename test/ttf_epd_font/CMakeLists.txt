@@ -16,12 +16,19 @@ add_executable(TtfEpdFontTest TtfEpdFontTest.cpp
   ${REPO_ROOT}/lib/EpdFont/TtfEpdFont.cpp
   ${REPO_ROOT}/lib/EpdFont/EpdFont.cpp
   ${REPO_ROOT}/lib/EpdFont/EpdFontFamily.cpp
-  ${REPO_ROOT}/lib/Utf8/Utf8.cpp)
+  ${REPO_ROOT}/lib/EpdFont/ComplexShaper.cpp
+  ${REPO_ROOT}/lib/EpdFont/FlashBlobCache.cpp
+  ${OT_SHAPER_SOURCES}
+  ${REPO_ROOT}/lib/Utf8/Utf8.cpp
+  ${REPO_ROOT}/lib/Utf8/IndicReorder.cpp)
 target_include_directories(TtfEpdFontTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/stubs
   ${REPO_ROOT}/test/gfx_refresh/stubs
   ${REPO_ROOT}/lib/EpdFont
+  ${OT_SHAPER_INCLUDE_DIR}
   ${REPO_ROOT}/lib/Utf8)
+# TtfEpdFont.cpp gets memcpy through device headers.
+target_compile_options(TtfEpdFontTest PRIVATE -include cstring)
 target_compile_definitions(TtfEpdFontTest PRIVATE BOARD_HAS_PSRAM=1
   TTF_FIXTURE_PATH="${REPO_ROOT}/freeink-sdk/libs/book/FreeInkBook/test/fixtures/fonts/DejaVuSans.ttf")
 target_link_libraries(TtfEpdFontTest PRIVATE TtfAdapterFontHost crosspoint_test_common GTest::gtest_main)

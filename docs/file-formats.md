@@ -104,16 +104,15 @@ cache for that load. No version field: the file has one layout.
 
 ### Version 77 (fork)
 
-The byte layout is upstream version 76's (the Indic shaping layout described
-under "Version 75" below), with the fork's pagebreak-marker handling. Version 77
-rebuilds completed and partial sections from both lineages, including fork
-version 76, which used upstream version 75's layout. Reading positions,
-bookmarks and Library metadata are preserved. The partial-section sentinel is
-205.
+The byte layout is upstream version 76's, with the fork's pagebreak-marker
+handling. Version 77 rebuilds completed and partial sections from both lineages,
+including fork version 76, which used upstream version 75's layout and did not
+shape Indic text. Reading positions, bookmarks and Library metadata are
+preserved. The partial-section sentinel is 205.
 
-### Version 75
+### Version 76
 
-Version 75 shapes Indic text (Devanagari, Bengali, Gurmukhi, Gujarati, Oriya,
+Version 76 shapes Indic text (Devanagari, Bengali, Gurmukhi, Gujarati, Oriya,
 Tamil, Telugu, Kannada, Malayalam, Sinhala) in the book's language. Fonts with
 shaping data form conjuncts, reph and positioned marks from the font's
 OpenType tables (lib/OtShaper), and other fonts reorder pre-base vowel signs;
@@ -128,6 +127,12 @@ memory was short keeps the unshaped form it was measured in. Words without a
 display entry are resolved from `text[]` when drawn. Older completed and
 partial section caches rebuild automatically; book metadata and reading
 progress are kept.
+
+### Version 75
+
+Version 75 keeps the binary layout and rebuilds completed and partial sections.
+Headings (`h1` to `h6`) are no longer hyphenated, which can change cached line
+breaks. Book metadata and saved progress are kept.
 
 ### Version 74
 
@@ -772,6 +777,9 @@ The index migration does not change EPUB reading-position or section-cache files
 Fold/sort revision 6 preserves leading words in title and series sorting and search,
 adopting upstream fold revision 4 while retaining the local author and arrival rules.
 Reconciliation rebuilds keys and ranks while preserving `firstSeen`.
+Fold/sort revision 7 reparses series metadata using upstream's explicitly typed
+EPUB 3 collection selection and finite numeric positions; untyped collections
+are no longer inferred to be series. Arrival history and reading state survive.
 
 ### Layout
 
