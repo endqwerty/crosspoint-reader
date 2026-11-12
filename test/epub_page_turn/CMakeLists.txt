@@ -23,6 +23,8 @@ add_library(EpubPageTurnHost STATIC
   ${REPO_ROOT}/lib/Epub/Epub/Page.cpp
   ${REPO_ROOT}/lib/Epub/Epub/SectionPageReader.cpp
   ${REPO_ROOT}/lib/Epub/Epub/blocks/TextBlock.cpp
+  ${REPO_ROOT}/lib/Epub/Epub/CjkBreaks.cpp
+  ${REPO_ROOT}/lib/Epub/Epub/hyphenation/HyphenationCommon.cpp
   ${REPO_ROOT}/lib/GfxRenderer/GfxRenderer.cpp
   ${REPO_ROOT}/lib/GfxRenderer/FontCacheManager.cpp
   ${REPO_ROOT}/lib/EpdFont/EpdFont.cpp
@@ -33,6 +35,7 @@ add_library(EpubPageTurnHost STATIC
   ${REPO_ROOT}/lib/MiniBidi/BidiUtils.cpp
   ${REPO_ROOT}/lib/MiniBidi/minibidi.c
   ${REPO_ROOT}/lib/Utf8/Utf8.cpp
+  ${REPO_ROOT}/lib/Utf8/IndicReorder.cpp
 )
 target_include_directories(EpubPageTurnHost PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}

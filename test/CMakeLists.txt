@@ -150,7 +150,6 @@ add_test(NAME recursive_dictionary COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT
 
 add_subdirectory(boot_splash)
 add_subdirectory(manual_refresh)
-add_subdirectory(epd_bus)
 add_subdirectory(reader_grayscale_plan)
 add_subdirectory(refresh_sequences)
 add_subdirectory(reader_progress_state)
@@ -172,6 +171,7 @@ add_subdirectory(library_book_state)
 add_subdirectory(library_ui)
 
 add_subdirectory(reader_search_handoff)
+add_subdirectory(reader_menu_capacity)
 
 add_subdirectory(atomic_file)
 add_subdirectory(bookmark_actions)

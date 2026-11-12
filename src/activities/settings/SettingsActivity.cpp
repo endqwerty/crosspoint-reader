@@ -40,6 +40,7 @@
 #include "components/UIThemeTokens.h"
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
+#include "util/LibraryRelink.h"
 #include "util/PluginEvents.h"
 
 namespace fui = freeink::ui;
@@ -456,7 +457,7 @@ void SettingsActivity::toggleSelectedSetting() {
         RenderLock lock;
         GUI.drawPopup(renderer, tr(STR_LIBRARY_REBUILDING));
         library::BuildStats stats;
-        const bool ok = library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0);
+        const bool ok = library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0, relinkRenamedBook);
         if (!ok) LOG_ERR("SET", "library index build failed");
         GUI.drawPopup(renderer, ok ? tr(STR_LIBRARY_REBUILD_DONE) : tr(STR_LIBRARY_REBUILD_FAILED));
         delay(1000);

@@ -162,7 +162,7 @@ the blocks icon opens Library options, including Refresh library.
 Library reconciles on the first entry after boot and after known file changes.
 Later visits use the validated index. After copying files to a card while the reader
 remains powered on, select **Library options → Refresh library** or
-**Settings → System → Rebuild library index**. Unchanged metadata is reused.
+**Settings → Library → Refresh Library**. Unchanged metadata is reused.
 A failed rebuild retains the previous index. Scan limits are reported explicitly.
 The **Use book metadata** setting controls reading titles/authors from EPUB files.
 `My Clippings.txt` and `crash_report.txt` are not listed; they remain in the file browser.
