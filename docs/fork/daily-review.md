@@ -31,7 +31,9 @@ final baseline and serialize shared builds and Git operations.
    or implements its purpose differently. Apply "Upstream first"
    ([upstream-sync.md](upstream-sync.md)) and bump
    any affected persisted cache version. Keep adaptation fixes
-   together in the sync candidate; only its final tree is the validated build.
+   together in the sync candidate, folded into its single adaptation commit
+   ([upstream-sync.md](upstream-sync.md#syncing-with-upstream)); only its final
+   tree is the validated build.
    Keep task commits separate from the sync candidate;
    never publish them directly to `develop`. Check upstream ancestry, SDK
    ancestry and zero downstream merge commits.
