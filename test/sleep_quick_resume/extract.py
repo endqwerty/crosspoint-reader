@@ -3,7 +3,7 @@ import pathlib
 import sys
 source = pathlib.Path(sys.argv[1]).read_text()
 start = source.index('void SleepActivity::onEnter() {')
-end = source.index('  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT_CUSTOM)', start)
+end = source.index('  const uint8_t sleepScreen = SETTINGS.sleepScreen;', start)
 prefix = source[start:end]
 assert 'renderLastScreenSleepScreen' in prefix and 'display.setInverted(false)' in prefix
 start = source.index('void SleepActivity::renderLastScreenSleepScreen() const {')

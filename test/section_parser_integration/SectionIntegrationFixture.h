@@ -53,7 +53,7 @@ class Section {
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void appendPage(std::unique_ptr<Page> page, uint16_t paragraphIndex, uint16_t listItemIndex,
                   uint32_t visibleTextOffset);
-  bool buildSomeMore(int maxPages);
+  bool buildSomeMore(int maxPages, bool (*yieldNow)() = nullptr);
   bool commitBuildFile(uint8_t version, uint32_t bytesConsumed, uint32_t totalBytes);
   bool finalizeBuild();
   void suspendBuild();

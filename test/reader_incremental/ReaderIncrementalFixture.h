@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "../reader_ble_stub/ReaderBleStub.h"
 #include "ReaderProgressState.h"
 
 #define LOG_ERR(...) \
@@ -141,6 +142,11 @@ struct IncrementalStorage {
   bool readFails = false;
 };
 inline IncrementalStorage* activeStorage = nullptr;
+inline bool contactClosed = false;
+inline bool buttonContactClosed() { return contactClosed; }
+struct MappedInputManager {
+  enum class Button { Back, Confirm, Left, Right, Up, Down, Power };
+};
 struct Epub {
   struct Spine {
     std::string href = "chapter.xhtml";
@@ -190,7 +196,7 @@ struct Section {
     return true;
   }
   bool loanOnBuild = false;
-  bool buildSomeMore(int budget) {
+  bool buildSomeMore(int budget, bool (*)() = nullptr) {
     if (loanOnBuild) ++renderer.loans;
     ++storage.chunks;
     storage.largestChunk = std::max(storage.largestChunk, budget);
@@ -279,12 +285,15 @@ struct EpubReaderActivity {
     GUI = {};
     RenderLock::busy = RenderLock::failTryAcquire = false;
     RenderLock::tryAttempts = RenderLock::peekCalls = 0;
+    bleturner::heapHeld = false;
+    contactClosed = false;
   }
   struct Input {
     struct Labels {
       const char *btn1, *btn2, *btn3, *btn4;
     };
     Labels mapLabels(const char* a, const char* b, const char* c, const char* d) { return {a, b, c, d}; }
+    bool isPressed(MappedInputManager::Button) const { return false; }
   } mappedInput;
   bool pageRendered = false;
   void markPageRendered() { pageRendered = true; }
@@ -307,6 +316,19 @@ struct EpubReaderActivity {
   bool buildTickHeapGate();
   bool resolvePendingSectionJump();
   void advanceSectionBuild();
+  // One idle loop frame: start a deferred partial extension, then advance the build.
+  void idleTick() {
+    advanceSectionBuild();
+    backgroundBuildTick();
+  }
+  int backgroundBuildFailedSpine = -1;
+  bool anyButtonPressed() const;
+  void backgroundBuildTick();
+  int roomRequests = 0;
+  bool makeRoomForChapterBuild() {
+    ++roomRequests;
+    return true;
+  }
   void showBuildPopup(GfxRenderer&, int&);
   bool skipLoopDelay();
   void renderBook();

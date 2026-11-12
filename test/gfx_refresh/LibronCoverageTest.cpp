@@ -16,7 +16,7 @@ const EpdFont regular(&libron_14_regular);
 const EpdFont bold(&libron_14_bold);
 const EpdFont italic(&libron_14_italic);
 const EpdFont boldItalic(&libron_14_bolditalic);
-const EpdFontFamily family(&regular, &bold, &italic, &boldItalic);
+const EpdFontFamily family(14, &regular, &bold, &italic, &boldItalic);
 constexpr auto STYLES =
     std::array{EpdFontFamily::REGULAR, EpdFontFamily::BOLD, EpdFontFamily::ITALIC, EpdFontFamily::BOLD_ITALIC};
 }  // namespace

@@ -648,7 +648,8 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
 void BookMetadataCache::invalidateReadCache() {
   loaded = false;
   bookFile.close();
-  windowStarts.clear();
+  windowStarts.reset();
+  windowCount = 0;
   bookSize = 0;
   loadedFromBackup = false;
   windowFirst = -1;
@@ -704,7 +705,16 @@ bool BookMetadataCache::load() {
     }
     if (!serialization::readBytesChecked(bookFile, spineOffsets.get(), spineCount * sizeof(uint32_t))) return false;
   }
-  windowStarts.reserve((spineCount + SIZE_WINDOW - 1) / SIZE_WINDOW);
+  // One retained total per window; fallible like the LUT above.
+  const uint16_t windows = static_cast<uint16_t>((spineCount + SIZE_WINDOW - 1) / SIZE_WINDOW);
+  if (windows != 0) {
+    windowStarts = makeUniqueNoThrow<uint32_t[]>(windows);
+    if (!windowStarts) {
+      LOG_ERR("BMC", "OOM: %u chapter size windows", static_cast<unsigned>(windows));
+      return false;
+    }
+    windowCount = windows;
+  }
   uint32_t tocStart = static_cast<uint32_t>(fileSize);
   if (tocCount && !serialization::readPodChecked(bookFile, tocStart)) return false;
   if (tocStart < dataStart || tocStart > fileSize ||
@@ -727,7 +737,7 @@ bool BookMetadataCache::load() {
         !readBufferedCachePod(in, tocIndex) || in.position() != end || size < previousSize || tocIndex < -1 ||
         tocIndex >= static_cast<int>(tocCount))
       return false;
-    if (i % SIZE_WINDOW == 0) windowStarts.push_back(previousSize);
+    if (i % SIZE_WINDOW == 0) windowStarts[i / SIZE_WINDOW] = previousSize;
     previousSize = size;
   }
   bookSize = previousSize;
@@ -772,8 +782,9 @@ int BookMetadataCache::getSpineIndexForSize(const uint32_t size) const {
   if (!loaded || spineCount == 0 || size > bookSize) return -1;
   // windowStarts[w] is the total through item w * SIZE_WINDOW - 1, so the answer lies in the window
   // before the first start that reaches `size`. Its last total comes from RAM and always reaches it.
-  const auto next = std::lower_bound(windowStarts.begin() + 1, windowStarts.end(), size);
-  const int first = static_cast<int>(next - windowStarts.begin() - 1) * SIZE_WINDOW;
+  const uint32_t* starts = windowStarts.get();
+  const auto next = std::lower_bound(starts + 1, starts + windowCount, size);
+  const int first = static_cast<int>(next - starts - 1) * SIZE_WINDOW;
   const int last = std::min<int>(spineCount, first + SIZE_WINDOW) - 1;
   std::lock_guard<std::mutex> lock(sizeWindowLock);
   // One refill attempt; on failure every total in the window falls back below `size`, as before.
@@ -811,8 +822,7 @@ BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) 
   if (seekCacheEntry(static_cast<uint32_t>(index), end) &&
       readCacheString(bookFile, entry.href, end - SPINE_TAIL_BYTES) && !entry.href.empty() &&
       serialization::readPodChecked(bookFile, entry.cumulativeSize) &&
-      serialization::readPodChecked(bookFile, entry.tocIndex) && bookFile.position() == end &&
-      entry.tocIndex >= -1 &&
+      serialization::readPodChecked(bookFile, entry.tocIndex) && bookFile.position() == end && entry.tocIndex >= -1 &&
       entry.tocIndex < static_cast<int>(tocCount))
     return entry;
   LOG_ERR("BMC", "Unreadable spine entry %d", index);
