@@ -52,6 +52,15 @@ void installSyntheticVariants(GfxRenderer& renderer) {
        }});
 }
 
+// Adapts a void line inspector (ASSERT_* needs a void function) to the layout callback.
+template <typename Inspect>
+auto keepLines(Inspect inspect) {
+  return [inspect](std::unique_ptr<TextBlock> block, uint32_t offset) {
+    inspect(std::move(block), offset);
+    return true;
+  };
+}
+
 class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
  protected:
   std::string filepath = "unused.xhtml";
@@ -84,6 +93,11 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
     close(descriptor);
     parser.currentTextBlock = std::make_unique<ParsedText>();
   }
+  // Fixtures that drive the XML callbacks directly finish as a completed parse would.
+  bool finishDirectParse() {
+    parser.parsePhase = ChapterHtmlSlimParser::ParsePhase::Done;
+    return parser.finishParse();
+  }
   void TearDown() override {
     Epub::enableGifProbeForTest = false;
     parser.abortParse();
@@ -95,6 +109,7 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
   // clipping does: '\n' at a paragraph start, ' ' across a source gap, nothing otherwise.
   std::string parseToParagraphText(const std::string& body) {
     const std::string html = "<html><body>" + body + "</body></html>";
+    std::filesystem::remove(filepath);  // SetUp's file; TearDown removes only the path below
     const ScopedTempDir tempDir;
     filepath = (tempDir.path() / "clipping-paragraphs.xhtml").string();
     {
@@ -207,13 +222,11 @@ TEST_F(ChapterHtmlSlimParserTest, AbandonedLayoutStopsExtractingLines) {
   for (int i = 0; i < 100; ++i) text.addWord("word", EpdFontFamily::REGULAR);
   bool stop = false;
   size_t lines = 0;
-  text.layoutAndExtractLines(
-      renderer, 0, 80,
-      [&](std::unique_ptr<TextBlock>, uint32_t) {
-        ++lines;
-        stop = true;
-      },
-      true, 0, 100, SIZE_MAX, &stop);
+  text.layoutAndExtractLines(renderer, 0, 80, keepLines([&](std::unique_ptr<TextBlock>, uint32_t) {
+                               ++lines;
+                               stop = true;
+                             }),
+                             true, 0, 100, SIZE_MAX, &stop);
   EXPECT_EQ(lines, 1u);
 }
 
@@ -223,6 +236,7 @@ TEST_P(ParserStopTest, PageCallbackStopsParsingAndClosesFile) {
   std::string html = "<html><body>";
   for (int i = 0; i < 100; ++i) html += GetParam();
   html += "</body></html>";
+  std::filesystem::remove(filepath);  // SetUp's file; TearDown removes only the path below
   const ScopedTempDir tempDir;
   filepath = (tempDir.path() / "parser-stop.xhtml").string();
   {
@@ -264,7 +278,7 @@ TEST_F(ChapterHtmlSlimParserTest, StopDuringFinalFlushDoesNotEmitAnotherPage) {
     ++pages;
     parser.requestStop();
   };
-  EXPECT_FALSE(parser.finishParse());
+  EXPECT_FALSE(finishDirectParse());
   EXPECT_EQ(pages, 1u);
 }
 
@@ -604,14 +618,14 @@ TEST_F(ChapterHtmlSlimParserTest, SmallCapsMetricsArePreparedForEachInlineFont) 
   text.addWord("other", static_cast<EpdFontFamily::Style>(EpdFontFamily::BOLD | EpdFontFamily::SMALL_CAPS), false,
                false, 8, 0, slot);
   size_t lines = 0;
-  text.layoutAndExtractLines(renderer, 0, 480, [&](std::unique_ptr<TextBlock> line, auto) {
-    ++lines;
-    ASSERT_EQ(line->wordCount(), 2);
-    EXPECT_STREQ(line->wordText(0), "Chapter");
-    EXPECT_STREQ(line->wordText(1), "other");
-    EXPECT_EQ(line->wordFontId(1, 0), 42);
-    EXPECT_NE(line->wordStyle(1) & EpdFontFamily::SMALL_CAPS, 0);
-  });
+  text.layoutAndExtractLines(renderer, 0, 480, keepLines([&](std::unique_ptr<TextBlock> line, auto) {
+                               ++lines;
+                               ASSERT_EQ(line->wordCount(), 2);
+                               EXPECT_STREQ(line->wordText(0), "Chapter");
+                               EXPECT_STREQ(line->wordText(1), "other");
+                               EXPECT_EQ(line->wordFontId(1, 0), 42);
+                               EXPECT_NE(line->wordStyle(1) & EpdFontFamily::SMALL_CAPS, 0);
+                             }));
   EXPECT_EQ(lines, 1u);
   EXPECT_EQ(renderer.coldMeasurements, 0u);
 }
@@ -682,6 +696,15 @@ class ChapterBlockDecorationTest : public ChapterHtmlSlimParserTest {
     ChapterHtmlSlimParser::characterData(&parser, value.c_str(), static_cast<int>(value.size()));
   }
   void close(const char* tag) { ChapterHtmlSlimParser::endElement(&parser, tag); }
+  // The parser is single-use; these fixtures reuse one instance across parses.
+  void resetParser() {
+    parser.abortParse();
+    parser.parsePhase = ChapterHtmlSlimParser::ParsePhase::New;
+  }
+  void restartParse() {
+    resetParser();
+    parser.beginParse();
+  }
   static std::string words(int count) {
     std::string result;
     for (int i = 0; i < count; ++i) result += "word ";
@@ -717,7 +740,7 @@ TEST_F(ChapterTightSpacingTest, FontSizeLineSpacingKeepsLastLineInsidePage) {
   open("p", nullptr);
   text(words(80));
   close("p");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   bool checkedSpacing = false;
   for (const auto& page : pages) {
@@ -748,7 +771,7 @@ TEST_F(ChapterTightSpacingTest, TightTableLinesStayTogetherAndInsidePage) {
   ASSERT_FALSE(parser.tableRowStacked);
   close("tr");
   close("table");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   for (const auto& page : pages) {
     std::map<int, int> columnsAtY;
@@ -1020,7 +1043,7 @@ TEST_F(ChapterTightSpacingTest, TightDropCapMovesWithAllSpannedLines) {
   close("span");
   text("he " + words(50));
   close("p");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   size_t capCount = 0;
   for (size_t index = 0; index < pages.size(); ++index) {
@@ -1122,7 +1145,7 @@ TEST_F(ChapterTightSpacingTest, BorderedTableRowMovesWholeWhenRaisedRowDoesNotFi
   }
   close("tr");
   close("table");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_EQ(pages.size(), 2u);
   std::map<PageElementTag, std::vector<int>> secondPage;
   for (const auto& element : pages[1]->elements) secondPage[element->getTag()].push_back(element->yPos);
@@ -1600,7 +1623,7 @@ TEST_F(ChapterBlockDecorationTest, EmbeddedFamiliesFollowPublisherFontsMode) {
   EXPECT_EQ(static_cast<const PageLine*>(lines[1])->getBlock()->getBlockStyle().fontId, HAND_FONT);
 
   pages.clear();
-  parser.beginParse();
+  restartParse();
   parser.setPublisherFonts(PublisherFonts::All);
   parse();
   lines = elementsWithTag(TAG_PageLine);
@@ -1611,7 +1634,7 @@ TEST_F(ChapterBlockDecorationTest, EmbeddedFamiliesFollowPublisherFontsMode) {
   EXPECT_EQ(all.wordFontId(1, NOTOSANS_14_FONT_ID), HAND_FONT);
 
   pages.clear();
-  parser.beginParse();
+  restartParse();
   parser.setPublisherFonts(PublisherFonts::Off);
   parse();
   lines = elementsWithTag(TAG_PageLine);
@@ -1648,6 +1671,7 @@ class PublisherBodyFontTest : public ChapterBlockDecorationTest {
     std::ofstream output(filepath);
     output << html;
     output.close();
+    resetParser();
     parser.setPublisherFonts(mode);
     ASSERT_TRUE(parser.parseAndBuildPages());
   }
@@ -2069,7 +2093,7 @@ TEST_F(ChapterWidowOrphanTest, CarriedReferenceKeepsItsFootnote) {
 
 TEST_F(ChapterPageBreakTest, TerminalBreakAfterDoesNotCreateEmptyPage) {
   paragraph("only", "page-break-after: always");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   EXPECT_EQ(pages, 1u);
 }
 
@@ -2079,7 +2103,7 @@ TEST_F(ChapterPageBreakTest, EmptyBlockDoesNotConsumePendingBreak) {
   EXPECT_EQ(pages, 0u);
   paragraph("after");
   EXPECT_EQ(pages, 1u);
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   EXPECT_EQ(pages, 2u);
 }
 
@@ -2161,7 +2185,7 @@ TEST_F(ChapterInlineSizeTest, EnlargedGridCellsReserveTheirHeightAcrossPages) {
     close("tr");
   }
   close("table");
-  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(finishDirectParse());
   ASSERT_GE(pages.size(), 2u);
   size_t enlargedLines = 0;
   for (const auto& page : pages) {
@@ -2750,7 +2774,7 @@ TEST(TextSpacingLayout, ParagraphMarkerSurvivesBidiAndOnlyMarksFirstExtractedLin
     text.addWord("שני", EpdFontFamily::REGULAR);
     unsigned lines = 0;
     unsigned starts = 0;
-    auto inspect = [&](std::unique_ptr<TextBlock> block, auto) {
+    auto inspect = keepLines([&](std::unique_ptr<TextBlock> block, auto) {
       for (uint16_t i = 0; i < block->wordCount(); ++i) {
         if (!block->wordStartsParagraph(i)) continue;
         EXPECT_EQ(lines, 0u);
@@ -2758,7 +2782,7 @@ TEST(TextSpacingLayout, ParagraphMarkerSurvivesBidiAndOnlyMarksFirstExtractedLin
         ++starts;
       }
       ++lines;
-    };
+    });
     text.layoutAndExtractLines(renderer, 0, 100, inspect, false);
     ASSERT_GT(lines, 0u);
     ASSERT_GT(text.size(), 0u);
@@ -2838,14 +2862,15 @@ TEST(TextDecorationPosition, StrikeUsesGlyphBodyAndFollowsScriptScaling) {
   for (const auto script : {EpdFontFamily::REGULAR, EpdFontFamily::SUP, EpdFontFamily::SUB}) {
     ParsedText text(false, false, BlockStyle{}, 0);
     text.addWord("example", static_cast<EpdFontFamily::Style>(EpdFontFamily::STRIKETHROUGH | script));
-    text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, uint32_t) {
-      renderer.drawnLineCount = 0;
-      line->render(renderer, 0, 0, top);
-      ASSERT_EQ(renderer.drawnLineCount, 1);
-      // Fixture baseline is top + 12; glyph body is 10 pixels, halved for scripts.
-      const int expected = script == EpdFontFamily::SUP ? 26 : script == EpdFontFamily::SUB ? 33 : 27;
-      EXPECT_EQ(renderer.lastLineY, expected);
-    });
+    text.layoutAndExtractLines(
+        renderer, 0, 200, keepLines([&](std::unique_ptr<TextBlock> line, uint32_t) {
+          renderer.drawnLineCount = 0;
+          line->render(renderer, 0, 0, top);
+          ASSERT_EQ(renderer.drawnLineCount, 1);
+          // Fixture baseline is top + 12; glyph body is 10 pixels, halved for scripts.
+          const int expected = script == EpdFontFamily::SUP ? 26 : script == EpdFontFamily::SUB ? 33 : 27;
+          EXPECT_EQ(renderer.lastLineY, expected);
+        }));
   }
 }
 
@@ -2853,10 +2878,10 @@ TEST(TextDecorationPosition, UnderlineStaysBelowBaseline) {
   GfxRenderer renderer;
   ParsedText text(false, false, BlockStyle{}, 0);
   text.addWord("example", EpdFontFamily::UNDERLINE);
-  text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> line, uint32_t) {
-    line->render(renderer, 0, 0, 20);
-    EXPECT_EQ(renderer.lastLineY, 34);
-  });
+  text.layoutAndExtractLines(renderer, 0, 200, keepLines([&](std::unique_ptr<TextBlock> line, uint32_t) {
+                               line->render(renderer, 0, 0, 20);
+                               EXPECT_EQ(renderer.lastLineY, 34);
+                             }));
 }
 
 TEST(TextSpacingLayout, UsesShapingMemoOnlyForParagraphsWithIndicText) {
@@ -2866,10 +2891,10 @@ TEST(TextSpacingLayout, UsesShapingMemoOnlyForParagraphsWithIndicText) {
     text.addWord(word, EpdFontFamily::REGULAR);
     const unsigned before = GfxRenderer::shapingMemoStarts;
     unsigned lines = 0;
-    text.layoutAndExtractLines(renderer, 0, 200, [&](std::unique_ptr<TextBlock> block, auto) {
-      EXPECT_TRUE(block->valid());
-      ++lines;
-    });
+    text.layoutAndExtractLines(renderer, 0, 200, keepLines([&](std::unique_ptr<TextBlock> block, uint32_t) {
+                                 EXPECT_TRUE(block->valid());
+                                 ++lines;
+                               }));
     EXPECT_GT(lines, 0u);
     const bool indic = std::strstr(word, "कि") != nullptr;
     EXPECT_EQ(GfxRenderer::shapingMemoStarts - before, indic ? 1u : 0u) << word;

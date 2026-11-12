@@ -11,6 +11,7 @@ add_executable(LibraryFollowOnsTest
 # The builder's fake SD card and EPUB metadata double serve the real index build.
 target_include_directories(LibraryFollowOnsTest PRIVATE
   ${REPO_ROOT}/test/library_builder/stubs
+  ${REPO_ROOT}/lib/FsHelpers
   ${REPO_ROOT}/lib/LibraryIndex
   ${REPO_ROOT}/lib/Serialization
   ${REPO_ROOT}/lib/Utf8

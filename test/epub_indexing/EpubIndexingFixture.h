@@ -54,14 +54,20 @@ class Epub {
   std::vector<std::string> cssFiles;
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   std::unique_ptr<CssParser> cssParser;
+  void* decryptor = nullptr;
   bool load(bool buildIfMissing = true, bool skipLoadingCss = true);
+  struct SyncMetadata {
+    std::string isbn, asin, series;
+    std::optional<float> seriesIndex;
+  };
+  bool loadSyncMetadata(SyncMetadata&);
   struct LibraryMetadata {
     std::string title, author, series, seriesIndexText, titleSort, authorSort, uuid;
   };
   bool parseContentOpf(BookMetadataCache::BookMetadata&, bool writeSpine = true, bool metadataOnly = false,
-                       ZipFile* zip = nullptr, LibraryMetadata* libraryOut = nullptr);
-  bool parseTocNavFile() const;
-  bool parseTocNcxFile() const;
+                       ZipFile* zip = nullptr, bool normalizeLookup = false, LibraryMetadata* libraryOut = nullptr);
+  bool parseTocNavFile(ZipFile* sharedZip) const;
+  bool parseTocNcxFile(ZipFile* sharedZip) const;
   const std::string& getCachePath() const { return cachePath; }
   const std::string& getBasePath() const { return contentBasePath; }
   bool findContentOpfFile(std::string* path, ZipFile*) const {
@@ -74,6 +80,6 @@ class Epub {
   }
   uint8_t* readItemContentsToBytes(const std::string&, size_t*, bool) const { return nullptr; }
   void setupCacheDir() const {}
-  void discoverCssFilesFromZip() {}
+  void discoverCssFilesFromZip(ZipFile* = nullptr) {}
   CssParser::ParseResult parseCssFiles(CssParser::CacheStatus) { return CssParser::ParseResult::Complete; }
 };

@@ -67,47 +67,45 @@ are unaffected.
 
 ## Ruby rendering
 
-`TextBlock::render` resolves ruby positions into a temporary
-`std::vector<RubyDrawInfo>` that holds geometry only: the x position and base
-direction per word. Annotation text is read directly from the block-owned
-`rubyTexts` vector when drawing. This is safe because the `const TextBlock`
-keeps ownership of those strings for the whole render, and no pointer is
-cached beyond it. The geometry vector is the only temporary table, and it is
-allocated only when the block has ruby. Ordinary prose pages make no rendering
-allocations. Measurement order, drawing order, ruby grouping
-(`RUBY_CONTINUE`), directions and serialized data are identical to copying the
-strings. Layout (`extractLine`) has already reserved start/end offsets, so a
-centered ruby stays inside the page margins.
+`TextBlock::render` follows upstream's ruby `space-around` alignment. Its
+per-render `RubyDrawInfo` table holds geometry, a view of the block-owned
+annotation, and character boundaries when a short CJK annotation is spread
+across its base text. The block owns the strings for the whole render; views
+are not retained afterwards. Glyph prewarm scans visit the annotation directly
+and skip the geometry table. Ordinary prose makes no rendering allocations.
+
+The fork's former geometry-only allocation-byte assertions are obsolete because
+upstream enlarged this table. The tests retain exact pixels in all four
+orientations and all three render planes, unchanged serialized text, annotation
+reuse for the long Latin fixture, and zero rendering allocations for prose.
+CJK spreading uses upstream's temporary boundary vectors and token strings;
+physical peak heap remains unmeasured.
 
 ## Idle next-page prefetch
 
-While the reader is idle, `EpubReaderActivity::loop` decodes the next page of
-the current section and hands it to `Section::retainPrefetchedPage`. The next
-`Section::loadPage` for that index takes the retained page instead of reading
-the SD card.
+Upstream's `EpubReaderActivity::idlePrewarmTick` (`#4433`) runs in loop frames
+with no input and no background build step. It loads the next page, renders it
+into an accumulating `FontCacheManager::PrewarmScope`, and keeps the glyphs for
+the foreground render. The fork then hands that decoded page to
+`Section::retainPrefetchedPage`, so the next `Section::loadPage` for that index
+takes it instead of reading the SD card.
 
-### Gates (all must hold, checked in this order)
+### Gates
 
-1. `RenderLock` acquired in `Try` mode, and a section exists. Under this lock
-   the cache first calls `releasePrefetchedPageIfLowMemory` on every tick.
-2. The section is not building. Parsing in progress is excluded, and
-   `Section::retainPrefetchedPage` also rejects retention while `build_` is set.
-3. The framebuffer exists, no overlay is open, and more than 400 ms
-   (`IDLE_PREWARM_DEBOUNCE_MS`) have passed since the last render completed.
-4. The displayed (spine, page) differs from the last attempted one. This allows
-   only one attempt per displayed page. This check precedes the heap queries, so
-   later idle ticks skip redundant heap-statistics calls.
-5. `PagePrefetchPolicy::hasHeadroom(ESP.getFreeHeap(), ESP.getMaxAllocHeap())`.
-6. A next page exists in the section. At the end of a section nothing is read.
+The upstream gates apply: render lock in `Try` mode, a section that is not
+building, a framebuffer, no overlay, a completed render, at least
+`RENDER_MIN_FREE_HEAP` free and `BACKGROUND_BUILD_MIN_MAX_ALLOC` largest block,
+the 400 ms debounce for single-page fonts, no button or touch held, and a next
+page in the section. Each displayed page gets `getIdleLookaheadPages` attempts.
 
-The attempted-page marker is set only after the heap gate passes. If memory is
-insufficient, the page stays eligible and gets one attempt later if memory
-recovers.
+The fork retains the page only when the lookahead is one page (built-in and SD
+fonts). Vector fonts look ahead five pages, and loading the later pages would
+discard the retained one, so they only prewarm. Every render re-arms the tick.
 
 ### Memory policy
 
 `PagePrefetchPolicy` (`lib/Epub/Epub/PagePrefetchPolicy.h`) is a stateless
-`constexpr` helper shared by the reader and the cache:
+`constexpr` helper:
 
 - `MIN_FREE_HEAP` = 80 KiB free heap
 - `MIN_MAX_ALLOC` = 32 KiB largest free block
@@ -118,33 +116,15 @@ its public constants and adds `MAX_PAGE_BUDGET` = 32 KiB per retained page
 held in a `std::unique_ptr`, so retaining it makes no second copy. It is scoped
 to one `Section`, and the reader's `RenderLock` serializes access.
 
-The same floors apply at three points:
+The floors apply at two points:
 
-- Before loading, so the reader does not decode a page only to discard it. The
-  idle gate once used lower floors (24 KiB / 16 KiB) than retention. Under
-  memory pressure the reader then read and decoded pages that could never be
-  kept, and marked the displayed page as attempted.
-- After decoding, in `retain`. This check is mandatory and uses fresh heap
-  values, because the decoded page consumes memory and other work can change
-  the heap. Passing the pre-load gate does not reserve memory or guarantee
-  retention.
-- On every idle tick, through `releaseIfLowMemory`, which drops the retained
-  page when the floors are no longer met.
+- After decoding, in `retain`, with fresh heap values. The decode itself is not
+  wasted below the floor, because the prewarm render uses it.
+- On every loop frame, through `releasePrefetchedPageIfLowMemory`, which drops
+  the retained page when the floors are no longer met.
 
 `take(n)` returns the page only for a matching index and clears the cache on a
 mismatch. `retain` clears any previous page first.
-
-### No font preparation during prefetch
-
-The idle path loads and retains the decoded page only. It does not scan or
-prepare fonts. Preparing fonts inside a `FontCacheManager::PrewarmScope` would be
-wasted work, because the scope clears caches when destroyed:
-`FontDecompressor::clearCache` frees page and hot-group buffers,
-`SdCardFont::clearCache` resets mini glyph data, and `TtfEpdFont::clearCache`
-drops cached page glyphs. The foreground render opens its own scope and prepares
-the page again. Foreground font preparation and rendering are unchanged. SD-font
-persistent advance data and vector-font buffer capacities have different
-lifetimes, so this does not mean every backend loses every side effect.
 
 ## Pagebreak markers
 
@@ -186,8 +166,8 @@ text still follows the converter's line break. This behavior defines
 top spacing across soft flushes. Version 53 incorporates upstream's redaction
 glyph widths and retires older version 52 layouts, with partial sentinel 229
 and the same byte layout. Later versions are listed in
-[file-formats.md](file-formats.md); the current one is 68, with partial
-sentinel 214.
+[file-formats.md](file-formats.md); the current one is 76 (upstream 75 plus
+this handling), with partial sentinel 206.
 
 ## Limits and known gaps
 
@@ -197,15 +177,15 @@ sentinel 214.
 - None of these changes alter the e-ink refresh sequence or claim reduced
   ghosting.
 - Prefetch retains only the next page of the current section, at most one page,
-  and never while the section is building. It does not cross chapter
-  boundaries or prepare images or fonts.
+  and never while the section is building or with a multi-page font lookahead.
+  It does not cross chapter boundaries or prepare images.
 
 ## Code and tests
 
 - Code: `lib/Epub/Epub/blocks/TextBlock.{h,cpp}`, `lib/MiniBidi/BidiUtils.cpp`,
   `lib/Epub/Epub/PagePrefetchPolicy.h`, `lib/Epub/Epub/PrefetchedPageCache.h`,
   `lib/Epub/Epub/Section.cpp` (`retainPrefetchedPage`, `loadPage`),
-  `src/activities/reader/EpubReaderActivity.cpp` (`loop`),
+  `src/activities/reader/EpubReaderActivity.cpp` (`idlePrewarmTick`, `loop`),
   `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.{h,cpp}`.
 - `test/epub_page_turn/`: `CachedPageReads` read/allocation budgets and
   byte-exact round trips across buffer boundaries, `RubyRendering` framebuffer
@@ -215,10 +195,10 @@ sentinel 214.
 - `test/minibidi_arabic/DirectionProbeTest.cpp`: probe output parity against
   the reference classifier and classifier-request budgets. The existing
   Arabic/Farsi/Urdu shaping tests stay in the same directory.
-- `test/reader_incremental/`: `ReaderIdlePrefetch` compiles the production idle
-  block and the shared policy with platform doubles. It covers lock, UI,
-  debounce and heap gates, active builds, end of section, memory pressure, and
-  the post-decode recheck.
+- `test/reader_incremental/`: `ReaderIdlePrefetch` compiles the production
+  `idlePrewarmTick` with platform doubles. It covers lock, UI, input, debounce
+  and heap gates, active builds, end of section, multi-page lookahead, failed
+  prewarm, and the post-decode recheck.
 - `test/korean_line_breaking/` (`LineBreakCost`): the lookup bound and equal
   breaks on lines longer than the gap window.
 - `test/chapter_html_slim_parser/` (`PagebreakMarkerTest`) and

@@ -44,11 +44,12 @@ variants. The core workloads give 9,600 display submissions:
   reader-overlay tests separately exercise the renderer's snapshot restore.
 
 Direct cover/cancellation/B/W recovery adds 3,000 submissions across the UC
-controllers in both buffering modes. UC8279 window requests add 800 submissions
-across its four variants and both modes. The full run therefore checks **13,400
-submissions in 90 workloads**. Window checks require upstream's full-screen FAST
-fallback, including alignment/bounds failures, changes outside the requested
-region, pending cleanup, and post-AA redrive. Direct
+controllers in both buffering modes. The full run therefore checks **12,600
+submissions in 82 workloads**. UC8279 window requests are not covered here.
+Upstream SDK commit `adc73104` makes the X4 driver refresh only the requested
+region. The reader never calls `displayWindow()`, and no host test covers that
+path yet. The Direct base never runs a B/W activation, even when FULL is
+requested; this matches the SDK's `testDirectSleep`. Direct
 checks require complete planes before a single activation and a coherent B/W
 baseline after success or cancellation. Ordinary Overlay LUT selection remains
 protected separately from Direct quality-image waveforms.
@@ -69,17 +70,9 @@ so `NDEBUG` cannot silently disable them.
 
 ## Evidence and limits
 
-The contracts come from production driver behavior documented at:
-
-- `Ssd1677Driver.cpp:411-483`: cold/gray clean promotion, old-plane selection
-  and single-buffer resynchronization; `:637-645`: AA cleanup has no waveform.
-- `Uc8179Driver.cpp:301-325,376-393`: differential OLD baseline, HALF complement
-  scrub, and submitted-frame restoration after the refresh wait.
-- `Uc8279X4Driver.cpp:402-430,456-473,492-503`: HALF/FULL baseline distinction,
-  required partial window and submitted-frame restoration.
-- `FreeInkDisplay.cpp:647-680`: shadowed versus intact-frame async ownership.
-- `FreeInkDisplay.cpp:573-578,805-811`: grayscale capability/output is disabled
-  while inverted.
+The contracts come from the pinned SDK's `Ssd1677Driver`, `Uc8179Driver`,
+`Uc8279X4Driver` and `FreeInkDisplay` implementations. The SDK's `test_pro.cpp`
+checks the same Direct-base activation contract in `testDirectSleep`.
 
 `plane_payload_bytes`, command/data bytes, data transactions and activation
 counts are measured from the executed production code. `wait_calls` counts

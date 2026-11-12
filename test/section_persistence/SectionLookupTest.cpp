@@ -109,19 +109,19 @@ TEST_F(SectionLookup, LongChapterLookupHasBoundedReadCountAndNoHeapAllocation) {
   const auto result = section.getPageForVisibleTextOffset(offsets.back());
   captureAllocations = false;
   ASSERT_EQ(1023, result);
-  EXPECT_EQ(67u, io.reads);
+  EXPECT_EQ(35u, io.reads);
   EXPECT_EQ(3u, io.seeks);
   EXPECT_EQ(1u, io.opens);
   EXPECT_EQ(7u + offsets.size() * sizeof(uint32_t), io.bytes);
   EXPECT_EQ(0u, allocations.calls);
 }
 
-TEST_F(SectionLookup, MaximumPageCountDoesNotWrapTheChunkCursor) {
+TEST_F(SectionLookup, MaximumPageCountDoesNotWrapTheBatchCursor) {
   std::vector<uint32_t> offsets(std::numeric_limits<uint16_t>::max());
   for (size_t i = 0; i < offsets.size(); ++i) offsets[i] = static_cast<uint32_t>(i);
   install(offsets);
   EXPECT_EQ(65534, section.getPageForVisibleTextOffset(offsets.back()));
-  EXPECT_EQ(4099u, io.reads);
+  EXPECT_EQ(2051u, io.reads);
   EXPECT_EQ(7u + offsets.size() * sizeof(uint32_t), io.bytes);
 }
 
@@ -131,7 +131,7 @@ TEST_F(SectionLookup, EveryFailedReadReturnsNoPositionAndStopsImmediately) {
   install(offsets);
   ASSERT_EQ(39, section.getPageForVisibleTextOffset(39));
   const size_t reads = io.reads;
-  ASSERT_EQ(6u, reads);
+  ASSERT_EQ(5u, reads);
   for (size_t failed = 1; failed <= reads; ++failed) {
     SCOPED_TRACE(failed);
     io = {};
@@ -146,7 +146,7 @@ TEST_F(SectionLookup, EveryShortReadReturnsNoPositionAndStopsImmediately) {
   std::vector<uint32_t> offsets(40);
   for (size_t i = 0; i < offsets.size(); ++i) offsets[i] = static_cast<uint32_t>(i);
   install(offsets);
-  for (size_t shortened = 1; shortened <= 6; ++shortened) {
+  for (size_t shortened = 1; shortened <= 5; ++shortened) {
     SCOPED_TRACE(shortened);
     io = {};
     faults.shortReadCall = shortened;

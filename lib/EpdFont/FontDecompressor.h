@@ -42,6 +42,7 @@ class FontDecompressor {
   };
   void logStats(const char* label = "FDC");
   void resetStats();
+  const Stats& getStats() const { return stats; }
 
  private:
   Stats stats;
