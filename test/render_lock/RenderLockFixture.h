@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -51,6 +52,10 @@ inline int xQueuePeek(Semaphore* mutex, void*, uint32_t) { return mutex->held ? 
 inline unsigned long schedulingNow = 100000;
 inline unsigned long lastActivityTime = 0;
 inline unsigned long millis() { return schedulingNow; }
+// The BLE page-turner host keeps the CPU awake while it holds the radio.
+namespace pageturner {
+inline std::atomic<bool> holdsCpu{false};
+}  // namespace pageturner
 struct HalPowerManager {
   static constexpr unsigned long IDLE_POWER_SAVING_MS = 10000;
 };

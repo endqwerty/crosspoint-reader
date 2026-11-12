@@ -24,7 +24,9 @@ final baseline and serialize shared builds and Git operations.
 3. **Rebase the baseline before new task work.** Create backup refs before
    rewriting reader or SDK history. Prepare and verify the reader-pinned SDK.
    If the official reader changes its SDK pin, replay SDK-only patches onto that
-   exact revision, not the latest SDK branch. Run relevant SDK host suites, then rebase the reader's downstream
+   exact revision, not the latest SDK branch. Run relevant SDK host suites (on Linux, build
+   FreeInkUI's `test/host/run.sh` command with `clang++`: GCC 16 rejects upstream
+   `list.h` under `-Werror`), then rebase the reader's downstream
    series onto `official/develop`, reconcile overlaps using upstream's interfaces
    and behavior, and drop superseded patches. A previously validated fork feature is still disposable:
    replace, simplify or remove it when upstream takes a conflicting direction

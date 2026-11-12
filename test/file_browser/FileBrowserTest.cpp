@@ -14,6 +14,7 @@ class FileBrowserTest : public testing::Test {
     RECENT_BOOKS = {};
     APP_STATE = {};
     library::dirtyCalls = 0;
+    sleepImageChanges.clear();
     lockDepth = 0;
     UITheme::getInstance().icons = false;
   }
@@ -131,6 +132,7 @@ TEST_F(FileBrowserTest, OpeningHoldReleaseDoesNotActivatePopupDefault) {
   ui.mappedInput.confirmReleased = true;
   ASSERT_TRUE(ui.handleCustomInput());
   EXPECT_TRUE(ui.optionPopup.active);
+  EXPECT_EQ(ui.optionPopup.title, "book.epub");
   EXPECT_TRUE(ui.selectedBook.empty());
 }
 
@@ -171,6 +173,7 @@ TEST_F(FileBrowserTest, RenamePreservesBookmarkRecoveryAndReadingState) {
   EXPECT_EQ(RECENT_BOOKS.newPath, newPath);
   EXPECT_EQ(APP_STATE.openEpubPath, newPath);
   EXPECT_EQ(library::dirtyCalls, 1u);
+  EXPECT_EQ(sleepImageChanges, std::vector<std::string>{newPath});
   EXPECT_TRUE(ui.searching);
   EXPECT_EQ(ui.nav.selected, 0);
   drain(ui);

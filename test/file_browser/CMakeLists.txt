@@ -16,6 +16,6 @@ target_include_directories(FileBrowserTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} $
   ${REPO_ROOT}/lib/FsHelpers ${REPO_ROOT}/test/fs_helpers/stubs ${REPO_ROOT}/test/library_builder/stubs
   ${REPO_ROOT}/lib/LibraryIndex ${REPO_ROOT}/lib/FolderSearch ${REPO_ROOT}/lib/Utf8 ${REPO_ROOT}/src
   ${REPO_ROOT}/test/clipping_store/stubs ${REPO_ROOT}/lib/Serialization
-  ${REPO_ROOT}/freeink-sdk/libs/ui/FreeInkUI/include)
+  ${REPO_ROOT}/freeink-sdk/libs/ui/FreeInkUI/include ${REPO_ROOT}/test/sync_extensions/stubs)
 target_link_libraries(FileBrowserTest PRIVATE crosspoint_test_common GTest::gtest_main)
 gtest_discover_tests(FileBrowserTest)

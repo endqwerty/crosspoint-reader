@@ -75,6 +75,8 @@ struct EpubReaderActivity {
   bool epub = true;
   RecoveryRenderer renderer;
   ReaderProgressState progressState;
+  std::optional<ReaderProgressState::Position> displayedPosition;
+  bool finishedScreenShown = false;
   ReaderNavigationHistory navigationHistory;
   int currentSpineIndex = 2;
   int nextPageNumber = 5;
@@ -88,6 +90,8 @@ struct EpubReaderActivity {
   bool pendingPercentJump = false;
   bool pendingLastPageJump = false;
   bool pendingBuildError = false;
+  bool makeRoomForChapterBuild() { return true; }
+  void showBuildError(const char* = nullptr) { pendingBuildError = true; }
   bool buildHeapPaused = false;
   int pendingManualTurn = 0;
   float pendingSpineProgress = 0;
