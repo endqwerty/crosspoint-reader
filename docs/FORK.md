@@ -23,8 +23,9 @@ code, upstream and these rules.
 
 ## Every task
 
-- **Start:** read the issue queue; run `git worktree list`, `git status`,
-  `git remote -v`, `scripts/fork-workflow.sh status`; sync first if upstream is ahead.
+- **Start:** after `AGENTS.md`'s session-start commands, read the
+  [issue queue](https://github.com/endqwerty/crosspoint-reader/issues/15); run
+  `git worktree list`, `scripts/fork-workflow.sh status`; sync first if upstream is ahead.
 - **Branch:** never commit task work on `develop` or push it to `origin/develop`.
   Work on the branch T3 assigned and never delete it. One thread is one worktree,
   branch and PR; subagents work in that worktree.
@@ -46,7 +47,7 @@ code, upstream and these rules.
   point to the homelab repository instead. Security notes live in
   [SECURITY.md](../SECURITY.md).
 - **Upstream references:** in fork issues, PRs, comments and commit messages,
-  write an official or Free-Ink SDK PR or issue as code (`` `#4263` ``), never as
+  write an official or FreeInk SDK PR or issue as code (`` `#4263` ``), never as
   a link or `owner/repo#4263`. GitHub notifies the upstream thread on every
   mention, and an upstream reviewer asked us to stop (2026-11-06, in
   [#13](https://github.com/endqwerty/crosspoint-reader/issues/13)).
@@ -58,7 +59,7 @@ code, upstream and these rules.
 
 | Task touches | Read |
 | --- | --- |
-| Commit, push, PR, merge, SDK change, end-of-task report | [delivery](fork/delivery.md) |
+| Commit, push, PR, merge, SDK change, end-of-task report, offering a fix upstream | [delivery](fork/delivery.md) |
 | Checks, builds, toolchain, firmware export, `prepare`/`release` | [builds](fork/builds.md) |
 | Rebase, upstream conflict, `sync-publish`, history rewrite or backup | [upstream-sync](fork/upstream-sync.md) |
 | Daily review | [daily-review](fork/daily-review.md) |
