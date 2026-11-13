@@ -319,9 +319,22 @@ subsequent imports carry their validation in the task issue and pull request.
 
 ### Imported before upstream merged them
 
-No imported-ahead PR remains. At the 2026-11-10 sync, `#4263` merged
-upstream; its duplicate WebDAV credential-store protection commit was dropped.
-Upstream now supplies the protection for 8.3 aliases and names SdFat trims.
+- `#4472` (head `67cf9cfd2`, commit `f03dfc0d7`), three hunks only, copied
+  byte for byte: `Epub::resolveHrefToSpineIndex` lets an exact spine path win
+  over an earlier match on the file name alone; `ParsedText::extractLine`
+  allocates ruby text storage only for paragraphs with ruby;
+  `KOReaderDocumentId::calculate` returns no hash after a failed SD read. The
+  rest of the PR overlaps fork code and waits for upstream. When upstream
+  merges it, drop the fork commit's source hunks and keep its host tests
+  (`test/epub_href_resolve`, `test/koreader_document_id`). Limit: links are
+  stored relative to their chapter, so the exact match only hits when the
+  link's path equals the spine path (OPF at the archive root). Other
+  cross-file links now read every spine entry before using the first file-name
+  match.
+
+At the 2026-11-10 sync, `#4263` merged upstream; its duplicate WebDAV
+credential-store protection commit was dropped. Upstream now supplies the
+protection for 8.3 aliases and names SdFat trims.
 
 Dropped at the 2026-11-08 sync: `#4329` and `#4373` merged upstream, and
 upstream `#4379` replaced the per-word prewarming that the `#4255` adaptation
@@ -364,6 +377,8 @@ notes:
 - #3749, preserve leading words in Library sorting/search: Uri Tauber
 - #4263, WebDAV credential-store protection: jstader
   <47798010+jstader@users.noreply.github.com>
+- #4472, spine path match, ruby storage and KOReader read errors: Justin
+  Mitchell <justin@jmitch.com>
 
 Other upstream PRs named above, with authors from the upstream commits in the
 base history:
