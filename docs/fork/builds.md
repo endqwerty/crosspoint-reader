@@ -35,8 +35,9 @@ to the X4 Pro and any specific upstream-compatibility risk in the diff:
 It keeps its build directories and logs outside the worktree, under
 `~/.local/share/crosspoint-build/ci/<worktree>/`, and reports each step as ok
 or FAILED with the log to read. Put the result (commit checked, which mode,
-test counts, RAM and flash lines) in the pull request body and preserve the
-logs in the firmware package or external evidence directory.
+test counts, RAM and flash lines) in the pull request body. `release` deletes
+that directory, so copy the logs into the firmware package before it runs
+when there is one; without a package, the pull request body is the record.
 
 Validation rules:
 
@@ -58,7 +59,10 @@ Validation rules:
   add `-DCROSSPOINT_TEST_SANITIZERS=ON` with Homebrew
   `/opt/homebrew/opt/llvm@22/bin/clang` and `clang++`, and need `--timeout 180`
   (`GlyphRasterParity` takes about 70 s under the sanitizers). Keep test build
-  directories under `~/.local/share/crosspoint-build/`. `./bin/clang-format-fix`
+  directories under `~/.local/share/crosspoint-build/`; do not use the
+  `pio run -t unit-tests` that `.agents/rules/testing-debugging.md` mentions,
+  which builds in the worktree's `build/test` without the sanitizers.
+  `./bin/clang-format-fix`
   finds the venv's `clang-format` when that `bin/` is first on `PATH`.
 - A Linux host (set up 2026-10-11) uses the same venv path, created with
   `python3 -m venv` and `pip install clang-format==21.1.8 cmake==4.4.3` plus
@@ -79,10 +83,10 @@ Validation rules:
 - The maintained checkout lives on the Mac's SSD volume at
   `/Volumes/SSD/Work/crosspoint-reader`; T3 Code worktrees go under
   `/Volumes/SSD/Worktrees`. Keep source and git data off the SMB share.
-- Firmware version for a handoff: put `[crosspoint]` `version =
-  <upstream version>-dev-x4pro-rNN-<upstream short hash>` (r71 was
-  `2.0.0-dev-x4pro-r71-facaa87`) in a temporary
-  `platformio.local.ini` (gitignored), build, and delete it afterwards.
+- Firmware version for a handoff: the default build version (no override since
+  2026-11-08); the package folder and `build-info.json` identify the build. If
+  a custom version string is needed, put `[crosspoint]` `version = ...` in a
+  temporary `platformio.local.ini` (gitignored), build, and delete it afterwards.
 
 ## Firmware handoff
 
@@ -94,12 +98,17 @@ PlatformIO normally writes to the worktree's local `.pio/build/x4pro-gh_release/
 it does not automatically export to SMB.
 
 - For each firmware handoff, build `x4pro-gh_release`, inspect the resulting
-  image, and copy `firmware.bin` with a descriptive filename, `SHA256SUMS`,
-  source commit/SDK revision, version, build log and flash instructions.
-  Re-read the copied image and verify its SHA-256, then update the shared
-  `FLASH-LATEST.md` with a relative link and Windows path. Preserve previous
-  builds. The Windows path to the share is in the homelab `workstation.md`.
-  Never store the only output under `workspace/projects/crosspoint-reader`;
+  image, and copy into a new `<date>-<label>` folder: `firmware.bin` with a
+  descriptive filename, `SHA256SUMS`, `build-info.json` (source and
+  integration commits, SDK revision, pull request, test counts and
+  `"device_verified": false`), the check
+  logs and a `README.md` with flash instructions. The newest package is the
+  example to copy. Re-read the copied image and verify its SHA-256, then update
+  the shared `FLASH-LATEST.md` in the same layout as the current one: relative
+  link, commits, test counts, SHA-256 and Windows share-relative path. Preserve
+  previous builds. The Windows path to the share is in the homelab
+  `workstation.md`.
+  Never store the only output under `/Volumes/workspace/projects/crosspoint-reader`;
   that shared source checkout is disposable. A successful compilation does
   not establish physical-device validation.
 - Default firmware handoffs to the web flasher: Xteink X4 Pro → Custom .bin.
@@ -122,8 +131,8 @@ no other cleanup job.
   out the pinned SDK, borrowing objects from the permanent checkout, and pins
   the platform's PlatformIO Core (see Toolchain).
 - `scripts/fork-workflow.sh release` drops build output and the SDK checkout.
-  Run it as the last command of the turn that ends the task (the global rules
-  require it every time). Run it only once the work is delivered or preserved:
+  Run it as the last command of every turn that ends the task, once the work
+  is delivered or preserved:
   commit/push authorized work and preserve/export wanted firmware, check logs
   and ignored local overrides such as `platformio.local.ini` first. A thread
   that is only investigating or has undelivered work copies those files out of
@@ -134,8 +143,11 @@ no other cleanup job.
   directories under `~/.local/share/crosspoint-build/ci/`. It checks SDK state
   before dropping it, but does not preserve those artifacts or local overrides.
   The next `prepare` and `check` can rebuild generated output, not recover
-  discarded logs or local configuration. A successful "released" result means
-  filesystem readiness only, not proof of native cleanup eligibility.
+  discarded logs or local configuration. It exits 1 after cleaning when ignored
+  files or uncommitted changes remain; for a thread that keeps uncommitted
+  edits on purpose, that is the expected result, not a failed cleanup. A
+  successful "released" result means filesystem readiness only, not proof of
+  native cleanup eligibility.
 - Do not remove a worktree or its branch by hand, and do not leave the worktree
   on another branch.
 
