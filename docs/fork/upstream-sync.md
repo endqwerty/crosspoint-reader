@@ -49,9 +49,12 @@ moved meanwhile. `scripts/fork-workflow.sh status` shows whether upstream is
 ahead.
 
 1. In the task worktree, `git fetch official` and `git rebase official/develop`.
-   The thread stays on its task branch. Before task commits it has the same
-   baseline as `origin/develop`, so this rebases the downstream series; with
-   task commits, they ride on top of it. Identify the sync candidate separately.
+   The thread stays on its task branch. With no task commits it has the same
+   baseline as `origin/develop`, so this rebases the downstream series alone.
+   If the task already has commits, set them aside first so `check` tests the
+   sync candidate itself: on a clean tree, note both commits
+   (`git rev-parse HEAD origin/develop`), `git reset --hard origin/develop`,
+   and after step 3 `git cherry-pick <old origin/develop>..<old tip>`.
    Resolve conflicts by the "Upstream first" rules.
    Fixes that only adapt fork patches to the new upstream (build breaks, test
    stubs, test expectations for cache versions) go into the series' one
@@ -67,10 +70,11 @@ ahead.
    upstream changed only files the build and tests do not read. Add static
    analysis or targeted compatibility builds as required by the diff under
    [Local checks](builds.md#local-checks); changed shared source alone does not
-   require `--full`.
-3. Publish it with `scripts/fork-workflow.sh sync-publish <commit>`, where
-   `<commit>` is the rebased series without the task's own commits (`HEAD` when
-   the task has none yet). The script checks that the commit contains the
+   require `--full`. A sync does not run the four `firmware-handoff` reviews
+   (its step 5): one independent read-only reviewer on a different model checks
+   the conflict resolutions and the adaptation commit.
+3. Publish it with `scripts/fork-workflow.sh sync-publish HEAD`. The script
+   checks that the commit contains the
    upstream tip and no merge commits, that every commit subject of
    `origin/develop`'s downstream series is still in the candidate's (a pull request merged while the rebase was
    in progress would otherwise be dropped, as happened on 2026-10-11; set
