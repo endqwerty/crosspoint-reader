@@ -21,7 +21,8 @@ fi
 # Community fork read as a feature source (docs/fork-crossink.md); never a base.
 CROSSINK_REMOTE="crossink"
 CROSSINK_URL="https://github.com/uxjulia/CrossInk.git"
-CI_ENVS="default sticky x4pro x4c papermono metalio_eink4 eego_a4"
+# The build matrix of .github/workflows/ci.yml, for check --full.
+CI_ENVS="default sticky x4pro x4c papermono metalio_eink4 eego_a4 picco"
 
 die() {
   echo "fork-workflow: $*" >&2
