@@ -14,9 +14,9 @@ to the X4 Pro and any specific upstream-compatibility risk in the diff:
   `bin/clang-format-fix`, then no diff), host tests in Release and under the
   sanitizers, and the `x4pro-gh_release` firmware build. Use it for every change
   to source, tests or build files.
-- `check --full` adds `pio check` (cppcheck) and the seven firmware targets CI
-  builds (`default`, `sticky`, `x4pro`, `x4c`, `papermono`, `metalio_eink4`,
-  `eego_a4`): eight builds including `x4pro-gh_release`. This is an optional
+- `check --full` adds `pio check` (cppcheck) and every firmware target in the
+  build matrix of `.github/workflows/ci.yml` (`CI_ENVS` in the script; keep the
+  two in step), besides `x4pro-gh_release`. This is an optional
   compatibility matrix, not the default gate for shared changes or upstream
   syncs. Use it only when a concrete compatibility risk warrants all targets;
   otherwise run only the relevant additional `pio run -e <target>` builds.
