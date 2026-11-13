@@ -13,7 +13,7 @@ The always-read rules are in [../FORK.md](../FORK.md).
 | Design, invariants, limits, attributions of fork features | `docs/fork-*.md` |
 | Upstream conventions | `AGENTS.md` and `.agents/` |
 | Current firmware image and build evidence | `/Volumes/workspace/builds/crosspoint-reader/FLASH-LATEST.md` |
-| Mac, T3 Code worktrees and cleanup, agent tooling, home server | `/Volumes/SSD/Work/homelab/workstation.md` and `README.md` there |
+| Mac, T3 Code worktrees and cleanup, agent tooling, home server | `workstation.md` and `README.md` in the homelab repository |
 
 When a user instruction changes how work is done, update the fork's pages in the
 same task. When a fact belongs to the machine rather than the repository, update
@@ -26,8 +26,10 @@ the homelab page.
   inspect `git worktree list`, status and remote URLs, then run
   `scripts/fork-workflow.sh status` and sync with upstream first if it is ahead
   ([upstream-sync.md](upstream-sync.md)).
-- The worktree starts without the SDK. `scripts/fork-workflow.sh prepare` checks
-  out the reader-pinned revision; do not substitute the SDK's newest branch tip.
+- The worktree starts without the SDK, so `freeink-sdk/` (and the SDK
+  documentation `AGENTS.md` links) is empty until `scripts/fork-workflow.sh
+  prepare` checks out the reader-pinned revision; do not substitute the SDK's
+  newest branch tip.
   Recursive icon submodules are needed only for icon generation, not ordinary
   firmware builds.
 - Do the work in the thread's worktree. A shared local build mirror is usable
@@ -39,6 +41,8 @@ the homelab page.
   another claim and resolve ownership if two threads race. The issue's scope
   and the standing authorizations govern implementation; a backlog entry does
   not waive an explicit deferred condition.
+- Work the user asks for directly needs no new issue. Claim an existing issue
+  that covers it; open one only to record work left unfinished or follow-ups.
 - Keep progress, blockers and next actions on the issue, not in a versioned
   task-status file. If stopping before delivery, leave a concrete issue handoff
   and remove `in-progress`. If GitHub is unavailable, report the limitation and
@@ -69,8 +73,10 @@ This repository adds:
   child. Start each T3-delegated review round with a new `delegate_task` that
   carries the prior findings and responses; never send it to `childThreadId`.
   Continue native subagents through native tools.
-- Obtain an independent review from another model for memory, rendering or
-  shared-code changes. Verify findings against source and resolve material
+- `firmware-handoff` decides which reviews a change gets (four for firmware or
+  build changes; upstream syncs follow [upstream-sync.md](upstream-sync.md#syncing-with-upstream)).
+  For memory, rendering or shared-code changes, at least one reviewer runs on a
+  different model from the author's. Verify findings against source and resolve material
   objections. Reviews complement meaningful host/build checks; unavailable
   device measurements do not block delivery.
 - Delegation budget (2026-10-08): prefer GPT 6.1 Sol children while Codex

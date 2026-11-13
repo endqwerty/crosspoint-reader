@@ -39,8 +39,9 @@ origin/develop            downstream integration branch
   the base repository. Never open a pull request against the official project
   without explicit approval.
 - A rebase merge keeps the branch's own commits, so each commit message is what
-  lands on `develop`: write every subject in the `AGENTS.md` format and end
-  commits for adapted work with the `Co-Authored-By` lines. Do not add assistant
+  lands on `develop`: write every message in the format of
+  `.agents/rules/git-workflow.md` ("Commit Message Format") and end commits
+  for adapted work with the human authors' `Co-Authored-By` lines. Do not add assistant
   attribution or a generated-by line. Tidy the series locally (an
   interactive rebase) before opening the pull request, since the pull
   request's title and body are not committed.
@@ -55,8 +56,9 @@ origin/develop            downstream integration branch
   pull request needs a separate T3 Code thread. Create one with T3's explicit
   workspace strategy only when the user asks for separate top-level work;
   ordinary subagent parallelism stays in the caller's worktree.
-- If upstream is ahead, publish the sync before a pull request is opened
-  (T3 Code's own "create pull request" does not check). A branch pushed while
+- If upstream is ahead, publish the sync before a pull request is opened.
+  Only `scripts/fork-workflow.sh status` checks this; neither `pr` nor T3
+  Code's own "create pull request" does. A branch pushed while
   it sits on an unpublished rebase shows the whole series and conflicts with
   `develop`; `sync-publish` of the validated rebase fixes that
   ([upstream-sync.md](upstream-sync.md)).
@@ -77,15 +79,43 @@ origin/develop            downstream integration branch
   reader pull request carry the new submodule commit, which must already be on
   the SDK fork so other checkouts can fetch it.
 
+## Offering a fix to the official project
+
+The standing authorization does not cover the official project. There the
+original rules apply (`AGENTS.md`, "Human ownership"): the human approves each
+commit, says when to push, opens the pull request and writes its description.
+The route those rules leave:
+
+1. A pull request to the official project is separate work, so it gets its own
+   T3 Code thread; the user's request to offer the fix is the request for it.
+   Its worktree starts from `origin/develop`, which carries the fork's
+   downstream series, so the branch has to move onto the official base.
+2. With the human's approval to create the commits, keep the thread's branch
+   and its name, and rebuild it there: `git reset --hard official/develop`,
+   then `git cherry-pick <fix commits>`. Leave out fork-only hunks (fork docs,
+   settings or tests upstream does not have).
+3. Validate against upstream's baseline: `prepare`, `check`, and the
+   ESP32-C3 `default` build. Complete `firmware-handoff` the official way: the
+   human accepts the design and tests the hardware before any pull request.
+4. Push only when the human says so, to `origin` (`official` is fetch only),
+   under an upstream-style name: `git push -u origin HEAD:fix/<summary>`
+   (`.agents/rules/git-workflow.md`). Do not use `scripts/fork-workflow.sh pr`;
+   it opens pull requests against the fork. The human opens the pull request
+   against `crosspoint-reader/crosspoint-reader` `develop`; give concise
+   factual notes and test results, not ready-to-paste PR text.
+5. The branch is never contained in `origin/develop`, so native cleanup waits
+   for idle time or thread deletion. Run `release` as usual.
+
 ## Pull request body
 
 Follow the global pull-request rules and keep the repository's template
 (`.github/PULL_REQUEST_TEMPLATE.md`). Fork additions:
 
 - Put the local check result in the body: commit checked, which mode, test
-  counts, RAM and flash lines. Preserve the logs in the firmware package or
-  external evidence directory.
-- Link the task issue. List device checks as unverified.
+  counts, RAM and flash lines. Copy the logs into the firmware package, if
+  there is one, before `release` deletes them
+  ([builds.md](builds.md#local-checks)).
+- Link the task issue, if there is one. List device checks as unverified.
 
 ## Finishing a task
 
