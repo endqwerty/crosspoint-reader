@@ -1,6 +1,7 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(browser_source ${REPO_ROOT}/src/activities/home/FileBrowserActivity.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${browser_source} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${browser_source} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py
+  ${CROSSPOINT_EXTRACT_FUNCTIONS})
 execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py
   ${browser_source} ${CMAKE_CURRENT_BINARY_DIR} RESULT_VARIABLE extract_result)
 if(NOT extract_result EQUAL 0)

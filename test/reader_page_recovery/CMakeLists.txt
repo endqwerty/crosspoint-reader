@@ -2,9 +2,12 @@ set(READER_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
 crosspoint_extract_between(page_attempt ${READER_SOURCE} "  {\n    auto p = section->loadPage(section->currentPage);" "\n  showPendingSyncSaveError();")
 crosspoint_extract_between(offset_selection ${READER_SOURCE} "    const bool explicitOffsetJump = pendingOffsetJump.has_value();" "    if (!cacheComplete) {")
 crosspoint_extract_between(resume_position ${READER_SOURCE} "    if (pendingPageJump.has_value()) {" "\n  if (section->isPartial() && section->currentPage")
-crosspoint_extract_between(deferred_position ${READER_SOURCE} "bool EpubReaderActivity::applyDeferredReposition()" "bool EpubReaderActivity::saveProgress(")
-crosspoint_extract_between(position_info ${READER_SOURCE} "ChapterPosition EpubReaderActivity::chapterPosition() const" "int EpubReaderActivity::bookPercentFor(")
-crosspoint_extract_between(pending_jump ${READER_SOURCE} "bool EpubReaderActivity::resolvePendingSectionJump()" "bool EpubReaderActivity::backgroundBuildWanted()")
+crosspoint_extract_functions(deferred_position ${READER_SOURCE}
+  "bool EpubReaderActivity::applyDeferredReposition()"
+  "void EpubReaderActivity::clearDeferredReposition("
+  "void EpubReaderActivity::clearPendingNavigation(")
+crosspoint_extract_functions(position_info ${READER_SOURCE} "ChapterPosition EpubReaderActivity::chapterPosition() const")
+crosspoint_extract_functions(pending_jump ${READER_SOURCE} "bool EpubReaderActivity::resolvePendingSectionJump()")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderRecoveryProduction.cpp
   "#include \"ReaderRecoveryFixture.h\"\n${deferred_position}\n${position_info}\n${pending_jump}\n"
   "void EpubReaderActivity::renderAttempt() {\n${page_attempt}\n}\n"
