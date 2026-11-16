@@ -2,12 +2,10 @@
 # in every translation unit; linking a renderer built with a different HalFile
 # definition would violate the one-definition rule.
 set(IMAGE_BLOCK_SOURCE ${REPO_ROOT}/lib/Epub/Epub/blocks/ImageBlock.cpp)
-crosspoint_extract_between(image_constructor ${IMAGE_BLOCK_SOURCE}
-  "ImageBlock::ImageBlock("
-  "void* ImageBlock::extractCtx")
-crosspoint_extract_between(image_serialization ${IMAGE_BLOCK_SOURCE}
+crosspoint_extract_functions(image_constructor ${IMAGE_BLOCK_SOURCE} "ImageBlock::ImageBlock(")
+crosspoint_extract_functions(image_serialization ${IMAGE_BLOCK_SOURCE}
   "bool ImageBlock::serialize("
-  EOF)
+  "std::unique_ptr<ImageBlock> ImageBlock::deserialize(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ImagePersistenceProduction.cpp
   "#include <Epub/blocks/ImageBlock.h>\n#include <Memory.h>\n#include <Logging.h>\n#include <Serialization.h>\n"
   "${image_constructor}\n${image_serialization}\n")

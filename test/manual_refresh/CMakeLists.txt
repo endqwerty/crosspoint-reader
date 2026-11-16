@@ -1,12 +1,17 @@
 # Compile complete production panel methods; keep only hardware/UI plumbing in stubs.
 set(PANEL_SOURCE ${REPO_ROOT}/src/activities/util/FrontlightPanelActivity.cpp)
-crosspoint_extract_between(exit_methods ${PANEL_SOURCE}
-  "void FrontlightPanelActivity::persistLightSettings()" "void FrontlightPanelActivity::onBrightnessEvent(")
-crosspoint_extract_between(tile_methods ${PANEL_SOURCE}
-  "void FrontlightPanelActivity::onTileEvent(" "bool FrontlightPanelActivity::handleHomeGesture()")
-crosspoint_extract_between(loop_method ${PANEL_SOURCE}
-  "void FrontlightPanelActivity::loop()" "int FrontlightPanelActivity::computePanelBottom()")
-crosspoint_extract_between(render_method ${PANEL_SOURCE} "void FrontlightPanelActivity::render(" "EOF")
+crosspoint_extract_functions(exit_methods ${PANEL_SOURCE}
+  "void FrontlightPanelActivity::persistLightSettings()"
+  "void FrontlightPanelActivity::onExit(")
+crosspoint_extract_functions(tile_methods ${PANEL_SOURCE}
+  "void FrontlightPanelActivity::onTileEvent("
+  "void FrontlightPanelActivity::runTile("
+  "void FrontlightPanelActivity::adjustBrightness("
+  "void FrontlightPanelActivity::adjustWarmth("
+  "void FrontlightPanelActivity::toggleLight("
+  "void FrontlightPanelActivity::close(")
+crosspoint_extract_functions(loop_method ${PANEL_SOURCE} "void FrontlightPanelActivity::loop()")
+crosspoint_extract_functions(render_method ${PANEL_SOURCE} "void FrontlightPanelActivity::render(")
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ManualRefreshProduction.cpp
   "#include \"ManualRefreshFixture.h\"\n${exit_methods}\n${tile_methods}\n${loop_method}\n${render_method}\n")
