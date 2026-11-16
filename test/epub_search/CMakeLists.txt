@@ -12,8 +12,7 @@ target_link_libraries(EpubSearchTest PRIVATE FirmwareExpat GTest::gtest_main)
 gtest_discover_tests(EpubSearchTest)
 
 set(INPUT_SOURCE ${REPO_ROOT}/src/MappedInputManager.cpp)
-crosspoint_extract_between(input_update ${INPUT_SOURCE}
-  "void MappedInputManager::update(" "bool MappedInputManager::isNavDirectionSwapped()")
+crosspoint_extract_functions(input_update ${INPUT_SOURCE} "void MappedInputManager::update(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SearchInputProduction.cpp
   "#include \"TestUi.h\"\n${input_update}\n")
 

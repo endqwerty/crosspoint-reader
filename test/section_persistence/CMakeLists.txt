@@ -6,21 +6,25 @@ set(SECTION_HEADER ${REPO_ROOT}/lib/Epub/Epub/Section.h)
 crosspoint_extract_between(constants ${SECTION_SOURCE}
   "constexpr uint8_t SECTION_FILE_VERSION"
   "}  // namespace")
-crosspoint_extract_between(page_complete ${SECTION_SOURCE}
+crosspoint_extract_functions(page_complete ${SECTION_SOURCE}
   "uint32_t Section::onPageComplete("
-  "bool Section::writeSectionFileHeader(")
-crosspoint_extract_between(commit_build ${SECTION_SOURCE}
+  "void Section::appendPage(")
+crosspoint_extract_functions(commit_build ${SECTION_SOURCE}
   "bool Section::recoverBuildBackup("
-  "bool Section::finalizeBuild(")
-crosspoint_extract_between(load_build ${SECTION_SOURCE}
-  "std::unique_ptr<Page> Section::loadPageDuringBuild("
-  "std::unique_ptr<Page> Section::loadPageAt(")
+  "bool Section::commitBuildFile(")
+crosspoint_extract_functions(load_build ${SECTION_SOURCE} "std::unique_ptr<Page> Section::loadPageDuringBuild(")
 crosspoint_extract_between(tmp_path ${SECTION_HEADER}
   "std::string binTmpPath() const"
   "  std::unique_ptr<Page> loadPageAt(")
-crosspoint_extract_between(visible_lookup ${SECTION_SOURCE}
+crosspoint_extract_functions(visible_lookup ${SECTION_SOURCE}
   "std::optional<uint16_t> Section::getCachedPageCount()"
-  EOF)
+  "bool Section::openAnchorMap("
+  "std::optional<uint16_t> Section::getPageForAnchor("
+  "std::optional<uint16_t> Section::getPageForParagraphIndex("
+  "std::optional<uint16_t> Section::getParagraphIndexForPage("
+  "std::optional<uint16_t> Section::getPageForListItemIndex("
+  "std::optional<uint32_t> Section::getVisibleTextOffsetForPage("
+  "std::optional<uint16_t> Section::getPageForVisibleTextOffset(")
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SectionPersistenceProduction.cpp
   "#include \"SectionPersistenceFixture.h\"\nnamespace {\n${constants}\n}\n"
