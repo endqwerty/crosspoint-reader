@@ -19,10 +19,23 @@ if(NOT pending_helper)
   message(FATAL_ERROR "Incremental reader pending helper moved")
 endif()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderIncrementalConstants.h "${constants}\n${pending_helper}\n")
-crosspoint_extract_between(build_methods ${READER_SOURCE} "bool EpubReaderActivity::buildTickHeapGate()" "void EpubReaderActivity::openDictionaryWordSelect()")
+crosspoint_extract_functions(build_methods ${READER_SOURCE}
+  "bool EpubReaderActivity::buildTickHeapGate()"
+  "bool EpubReaderActivity::resolvePendingSectionJump("
+  "bool EpubReaderActivity::backgroundBuildWanted("
+  "void EpubReaderActivity::advanceSectionBuild("
+  "void EpubReaderActivity::showBuildPopup("
+  "bool EpubReaderActivity::anyButtonPressed("
+  "bool EpubReaderActivity::backgroundBuildTick("
+  "void EpubReaderActivity::idlePrewarmTick(")
 crosspoint_extract_between(render_path ${READER_SOURCE} "bool EpubReaderActivity::skipLoopDelay()" "\n  showPendingSyncSaveError();")
-crosspoint_extract_between(deferred_methods ${READER_SOURCE} "bool EpubReaderActivity::applyDeferredReposition()" "bool EpubReaderActivity::saveProgress(")
-crosspoint_extract_between(page_navigation ${READER_SOURCE} "bool EpubReaderActivity::pageTurn(" "bool EpubReaderActivity::handleLoadFailure()")
+crosspoint_extract_functions(deferred_methods ${READER_SOURCE}
+  "bool EpubReaderActivity::applyDeferredReposition()"
+  "void EpubReaderActivity::clearDeferredReposition("
+  "void EpubReaderActivity::clearPendingNavigation(")
+crosspoint_extract_functions(page_navigation ${READER_SOURCE}
+  "bool EpubReaderActivity::pageTurn("
+  "bool EpubReaderActivity::skipPages(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderIncrementalProduction.cpp
   "#include \"ReaderIncrementalFixture.h\"\n${build_methods}\n${deferred_methods}\n${page_navigation}\n${render_path}\n}\n")
 add_executable(ReaderIncrementalTest ReaderIncrementalTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/ReaderIncrementalProduction.cpp)

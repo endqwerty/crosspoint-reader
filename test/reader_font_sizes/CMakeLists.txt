@@ -4,14 +4,12 @@ target_link_libraries(ReaderFontSizesTest PRIVATE crosspoint_test_common GTest::
 gtest_discover_tests(ReaderFontSizesTest)
 
 set(SETTINGS_SOURCE ${REPO_ROOT}/src/CrossPointSettings.cpp)
-crosspoint_extract_between(font_id ${SETTINGS_SOURCE}
-  "int CrossPointSettings::getReaderFontId() const" "EOF")
+crosspoint_extract_functions(font_id ${SETTINGS_SOURCE} "int CrossPointSettings::getReaderFontId() const")
 # This render-loop getter must stay allocation-free.
 if(font_id MATCHES "getFontRegistry|readerFontPointSizes|std::vector|new |malloc\\(|makeUnique")
   message(FATAL_ERROR "Reader font getter must use only built-in IDs and allocation-free snapping")
 endif()
-crosspoint_extract_between(line_compression ${SETTINGS_SOURCE}
-  "float CrossPointSettings::getReaderLineCompression() const" "unsigned long CrossPointSettings::getSleepTimeoutMs() const")
+crosspoint_extract_functions(line_compression ${SETTINGS_SOURCE} "float CrossPointSettings::getReaderLineCompression() const")
 crosspoint_extract_between(line_multipliers ${REPO_ROOT}/src/ReaderLineSpacing.h
   "inline constexpr float LINE_SPACING_MULTIPLIERS[]" "static_assert(")
 crosspoint_extract_between(line_json ${SETTINGS_SOURCE}
