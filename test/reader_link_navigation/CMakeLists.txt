@@ -1,12 +1,17 @@
 set(LINK_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
-crosspoint_extract_between(methods ${LINK_SOURCE}
+crosspoint_extract_functions(methods ${LINK_SOURCE}
   "void EpubReaderActivity::navigateToHref("
-  "void EpubReaderActivity::loadCachedBookmarks()")
-crosspoint_extract_between(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openFootnoteSelect(" "void EpubReaderActivity::openClippings()")
-crosspoint_extract_between(percent_jump ${LINK_SOURCE} "void EpubReaderActivity::jumpToPercent(" "int EpubReaderActivity::currentTocIndex() const")
+  "void EpubReaderActivity::saveLinkStack("
+  "void EpubReaderActivity::loadLinkStack("
+  "void EpubReaderActivity::restoreSavedPosition(")
+crosspoint_extract_functions(footnote_select ${LINK_SOURCE} "void EpubReaderActivity::openFootnoteSelect(")
+crosspoint_extract_functions(percent_jump ${LINK_SOURCE}
+  "void EpubReaderActivity::jumpToPercent("
+  "void EpubReaderActivity::jumpToByteOffset("
+  "void EpubReaderActivity::applyProgressChange(")
 crosspoint_extract_between(progress_load ${LINK_SOURCE} "  bool progressLoaded = false;\n  HalFile f;"
   "  loadLinkStack();")
-crosspoint_extract_between(clear_pending ${LINK_SOURCE} "void EpubReaderActivity::clearPendingNavigation()" "bool EpubReaderActivity::saveProgress(")
+crosspoint_extract_functions(clear_pending ${LINK_SOURCE} "void EpubReaderActivity::clearPendingNavigation()")
 crosspoint_extract_between(progress_result ${LINK_SOURCE} "  auto progressChangeResultHandler = [this](const ActivityResult& result) {"
   "\n  switch (action) {")
 crosspoint_extract_between(chapter_result ${LINK_SOURCE} "          [this](const ActivityResult& result) {\n            if (result.isCancelled) {\n              openReaderMenu();\n              return;"
@@ -28,5 +33,5 @@ target_link_libraries(ReaderLinkNavigationTest PRIVATE GTest::gtest_main)
 gtest_discover_tests(ReaderLinkNavigationTest)
 
 set(CHAPTER_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderChapterSelectionActivity.cpp)
-crosspoint_extract_between(chapter_activate ${CHAPTER_SOURCE} "void EpubReaderChapterSelectionActivity::activateIndex(" "bool EpubReaderChapterSelectionActivity::handleButtons()")
+crosspoint_extract_functions(chapter_activate ${CHAPTER_SOURCE} "void EpubReaderChapterSelectionActivity::activateIndex(")
 file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/ReaderLinkNavigationProduction.cpp "\n${chapter_activate}\n")

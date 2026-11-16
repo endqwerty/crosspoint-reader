@@ -8,20 +8,26 @@ if(NOT translation_macro)
 endif()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/I18nTranslationMacro.h "#pragma once\n${translation_macro}\n")
 
-crosspoint_extract_between(matching ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "struct ProgressRange {" "std::string buildReadFolderDestination(")
+crosspoint_extract_between(progress_range ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "struct ProgressRange {" "ProgressRange getPageProgressRange(")
+crosspoint_extract_functions(matching ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
+  "ProgressRange getPageProgressRange("
+  "bool bookmarkMatchesProgress(")
 crosspoint_extract_between(epsilon ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "constexpr float bookmarkProgressEpsilon =" "constexpr int CLIP_SELECTION_PAGE_WINDOW =")
-crosspoint_extract_between(add ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::addBookmark()" "void EpubReaderActivity::updateBookmarkFlag()")
-crosspoint_extract_between(load ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::loadCachedBookmarks()" "void EpubReaderActivity::addBookmark()")
-crosspoint_extract_between(update_flag ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::updateBookmarkFlag()" "ScreenshotInfo EpubReaderActivity::getScreenshotInfo()")
+crosspoint_extract_functions(add ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::addBookmark()")
+crosspoint_extract_functions(load ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::loadCachedBookmarks()")
+crosspoint_extract_functions(update_flag ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "void EpubReaderActivity::updateBookmarkFlag()")
 crosspoint_extract_between(feedback ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "  if (showBookmarkMessage) {\n    GUI.drawPopup(" "\n  if (showDictionaryMessage) {")
-crosspoint_extract_between(rename ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::startRename()" "void EpubReaderBookmarksActivity::showBookmarkActions()")
-crosspoint_extract_between(remove ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::deleteSelectedBookmark()" "void EpubReaderBookmarksActivity::buildScreen(")
-crosspoint_extract_between(open ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::openSelectedBookmark()" "void EpubReaderBookmarksActivity::activateIndex(")
-crosspoint_extract_between(enter ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::onEnter()" "// Derives bookmarkSubtitles")
-crosspoint_extract_between(buttons ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "bool EpubReaderBookmarksActivity::handleButtons()" "void EpubReaderBookmarksActivity::startRename()")
-crosspoint_extract_between(screen ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::buildScreen(" "void EpubReaderBookmarksActivity::render(")
+crosspoint_extract_functions(rename ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::startRename()")
+crosspoint_extract_functions(remove ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp
+  "void EpubReaderBookmarksActivity::deleteSelectedBookmark()")
+crosspoint_extract_functions(open ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp
+  "void EpubReaderBookmarksActivity::openSelectedBookmark()")
+crosspoint_extract_functions(enter ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::onEnter()")
+crosspoint_extract_functions(buttons ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp
+  "bool EpubReaderBookmarksActivity::handleButtons()")
+crosspoint_extract_functions(screen ${REPO_ROOT}/src/activities/reader/EpubReaderBookmarksActivity.cpp "void EpubReaderBookmarksActivity::buildScreen(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/BookmarkActionsProduction.cpp
-  "#include \"BookmarkActionsFixture.h\"\nnamespace {\n${epsilon}\n${matching}\n}\n${load}\n${add}\n${update_flag}\n${rename}\n${remove}\n${open}\n${enter}\n${buttons}\n${screen}\n"
+  "#include \"BookmarkActionsFixture.h\"\nnamespace {\n${epsilon}\n${progress_range}\n${matching}\n}\n${load}\n${add}\n${update_flag}\n${rename}\n${remove}\n${open}\n${enter}\n${buttons}\n${screen}\n"
   "void EpubReaderActivity::renderFeedback() {\nRenderLock lock;\n${feedback}\n}\n")
 
 add_executable(BookmarkActionsTest BookmarkActionsTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/BookmarkActionsProduction.cpp)

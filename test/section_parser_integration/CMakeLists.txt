@@ -5,15 +5,20 @@ set(SECTION_HEADER ${REPO_ROOT}/lib/Epub/Epub/Section.h)
 crosspoint_extract_between(constants ${SECTION_SOURCE}
   "constexpr uint8_t SECTION_FILE_VERSION"
   "struct SectionLookupTables")
-crosspoint_extract_between(header_and_page ${SECTION_SOURCE}
+crosspoint_extract_functions(header_and_page ${SECTION_SOURCE}
   "Section::~Section()"
-  "bool Section::createSectionFile(")
-crosspoint_extract_between(advance ${SECTION_SOURCE}
-  "bool Section::buildSomeMore("
-  "bool Section::hasHtmlCache(")
-crosspoint_extract_between(commit_and_finish ${SECTION_SOURCE}
+  "uint32_t Section::onPageComplete("
+  "void Section::appendPage("
+  "bool Section::writeSectionFileHeader("
+  "bool Section::loadSectionFile("
+  "bool Section::clearCache(")
+crosspoint_extract_functions(advance ${SECTION_SOURCE} "bool Section::buildSomeMore(")
+crosspoint_extract_functions(commit_and_finish ${SECTION_SOURCE}
   "bool Section::recoverBuildBackup("
-  "std::unique_ptr<Page> Section::loadPageDuringBuild(")
+  "bool Section::commitBuildFile("
+  "bool Section::finalizeBuild("
+  "void Section::suspendBuild("
+  "void Section::abandonBuild(")
 crosspoint_extract_between(tmp_path ${SECTION_HEADER}
   "std::string binTmpPath() const"
   "  std::unique_ptr<Page> loadPageAt(")

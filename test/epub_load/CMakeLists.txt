@@ -1,11 +1,7 @@
 set(EPUB_SOURCE ${REPO_ROOT}/lib/Epub/Epub.cpp)
-crosspoint_extract_between(load_method ${EPUB_SOURCE}
-  "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)"
-  "bool Epub::loadMetadata(")
+crosspoint_extract_functions(load_method ${EPUB_SOURCE} "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)")
 set(CSS_SOURCE ${REPO_ROOT}/lib/Epub/Epub/css/CssParser.cpp)
-crosspoint_extract_between(stale_predicate ${CSS_SOURCE}
-  "bool CssParser::sectionCacheIsStale("
-  "CssParser::CacheStatus CssParser::inspectCache()")
+crosspoint_extract_functions(stale_predicate ${CSS_SOURCE} "bool CssParser::sectionCacheIsStale(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp
   "#include \"EpubLoadFixture.h\"\n${load_method}\n${stale_predicate}\n")
 add_executable(EpubLoadTest EpubLoadTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/EpubLoadProduction.cpp

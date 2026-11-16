@@ -1,15 +1,12 @@
 set(OVERLAY_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
 set(REFRESH_SOURCE ${REPO_ROOT}/src/activities/reader/ReaderUtils.h)
 set(TRANSITION_SOURCE ${REPO_ROOT}/src/activities/ActivityManager.cpp)
-crosspoint_extract_between(DISCARD_BODY ${OVERLAY_SOURCE}
+crosspoint_extract_functions(DISCARD_BODY ${OVERLAY_SOURCE}
   "void EpubReaderActivity::discardOverlayPage()"
-  "void EpubReaderActivity::openOverlay(")
-crosspoint_extract_between(CLOSE_BODY ${OVERLAY_SOURCE}
-  "void EpubReaderActivity::closeOverlayToPage()"
-  "void EpubReaderActivity::renderOverlay()")
-crosspoint_extract_between(REFRESH_BODY ${REFRESH_SOURCE}
-  "inline void displayWithRefreshCycle("
-  "// Display the B/W base of a page")
+  "void EpubReaderActivity::pushOverlayRefresh("
+  "void EpubReaderActivity::settleOverlayRefresh(")
+crosspoint_extract_functions(CLOSE_BODY ${OVERLAY_SOURCE} "void EpubReaderActivity::closeOverlayToPage()")
+crosspoint_extract_functions(REFRESH_BODY ${REFRESH_SOURCE} "inline void displayWithRefreshCycle(")
 crosspoint_extract_between(RENDER_START ${OVERLAY_SOURCE}
   "void EpubReaderActivity::renderBook()"
   "  const auto showPendingSyncSaveError =")
@@ -17,12 +14,8 @@ string(REPLACE "renderBook()" "beginRenderForTest()" RENDER_START "${RENDER_STAR
 crosspoint_extract_between(CHAPTER_JUMP ${OVERLAY_SOURCE}
   "  const auto gotoSpine = [this](int target)"
   "  const auto toolOverlay =")
-crosspoint_extract_between(CLEAR_PENDING ${OVERLAY_SOURCE}
-  "void EpubReaderActivity::clearPendingNavigation()"
-  "bool EpubReaderActivity::saveProgress(")
-crosspoint_extract_between(SUSPEND_BODY ${OVERLAY_SOURCE}
-  "void EpubReaderActivity::onSuspend()"
-  "bool EpubReaderActivity::loadBook()")
+crosspoint_extract_functions(CLEAR_PENDING ${OVERLAY_SOURCE} "void EpubReaderActivity::clearPendingNavigation()")
+crosspoint_extract_functions(SUSPEND_BODY ${OVERLAY_SOURCE} "void EpubReaderActivity::onSuspend()")
 crosspoint_extract_between(TRANSITION_BODY ${TRANSITION_SOURCE}
   "      // Current activity has requested a new activity to be launched"
   "      // onEnter may request another pending action")
