@@ -1,7 +1,9 @@
 # Compile the full activity and SDK renderer; extract the actual orientation-safe area helper.
 set(theme_source ${REPO_ROOT}/src/components/UITheme.cpp)
-crosspoint_extract_between(method ${theme_source}
- "Rect UITheme::getContentArea(" "std::string UITheme::getCoverThumbPath(")
+crosspoint_extract_functions(method ${theme_source}
+  "Rect UITheme::getContentArea("
+  "Rect UITheme::getScreenSafeArea("
+  "Rect UITheme::getHeaderRect(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ThemeProduction.cpp "#include \"components/UITheme.h\"\n${method}")
 add_executable(LibraryDetailsTest LibraryDetailsTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/ThemeProduction.cpp
  ${REPO_ROOT}/src/activities/library/LibraryBookDetailsActivity.cpp

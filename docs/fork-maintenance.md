@@ -48,27 +48,57 @@ Tests exercise shipping code, not copied algorithms. Where a whole translation
 unit cannot link on the host, the suite extracts complete production functions
 at CMake configure time and compiles them against narrow fixtures:
 
-- CMake string extraction by start/end markers through
-  `crosspoint_extract_between(<out_var> <file> <start_marker> <end_marker>)` in
-  `test/cmake/ProductionExtract.cmake`, e.g.
-  `test/section_persistence/CMakeLists.txt` (Section commit, page-complete,
-  build-time load, visible-offset lookup, version constants, temp path). It
-  requires the start marker to be present and unique and the end marker (or
-  `EOF`) to follow it, and adds the file to `CMAKE_CONFIGURE_DEPENDS`.
-- Python extractors: `test/file_browser/extract.py` and `test/library_ui/extract.py`
-  (brace-balanced method extraction that skips comments and string literals;
-  file browser also generates a `StrId` shim for referenced `STR_*` keys),
-  `test/sleep_grayscale/extract_functions.py`, `test/sleep_quick_resume/extract.py`.
+- Whole functions: `crosspoint_extract_functions(<out_var> <file> <signature>...)`
+  in `test/cmake/ProductionExtract.cmake`. Each signature is the exact text that
+  starts one definition (`"void Foo::bar("`, `"int Foo::count() const"`), and
+  the result is each definition from the start of its signature's line to its
+  closing brace, in the order given. The work is done by
+  `test/cmake/extract_functions.py`, a small lexer with brace matching that
+  skips comments, string, character and raw-string literals and digit
+  separators, and handles nested lambdas and constructor initializer lists.
+  Declarations, calls, `= default`/`= delete`, control statements and lambdas
+  are not definitions. A signature must match exactly one definition, so an
+  overload needs enough parameter text to tell it apart. Because no end marker
+  names the next function, renaming, inserting or reordering neighbours does
+  not affect the result. A suite that needs a new production helper still fails
+  explicitly: the helper is not extracted, so the build reports it as undefined.
+  The Python extractors for `file_browser`, `library_ui`, `sleep_grayscale` and
+  `sleep_quick_resume` import the same module. Its tests, including edits to a
+  temporary copy of `EpubReaderActivity.cpp`, run as the `production_extract`
+  ctest.
+- Snippets that are not whole functions:
+  `crosspoint_extract_between(<out_var> <file> <start_marker> <end_marker>)`
+  in the same file. It requires the start marker to be present and unique and
+  the end marker (or `EOF`) to follow it. It is kept for 34 calls: 21 statement
+  ranges inside a function (for example `reader_page_recovery` and
+  `reader_navigation`), 10 constants, enums and structs, two in-class
+  declaration blocks in `Section.h`, and the `render_lock` file tail. The Python
+  extractors keep three such snippets: the sleep refresh constant block and
+  `BwFrameKeeper` class in `sleep_grayscale`, and the `SleepActivity::onEnter`
+  prefix in `sleep_quick_resume`. These still break when the next statement or
+  declaration they name as an end marker changes, and an edit inside the range
+  is picked up without notice. Several `test/test_*.py` suites still split
+  production text on markers in Python.
+- Limits of `extract_functions.py`: it is not a C++ parser. It fails rather than
+  guesses on unterminated comments or literals, braces that do not balance,
+  braces that differ between `#if` branches, and a definition that starts on an
+  earlier line than its signature (template header, attribute, return type on
+  its own line); put those lines in the signature. Macros that expand to braces
+  and classes or structs are not supported. Signatures are matched as exact
+  text on token boundaries, so a whitespace or parameter-name change in the
+  signature fails configure; that is the intended signal to update the
+  signature.
 - Whole-file compilation with hardware seams: the refresh-sequence runner
   copies production driver sources beside SDK host stubs. The SDK's own bus
   suite covers its current bus contract.
 
 Rules: configuration must fail (`SEND_ERROR`, `FATAL_ERROR` or raised exception)
 when a marker is missing, appears more than once where one is expected, or braces
-cannot be balanced, so a moved boundary cannot silently test stale code. The
-shared helper uses `SEND_ERROR`, so one configure reports every moved marker;
+cannot be balanced, so a moved boundary cannot silently test stale code. Both
+shared helpers use `SEND_ERROR`, so one configure reports every moved marker;
 after an upstream rebase, `cmake -S test -B <dir>` lists them all before anything
-is compiled. Source files are added to `CMAKE_CONFIGURE_DEPENDS` so edits
+is compiled. Source files and the extractor are added to
+`CMAKE_CONFIGURE_DEPENDS` (or `DEPENDS` for build-time extraction) so edits
 re-extract. Stubs supply only owned
 fields, storage and dependency seams; they must not implement the policy under
 test. Real dependencies are linked where possible (LibraryText, SDK ListNav and

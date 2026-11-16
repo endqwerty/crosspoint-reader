@@ -4,8 +4,10 @@ set(READER_SOURCE ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp)
 set(READER_HEADER ${REPO_ROOT}/src/activities/reader/ReaderActivity.h)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${READER_HEADER})
 file(READ ${READER_HEADER} header)
-crosspoint_extract_between(opening ${READER_SOURCE} "void ReaderActivity::onEnter()" "void ReaderActivity::onExit()")
-crosspoint_extract_between(rendering ${READER_SOURCE} "void ReaderActivity::render(" "bool ReaderActivity::handleForcedRefresh()")
+crosspoint_extract_functions(opening ${READER_SOURCE}
+  "void ReaderActivity::onEnter()"
+  "void ReaderActivity::rememberBookOnceRendered(")
+crosspoint_extract_functions(rendering ${READER_SOURCE} "void ReaderActivity::render(")
 string(REGEX MATCH "void markPageRendered\\(\\) \\{[^}]+\\}" mark "${header}")
 if(NOT mark)
   message(FATAL_ERROR "Reader publication helper moved")

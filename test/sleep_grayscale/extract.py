@@ -3,6 +3,9 @@
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "cmake"))
+from extract_functions import extract  # noqa: E402
+
 source = pathlib.Path(sys.argv[1]).read_text()
 starts = (
     "void cleanBeforeAbsoluteGray(",
@@ -21,10 +24,12 @@ start = source.index(marker)
 end = source.index("#endif", start) + len("#endif")
 functions = [source[start:end]]
 for marker in starts:
+    if not marker.startswith("class "):
+        functions.append(extract(source, [marker]))
+        continue
     if source.count(marker) != 1:
-        raise SystemExit(f"Expected one production function: {marker}")
+        raise SystemExit(f"Expected one production class: {marker}")
     start = source.index(marker)
-    close = "\n};\n" if marker.startswith("class ") else "\n}\n"
-    end = source.index(close, start) + len(close)
+    end = source.index("\n};\n", start) + len("\n};\n")
     functions.append(source[start:end])
 pathlib.Path(sys.argv[2]).write_text("\n".join(functions))

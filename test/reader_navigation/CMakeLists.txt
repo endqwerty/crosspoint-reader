@@ -1,10 +1,18 @@
 # Exercise the production navigation methods without the reader's rendering,
 # storage, or UI dependencies. Fail closed if an extraction boundary moves.
-crosspoint_extract_between(reader_loop ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "void ReaderActivity::loop()" "void ReaderActivity::render(")
-crosspoint_extract_between(forced_refresh ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "bool ReaderActivity::handleForcedRefresh()" "EOF")
-crosspoint_extract_between(xtc_navigation ${REPO_ROOT}/src/activities/reader/XtcReaderActivity.cpp "bool XtcReaderActivity::pageTurn(" "void XtcReaderActivity::saveProgress()")
-crosspoint_extract_between(epub_navigation ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "bool EpubReaderActivity::pageTurn(" "bool EpubReaderActivity::handleLoadFailure()")
-crosspoint_extract_between(epub_end_of_book ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp "bool EpubReaderActivity::isAtEndOfBook() const" "bool EpubReaderActivity::skipLoopDelay(")
+crosspoint_extract_functions(reader_loop ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "void ReaderActivity::loop()")
+crosspoint_extract_functions(forced_refresh ${REPO_ROOT}/src/activities/reader/ReaderActivity.cpp "bool ReaderActivity::handleForcedRefresh()")
+crosspoint_extract_functions(xtc_navigation ${REPO_ROOT}/src/activities/reader/XtcReaderActivity.cpp
+  "bool XtcReaderActivity::pageTurn("
+  "bool XtcReaderActivity::skipPages("
+  "bool XtcReaderActivity::isAtEndOfBook("
+  "void XtcReaderActivity::onReturnFromEndOfBook(")
+crosspoint_extract_functions(epub_navigation ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
+  "bool EpubReaderActivity::pageTurn("
+  "bool EpubReaderActivity::skipPages(")
+crosspoint_extract_functions(epub_end_of_book ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
+  "bool EpubReaderActivity::isAtEndOfBook() const"
+  "void EpubReaderActivity::onReturnFromEndOfBook(")
 crosspoint_extract_between(epub_automatic_wait ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp
   "    if (hasPendingSectionJump() || pendingBuildError) {"
   "    if (RenderLock::peek())")
