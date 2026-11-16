@@ -3,7 +3,7 @@ set(SLEEP_SOURCE ${REPO_ROOT}/src/activities/boot_sleep/SleepActivity.cpp)
 set(EXTRACTED ${CMAKE_CURRENT_BINARY_DIR}/QuickResume.inc)
 add_custom_command(OUTPUT ${EXTRACTED}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py ${SLEEP_SOURCE} ${EXTRACTED}
-  DEPENDS ${SLEEP_SOURCE} extract.py
+  DEPENDS ${SLEEP_SOURCE} extract.py ${CROSSPOINT_EXTRACT_FUNCTIONS}
   VERBATIM)
 add_executable(QuickResumeTest QuickResumeTest.cpp ${EXTRACTED})
 target_include_directories(QuickResumeTest PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

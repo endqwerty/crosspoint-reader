@@ -1,13 +1,10 @@
 set(EPUB_SOURCE ${REPO_ROOT}/lib/Epub/Epub.cpp)
-crosspoint_extract_between(parse_methods ${EPUB_SOURCE}
+crosspoint_extract_functions(parse_methods ${EPUB_SOURCE}
   "bool Epub::parseContentOpf("
-  "void Epub::discoverCssFilesFromZip()")
-crosspoint_extract_between(load_method ${EPUB_SOURCE}
-  "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)"
-  "bool Epub::loadMetadata(")
-crosspoint_extract_between(sync_method ${EPUB_SOURCE}
-  "bool Epub::loadSyncMetadata("
-  "bool Epub::loadMetadata(LibraryMetadata")
+  "bool Epub::parseTocNcxFile("
+  "bool Epub::parseTocNavFile(")
+crosspoint_extract_functions(load_method ${EPUB_SOURCE} "bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss)")
+crosspoint_extract_functions(sync_method ${EPUB_SOURCE} "bool Epub::loadSyncMetadata(")
 set(methods "#include \"EpubIndexingFixture.h\"\n${parse_methods}\n${load_method}\n${sync_method}\n")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubIndexingProduction.cpp "${methods}")
 add_executable(EpubIndexingTest EpubIndexingTest.cpp XmlAllocationFaults.cpp

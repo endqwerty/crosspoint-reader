@@ -1,5 +1,5 @@
 set(BOOT_SOURCE ${REPO_ROOT}/src/activities/boot_sleep/BootActivity.cpp)
-crosspoint_extract_between(boot_method ${BOOT_SOURCE} "void BootActivity::onEnter()" "EOF")
+crosspoint_extract_functions(boot_method ${BOOT_SOURCE} "void BootActivity::onEnter()")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/BootSplashProduction.cpp
   "#include \"BootSplashFixture.h\"\n${boot_method}\n")
 add_executable(BootSplashTest BootSplashTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/BootSplashProduction.cpp)

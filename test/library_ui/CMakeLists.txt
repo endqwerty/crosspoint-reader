@@ -1,6 +1,6 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(ui_source ${REPO_ROOT}/src/activities/library/LibraryListActivity.cpp)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ui_source} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ui_source} ${CMAKE_CURRENT_SOURCE_DIR}/extract.py ${CROSSPOINT_EXTRACT_FUNCTIONS}
   ${REPO_ROOT}/src/activities/UiTabListActivity.cpp ${REPO_ROOT}/src/activities/home/HomeActivity.cpp
   ${REPO_ROOT}/src/util/ButtonNavigator.cpp
   ${REPO_ROOT}/lib/LibraryIndex/LibraryIndexFile.cpp)
@@ -18,7 +18,11 @@ target_include_directories(LibraryUiTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${C
 target_link_libraries(LibraryUiTest PRIVATE crosspoint_test_common GTest::gtest_main)
 gtest_discover_tests(LibraryUiTest)
 set(menu_source ${REPO_ROOT}/src/activities/library/LibraryMenuActivity.cpp)
-crosspoint_extract_between(menu_methods ${menu_source} "LibraryMenuActivity::LibraryMenuActivity(" "EOF")
+crosspoint_extract_functions(menu_methods ${menu_source}
+  "LibraryMenuActivity::LibraryMenuActivity("
+  "void LibraryMenuActivity::buildScreen("
+  "void LibraryMenuActivity::activateIndex("
+  "void LibraryMenuActivity::onBackButton(")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/LibraryMenuProduction.cpp "#include \"MenuUiFixture.h\"\n${menu_methods}")
 add_executable(LibraryMenuTest LibraryMenuTest.cpp ${CMAKE_CURRENT_BINARY_DIR}/LibraryMenuProduction.cpp)
 target_include_directories(LibraryMenuTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})

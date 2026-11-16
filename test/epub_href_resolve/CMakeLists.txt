@@ -1,6 +1,5 @@
 set(EPUB_SOURCE ${REPO_ROOT}/lib/Epub/Epub.cpp)
-crosspoint_extract_between(resolve_method ${EPUB_SOURCE}
-  "int Epub::resolveHrefToSpineIndex(const std::string& href) const {" "EOF")
+crosspoint_extract_functions(resolve_method ${EPUB_SOURCE} "int Epub::resolveHrefToSpineIndex(const std::string& href) const {")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/EpubHrefResolveProduction.cpp
   "#include \"EpubHrefResolveFixture.h\"\n${resolve_method}\n")
 add_executable(EpubHrefResolveTest EpubHrefResolveTest.cpp

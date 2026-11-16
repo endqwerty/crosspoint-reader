@@ -1,13 +1,11 @@
 set(READER_SOURCE ${REPO_ROOT}/src/activities/reader/EpubReaderActivity.cpp)
-crosspoint_extract_between(methods ${READER_SOURCE}
+crosspoint_extract_functions(methods ${READER_SOURCE}
   "void EpubReaderActivity::prepareForBookSearch()"
-  "bool EpubReaderActivity::launchKOReaderSync()")
+  "void EpubReaderActivity::launchBookSearch(")
 crosspoint_extract_between(menu ${READER_SOURCE}
   "    case EpubReaderMenuActivity::MenuAction::FIND_IN_BOOK:"
   "    case EpubReaderMenuActivity::MenuAction::BOOKMARKS:")
-crosspoint_extract_between(clear_pending ${READER_SOURCE}
-  "void EpubReaderActivity::clearPendingNavigation()"
-  "bool EpubReaderActivity::saveProgress(")
+crosspoint_extract_functions(clear_pending ${READER_SOURCE} "void EpubReaderActivity::clearPendingNavigation()")
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ReaderSearchProduction.cpp
   "#include \"ReaderSearchFixture.h\"\n${methods}\n${clear_pending}\nvoid EpubReaderActivity::activateFind() {\n switch (EpubReaderMenuActivity::MenuAction::FIND_IN_BOOK) {\n${menu}\n}}\n")
 add_executable(ReaderSearchHandoffTest ReaderSearchHandoffTest.cpp
