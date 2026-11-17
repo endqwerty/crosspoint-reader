@@ -40,7 +40,8 @@ code, upstream and these rules.
   device is the Xteink X4 Pro (`x4pro-gh_release`); check other boards only for a
   concrete upstream-compatibility risk. The user takes no manual device
   measurements: do not ask for or wait on them; report device checks as unverified,
-  never validated.
+  never validated. An official-project PR is the exception
+  ([upstream-prs](fork/upstream-prs.md#device-testing-and-fork-rules)).
 - **Public repository:** everything committed, and every issue, PR and comment, is
   public. Do not write credentials, private IPs or host names, home-server details
   or private paths beyond the existing checkout and `/Volumes/workspace` build-share references;
@@ -60,6 +61,7 @@ code, upstream and these rules.
 | Task touches | Read |
 | --- | --- |
 | Commit, push, PR, merge, SDK change, end-of-task report, offering a fix upstream | [delivery](fork/delivery.md) |
+| Preparing a change for an official-project PR | [upstream-prs](fork/upstream-prs.md) |
 | Checks, builds, toolchain, firmware export, `prepare`/`release` | [builds](fork/builds.md) |
 | Rebase, upstream conflict, `sync-publish`, history rewrite or backup | [upstream-sync](fork/upstream-sync.md) |
 | Daily review | [daily-review](fork/daily-review.md) |
