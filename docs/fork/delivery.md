@@ -84,7 +84,9 @@ origin/develop            downstream integration branch
 The standing authorization does not cover the official project. There the
 original rules apply (`AGENTS.md`, "Human ownership"): the human approves each
 commit, says when to push, opens the pull request and writes its description.
-The route those rules leave:
+Before the human opens an official PR, meet the checklist in
+[upstream-prs.md](upstream-prs.md), which also says what the maintainers
+accept. The route those rules leave:
 
 1. A pull request to the official project is separate work, so it gets its own
    T3 Code thread; the user's request to offer the fix is the request for it.
@@ -98,7 +100,7 @@ The route those rules leave:
    ESP32-C3 `default` build. Complete `firmware-handoff` the official way: the
    human accepts the design and tests the hardware before any pull request.
 4. Push only when the human says so, to `origin` (`official` is fetch only),
-   under an upstream-style name: `git push -u origin HEAD:fix/<summary>`
+   under an upstream-style name: `git push -u origin HEAD:<type>/<summary>`
    (`.agents/rules/git-workflow.md`). Do not use `scripts/fork-workflow.sh pr`;
    it opens pull requests against the fork. The human opens the pull request
    against `crosspoint-reader/crosspoint-reader` `develop`; give concise
