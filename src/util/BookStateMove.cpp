@@ -60,6 +60,7 @@ class RenameState {
     }
     getStatePaths(oldPath, withBookmarks, oldPaths);
     getStatePaths(newPath, withBookmarks, newPaths);
+    withSections = withBookmarks && oldPaths[0] != newPaths[0];
     if (includeBookSidecars && withBookmarks) {
       for (size_t i = 0; i < BOOK_SIDECAR_COUNT; ++i) {
         oldSidecars[i] = oldPath + BOOK_SIDECAR_SUFFIXES[i];
@@ -113,6 +114,7 @@ class RenameState {
       return false;
     }
     stateWritten = oldKey != newKey;
+    if (withSections && !dropSections()) return false;
     for (int i = 0; i < STATE_PATH_COUNT; ++i) {
       if (oldPaths[i].empty() || oldPaths[i] == newPaths[i] || !Storage.exists(oldPaths[i].c_str())) continue;
       if (!Storage.rename(oldPaths[i].c_str(), newPaths[i].c_str())) {
@@ -142,6 +144,16 @@ class RenameState {
   void commit() { committed = true; }
 
  private:
+  // Cached pages hold absolute image paths under the old cache directory, so a moved
+  // book lays its sections out again. They go before anything moves: a partial
+  // delete leaves only pages that are still valid at the unchanged path.
+  bool dropSections() {
+    const std::string sections = oldPaths[0] + "/sections";
+    if (!Storage.exists(sections.c_str()) || Storage.removeDir(sections.c_str())) return true;
+    LOG_ERR("BookMove", "Cannot drop cached sections: %s", sections.c_str());
+    return false;
+  }
+
   std::string oldPaths[STATE_PATH_COUNT], newPaths[STATE_PATH_COUNT];
   bool moved[STATE_PATH_COUNT]{};
   std::string oldSidecars[BOOK_SIDECAR_COUNT], newSidecars[BOOK_SIDECAR_COUNT];
@@ -151,6 +163,7 @@ class RenameState {
   uint64_t oldKey, newKey;
   library::BookState previousState;
   bool stateWritten = false;
+  bool withSections = false;
   bool committed = false;
 };
 }  // namespace
