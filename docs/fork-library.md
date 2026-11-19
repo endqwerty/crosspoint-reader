@@ -122,6 +122,13 @@ triggers no metadata rescan. It addresses upstream issue 1170 (long filenames).
   The transaction stores a fixed pair of old/new sidecar paths on its existing
   checked heap allocation, avoiding larger stack arrays or allocations during
   rollback. External UUID relinking does not move protection sidecars.
+- Both a device move and an external relink (below) delete the book's cached
+  `sections/` folder before anything moves: cached pages store image paths under
+  the old cache folder. If the delete fails the move fails, and pages that
+  survive a partial delete are still valid at the unchanged path; a retry
+  finishes the job. A move that fails later keeps its cache at the old path
+  without sections. Each chapter is laid out again when it is next opened;
+  `book.bin`, reading progress and extracted images are kept.
 - Books renamed or moved outside the device (a Calibre re-export after a title or
   author edit) keep their state when the book names a UUID (see "Relinking after
   external renames" below); a file without a UUID does not.

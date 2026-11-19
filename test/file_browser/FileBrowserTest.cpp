@@ -702,3 +702,67 @@ TEST_F(RelinkBookStateTest, ClippingsOfTheOpenBookAreNeverMovedUnderIt) {
   expectState(oldPath, true, library::ReadingState::Reading);
   CLIPPINGS.unload();
 }
+
+// Cached pages store absolute image paths under the old cache directory, so a
+// moved book must lay its sections out again; book metadata and progress stay.
+static void addLaidOutCache(const std::string& bookPath) {
+  const std::string cache = getBookCachePath(bookPath);
+  fake::add(cache + "/book.bin", "book");
+  fake::add(cache + "/progress.bin", "progress");
+  fake::add(cache + "/img_0_0.bmp", "image");
+  fake::add(cache + "/sections/0.bin", "page with " + cache + "/img_0_0.bmp");
+  fake::add(cache + "/sections/1.bin", "page with " + cache + "/img_1_0.bmp");
+}
+
+template <typename ReadBytes>
+static void expectSectionsDropped(const std::string& bookPath, ReadBytes bytes) {
+  const std::string cache = getBookCachePath(bookPath);
+  EXPECT_FALSE(Storage.exists((cache + "/sections/0.bin").c_str()));
+  EXPECT_FALSE(Storage.exists((cache + "/sections/1.bin").c_str()));
+  EXPECT_FALSE(Storage.exists((cache + "/sections").c_str()));
+  EXPECT_EQ(bytes(cache + "/book.bin"), "book");
+  EXPECT_EQ(bytes(cache + "/progress.bin"), "progress");
+  EXPECT_EQ(bytes(cache + "/img_0_0.bmp"), "image");
+}
+
+TEST_F(FileBrowserTest, MovedBookLaysOutItsSectionsAgain) {
+  const std::string oldPath = "/Books/Done.epub", newPath = "/read/Done.epub";
+  fake::add(oldPath);
+  addLaidOutCache(oldPath);
+  ASSERT_TRUE(moveBookWithState(oldPath, newPath));
+  expectSectionsDropped(newPath, [](const std::string& path) { return bytes(path); });
+}
+
+TEST_F(RelinkBookStateTest, RelinkedBookLaysOutItsSectionsAgain) {
+  fake::files.erase(getBookCachePath(oldPath));
+  addLaidOutCache(oldPath);
+  ASSERT_TRUE(relinkBookState(oldPath, newPath));
+  expectSectionsDropped(newPath, [](const std::string& path) { return bytes(path); });
+}
+
+TEST_F(FileBrowserTest, FailedSectionCleanupLeavesTheBookInPlaceUntilRetried) {
+  const std::string oldPath = "/Books/Done.epub", newPath = "/read/Done.epub";
+  fake::add(oldPath);
+  addLaidOutCache(oldPath);
+  fake::failRemove = 0;
+  EXPECT_FALSE(moveBookWithState(oldPath, newPath));
+  ASSERT_TRUE(fake::failureTriggered);
+  const std::string oldCache = getBookCachePath(oldPath);
+  EXPECT_TRUE(Storage.exists(oldPath.c_str()));
+  EXPECT_FALSE(Storage.exists(newPath.c_str()));
+  EXPECT_EQ(bytes(oldCache + "/sections/0.bin"), "page with " + oldCache + "/img_0_0.bmp");
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+  ASSERT_TRUE(moveBookWithState(oldPath, newPath));
+  expectSectionsDropped(newPath, [](const std::string& path) { return bytes(path); });
+}
+
+TEST_F(FileBrowserTest, FailedMoveLeavesTheCacheAtTheOldPath) {
+  const std::string oldPath = "/Books/Done.epub", newPath = "/read/Done.epub";
+  fake::add(oldPath);
+  addLaidOutCache(oldPath);
+  fake::blockedRenames.push_back({oldPath, newPath});
+  EXPECT_FALSE(moveBookWithState(oldPath, newPath));
+  EXPECT_TRUE(Storage.exists(oldPath.c_str()));
+  expectSectionsDropped(oldPath, [](const std::string& path) { return bytes(path); });
+  EXPECT_FALSE(Storage.exists(getBookCachePath(newPath).c_str()));
+}
