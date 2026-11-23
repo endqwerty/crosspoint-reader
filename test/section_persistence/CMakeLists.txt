@@ -24,7 +24,9 @@ crosspoint_extract_functions(visible_lookup ${SECTION_SOURCE}
   "std::optional<uint16_t> Section::getParagraphIndexForPage("
   "std::optional<uint16_t> Section::getPageForListItemIndex("
   "std::optional<uint32_t> Section::getVisibleTextOffsetForPage("
-  "std::optional<uint16_t> Section::getPageForVisibleTextOffset(")
+  "std::optional<uint16_t> Section::getPageForVisibleTextOffset("
+  "std::optional<uint16_t> Section::getResumePageForVisibleTextOffset("
+  "bool Section::buildReachedResumePage(")
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/SectionPersistenceProduction.cpp
   "#include \"SectionPersistenceFixture.h\"\nnamespace {\n${constants}\n}\n"

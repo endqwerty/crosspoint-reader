@@ -38,6 +38,7 @@ class Section {
   std::unique_ptr<BuildContext> build_ = std::make_unique<BuildContext>();
   uint16_t builtPageCount_ = 0;
   uint16_t pageCount = 0;
+  bool partial_ = false;
 
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void appendPage(std::unique_ptr<Page> page, uint16_t paragraphIndex, uint16_t listItemIndex,
@@ -52,6 +53,8 @@ class Section {
   std::optional<uint16_t> getPageForListItemIndex(uint16_t index) const;
   std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset, bool preferFirstAtOffset = false) const;
   std::optional<uint32_t> getVisibleTextOffsetForPage(uint16_t page) const;
+  std::optional<uint16_t> getResumePageForVisibleTextOffset(uint32_t offset, int savedPage) const;
+  bool buildReachedResumePage(uint32_t offset, int savedPage) const;
 #include "SectionTmpPath.h"
 };
 

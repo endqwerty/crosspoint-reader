@@ -279,6 +279,12 @@ upstream display behavior. See `fork-storage-display.md`.
 ### Resume and percentage jumps
 
 - A saved position in spine 0 resumes instead of being treated as a first launch.
+- After a section rebuild, an implicit resume keeps the saved page while it still
+  starts at the saved visible-text offset, and the foreground build continues
+  until that page exists. Consecutive image-only pages share one offset, so the
+  offset alone would select the last of them. Otherwise, and for explicit offset
+  jumps from search or clippings, the offset lookup decides
+  (`Section::getResumePageForVisibleTextOffset()`).
 - Exact percentage chapter boundaries select the following chapter.
 - Percentage jumps and backward jumps into an unfinished previous chapter
   schedule the target, start the existing parser and return without foreground

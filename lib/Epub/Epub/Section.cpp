@@ -1160,6 +1160,7 @@ std::optional<uint32_t> Section::getVisibleTextOffsetForPage(const uint16_t page
   if (build_ && page < build_->lut.size()) {
     return build_->lut[page].visibleTextOffset;
   }
+  if (build_ && !partial_) return std::nullopt;
 
   HalFile f;
   if (!Storage.openFileForRead("SCT", filePath, f) || f.size() < HEADER_SIZE) {
@@ -1281,4 +1282,18 @@ std::optional<uint16_t> Section::getPageForVisibleTextOffset(const uint32_t offs
     return std::nullopt;
   }
   return result;
+}
+
+std::optional<uint16_t> Section::getResumePageForVisibleTextOffset(const uint32_t offset, const int savedPage) const {
+  if (savedPage >= 0 && savedPage <= UINT16_MAX) {
+    const auto savedOffset = getVisibleTextOffsetForPage(static_cast<uint16_t>(savedPage));
+    if (savedOffset == offset) return static_cast<uint16_t>(savedPage);
+  }
+  return getPageForVisibleTextOffset(offset);
+}
+
+bool Section::buildReachedResumePage(const uint32_t offset, const int savedPage) const {
+  if (!build_ || build_->lut.empty()) return false;
+  const uint32_t last = build_->lut.back().visibleTextOffset;
+  return last > offset || (last == offset && savedPage < static_cast<int>(build_->lut.size()));
 }
