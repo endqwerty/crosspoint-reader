@@ -58,6 +58,59 @@ TEST_F(SectionLookup, SelectsPreviousPageAndHonorsFirstOrLastDuplicateOffset) {
   }
 }
 
+TEST_F(SectionLookup, ResumeKeepsSavedImageOnlyPageThatStillStartsAtItsOffset) {
+  install({0, 100, 100, 100, 200});
+  EXPECT_EQ(3, section.getPageForVisibleTextOffset(100));
+  for (int saved : {1, 2, 3}) EXPECT_EQ(saved, section.getResumePageForVisibleTextOffset(100, saved));
+  EXPECT_EQ(4, section.getResumePageForVisibleTextOffset(200, 4));
+}
+
+TEST_F(SectionLookup, ResumeFallsBackToOffsetLookupWhenSavedPageMoved) {
+  install({0, 100, 100, 100, 200});
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, 0));
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, 4));
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, 5));
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, -1));
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, 70000));
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(150, 2));
+}
+
+TEST_F(SectionLookup, ResumeUsesActiveBuildOffsets) {
+  install({0, 100, 100, 100, 200});
+  section.build_ = std::make_unique<Section::BuildContext>();
+  section.build_->lut = {{1, 0, 0, 0}, {2, 0, 0, 100}, {3, 0, 0, 100}};
+  EXPECT_EQ(1, section.getResumePageForVisibleTextOffset(100, 1));
+  EXPECT_EQ(2, section.getResumePageForVisibleTextOffset(100, 3));
+  EXPECT_EQ(0u, io.opens);
+  section.partial_ = true;
+  EXPECT_EQ(3, section.getResumePageForVisibleTextOffset(100, 3));
+}
+
+TEST_F(SectionLookup, PageOffsetBeyondFreshBuildNeedsNoStorage) {
+  install({0, 100, 200});
+  section.build_ = std::make_unique<Section::BuildContext>();
+  section.build_->lut = {{1, 0, 0, 0}, {2, 0, 0, 100}};
+  EXPECT_EQ(std::nullopt, section.getVisibleTextOffsetForPage(2));
+  EXPECT_EQ(0u, io.opens);
+}
+
+TEST_F(SectionLookup, ResumeBuildWaitsForSavedPageWhileBuildEndsAtItsOffset) {
+  EXPECT_FALSE(section.buildReachedResumePage(100, 2));
+  section.build_ = std::make_unique<Section::BuildContext>();
+  EXPECT_FALSE(section.buildReachedResumePage(100, 2));
+  section.build_->lut = {{1, 0, 0, 0}};
+  EXPECT_FALSE(section.buildReachedResumePage(100, 0));
+  section.build_->lut.push_back({2, 0, 0, 100});
+  EXPECT_TRUE(section.buildReachedResumePage(100, 1));
+  EXPECT_FALSE(section.buildReachedResumePage(100, 2));
+  section.build_->lut.push_back({3, 0, 0, 100});
+  EXPECT_TRUE(section.buildReachedResumePage(100, 2));
+  EXPECT_FALSE(section.buildReachedResumePage(100, 5));
+  section.build_->lut.push_back({4, 0, 0, 200});
+  EXPECT_TRUE(section.buildReachedResumePage(100, 5));
+  EXPECT_FALSE(section.buildReachedResumePage(300, 0));
+}
+
 TEST_F(SectionLookup, PreservesDuplicateSelectionAcrossChunkBoundaries) {
   std::vector<uint32_t> offsets(34, 100);
   offsets[0] = 0;
@@ -230,6 +283,7 @@ TEST_F(SectionLookup, PageOffsetFromActiveBuildNeedsNoStorage) {
 
 TEST_F(SectionLookup, PageOffsetBeyondActiveBuildFallsBackToLongerPartial) {
   install({0, 100, 200}, true);
+  section.partial_ = true;
   section.build_ = std::make_unique<Section::BuildContext>();
   section.build_->lut = {{1, 0, 0, 7}, {2, 0, 0, 123}};
   EXPECT_EQ(123u, section.getVisibleTextOffsetForPage(1));

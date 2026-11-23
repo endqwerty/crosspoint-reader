@@ -178,6 +178,10 @@ class Section {
   // preferFirstAtOffset is true, ties caused by zero-width content such as an
   // image-only page select the first page at that offset.
   std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset, bool preferFirstAtOffset = false) const;
+  // Resume target for a saved page and the offset it started at. Keeps the saved page
+  // while it still starts at that offset, so a rebuild does not move a reader past
+  // consecutive image-only pages that share it.
+  std::optional<uint16_t> getResumePageForVisibleTextOffset(uint32_t offset, int savedPage) const;
 
   // True once the active build has laid out a page starting at or past `offset`, i.e.
   // getPageForVisibleTextOffset() can resolve it from the build without laying out more.
@@ -188,4 +192,7 @@ class Section {
   bool buildReachedVisibleTextOffset(uint32_t offset) const {
     return build_ && !build_->lut.empty() && offset <= build_->lut.back().visibleTextOffset;
   }
+  // Resume counterpart of buildReachedVisibleTextOffset(): while the build still ends at
+  // `offset`, keep going until the saved page exists, since image-only pages share it.
+  bool buildReachedResumePage(uint32_t offset, int savedPage) const;
 };
