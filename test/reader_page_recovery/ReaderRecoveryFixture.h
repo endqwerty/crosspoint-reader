@@ -31,6 +31,7 @@ struct RecoveryStorage {
   int clearCalls = 0;
   int destructions = 0;
   bool building = false;
+  int pagesAtOffset = 1;
 };
 struct RecoveryPage {
   uint32_t visibleTextOffset = 0;
@@ -48,8 +49,15 @@ struct RecoverySection {
   bool isPartial() const { return storage.building; }
   void abandonBuild() { ++storage.abandonCalls; }
   void clearCache() { ++storage.clearCalls; }
+  // Pages [offset / 100, offset / 100 + pagesAtOffset) start at the same offset, as
+  // consecutive image-only pages do; the plain lookup returns the last of them.
   std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset) const {
-    return static_cast<uint16_t>(offset / 100);
+    return static_cast<uint16_t>(offset / 100 + storage.pagesAtOffset - 1);
+  }
+  std::optional<uint16_t> getResumePageForVisibleTextOffset(uint32_t offset, int savedPage) const {
+    const int first = static_cast<int>(offset / 100);
+    if (savedPage >= first && savedPage < first + storage.pagesAtOffset) return static_cast<uint16_t>(savedPage);
+    return getPageForVisibleTextOffset(offset);
   }
   std::optional<uint16_t> findAnchor(const std::string&) const { return 42; }
   std::unique_ptr<RecoveryPage> loadPage(int page) {
