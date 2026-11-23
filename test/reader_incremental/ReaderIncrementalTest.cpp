@@ -329,6 +329,39 @@ TEST(ReaderIncremental, UiOnlyTtfFontDoesNotReleaseResidentCachesBeforeChapterBu
   EXPECT_EQ(reader.renderer.fonts.releases, 0);
 }
 
+TEST(ReaderIncremental, RebuiltSectionResumesOnSavedImageOnlyPageSharingItsOffset) {
+  EpubReaderActivity reader;
+  reader.storage.pagesAtOffset = 3;
+  reader.cachedVisibleTextOffset = 500;
+  reader.nextPageNumber = 6;
+  reader.renderBook();
+  ASSERT_TRUE(reader.section);
+  EXPECT_EQ(reader.section->currentPage, 6);
+  EXPECT_EQ(reader.renderedPage, 6);
+}
+
+TEST(ReaderIncremental, RebuiltSectionBuildsOnToSavedImageOnlyPagePastTheFirstChunk) {
+  EpubReaderActivity reader;
+  const int first = EpubReaderActivity::BUILD_PAGES_PER_CHUNK - 1;
+  reader.storage.pagesAtOffset = 3;
+  reader.cachedVisibleTextOffset = first * 100;
+  reader.nextPageNumber = first + 1;
+  reader.renderBook();
+  ASSERT_TRUE(reader.section);
+  EXPECT_EQ(reader.section->currentPage, first + 1);
+  EXPECT_EQ(reader.renderedPage, first + 1);
+}
+
+TEST(ReaderIncremental, ExplicitOffsetJumpStillTakesLastPageAtOffset) {
+  EpubReaderActivity reader;
+  reader.storage.pagesAtOffset = 3;
+  reader.pendingOffsetJump = 500;
+  reader.nextPageNumber = 6;
+  reader.renderBook();
+  ASSERT_TRUE(reader.section);
+  EXPECT_EQ(reader.section->currentPage, 7);
+}
+
 TEST(ReaderIncremental, CachedTtfChapterDoesNotReleaseResidentCaches) {
   EpubReaderActivity reader;
   reader.renderer.ttfFonts[ReaderRenderSpec{}.fontId] = 0;

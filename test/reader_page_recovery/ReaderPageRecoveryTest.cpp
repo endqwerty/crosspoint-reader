@@ -136,6 +136,17 @@ TEST(ReaderPageRecovery, DeferredReflowInvalidatesVisibleOffsetOnlyWhenThePageCh
   EXPECT_EQ(reader.currentPageVisibleOffset, 800);
 }
 
+TEST(ReaderPageRecovery, DeferredReflowKeepsSavedImageOnlyPageSharingItsOffset) {
+  EpubReaderActivity reader;
+  reader.storage.pagesAtOffset = 3;
+  reader.section->currentPage = 6;
+  reader.currentPageVisibleOffset = 500;
+  reader.cachedVisibleTextOffset = 500;
+  EXPECT_FALSE(reader.applyDeferredReposition());
+  EXPECT_EQ(reader.section->currentPage, 6);
+  EXPECT_EQ(reader.currentPageVisibleOffset, 500);
+}
+
 TEST(ReaderPageRecovery, FailedPanelUpdatePreservesProgressAndStopsAutomaticTurns) {
   EpubReaderActivity reader;
   reader.section->currentPage = 30;

@@ -2027,9 +2027,13 @@ void EpubReaderActivity::renderBook() {
           showBuildError();
           return;
         }
+        const auto offsetTargetBuilt = [&] {
+          return explicitOffsetJump ? section->buildReachedVisibleTextOffset(*offsetJump)
+                                    : section->buildReachedResumePage(*offsetJump, nextPageNumber);
+        };
         while (!hasPendingSectionJump() && !section->isBuildComplete() &&
                (anchorJump               ? !section->findAnchorDuringBuild(pendingAnchor)
-                : offsetJump.has_value() ? !section->buildReachedVisibleTextOffset(*offsetJump)
+                : offsetJump.has_value() ? !offsetTargetBuilt()
                                          : static_cast<int>(section->pageCount) <= target)) {
           if (buildPopupPending && millis() - buildStartMs >= BUILD_POPUP_DEADLINE_MS) {
             showBuildPopup(renderer, pagesUntilFullRefresh);
@@ -2060,7 +2064,9 @@ void EpubReaderActivity::renderBook() {
     }
 
     if (offsetJump.has_value()) {
-      if (const auto offsetPage = section->getPageForVisibleTextOffset(*offsetJump)) {
+      if (const auto offsetPage = explicitOffsetJump
+                                      ? section->getPageForVisibleTextOffset(*offsetJump)
+                                      : section->getResumePageForVisibleTextOffset(*offsetJump, section->currentPage)) {
         section->currentPage = *offsetPage;
         clearDeferredReposition();
       }
@@ -2283,7 +2289,8 @@ bool EpubReaderActivity::applyDeferredReposition() {
     int newPage = section->currentPage;
     bool mappedOffset = false;
     if (cachedVisibleTextOffset.has_value()) {
-      if (const auto offsetPage = section->getPageForVisibleTextOffset(*cachedVisibleTextOffset)) {
+      if (const auto offsetPage =
+              section->getResumePageForVisibleTextOffset(*cachedVisibleTextOffset, section->currentPage)) {
         newPage = *offsetPage;
         mappedOffset = true;
       }

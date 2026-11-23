@@ -176,6 +176,7 @@ struct IncrementalStorage {
   bool chunkFails = false;
   bool allocationFails = false;
   bool readFails = false;
+  int pagesAtOffset = 1;
 };
 inline IncrementalStorage* activeStorage = nullptr;
 inline bool contactClosed = false;
@@ -263,8 +264,27 @@ struct Section {
   std::optional<uint16_t> findAnchorDuringBuild(const std::string&) const {
     return built > 4 ? std::optional<uint16_t>(4) : std::nullopt;
   }
-  std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset) const { return offset / 100; }
+  // Pages [offset / 100, offset / 100 + pagesAtOffset) start at the same offset, as
+  // consecutive image-only pages do. As in Section, a running build knows only the pages
+  // laid out so far, and the plain lookup returns the last known page at the offset.
+  std::optional<uint16_t> getPageForVisibleTextOffset(uint32_t offset) const {
+    int page = static_cast<int>(offset / 100) + storage.pagesAtOffset - 1;
+    if (building) page = std::min(page, built - 1);
+    if (page < 0) return std::nullopt;
+    return page;
+  }
+  std::optional<uint16_t> getResumePageForVisibleTextOffset(uint32_t offset, int savedPage) const {
+    const int first = static_cast<int>(offset / 100);
+    if (savedPage >= first && savedPage < first + storage.pagesAtOffset && (!building || savedPage < built)) {
+      return savedPage;
+    }
+    return getPageForVisibleTextOffset(offset);
+  }
   bool buildReachedVisibleTextOffset(uint32_t offset) const { return built > static_cast<int>(offset / 100); }
+  bool buildReachedResumePage(uint32_t offset, int savedPage) const {
+    const int first = static_cast<int>(offset / 100);
+    return built - 1 >= first + storage.pagesAtOffset || (built - 1 >= first && savedPage < built);
+  }
   void abandonBuild() { building = false; }
   void clearCache() {}
   void releasePrefetchedPageIfLowMemory(size_t, size_t) { ++storage.prefetchReleaseChecks; }
