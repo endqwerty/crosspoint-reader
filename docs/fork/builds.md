@@ -21,6 +21,9 @@ to the X4 Pro and any specific upstream-compatibility risk in the diff:
   syncs. Use it only when a concrete compatibility risk warrants all targets;
   otherwise run only the relevant additional `pio run -e <target>` builds.
   Run `pio check` separately when static analysis is needed without the matrix.
+  Known failure: `onepage` (ESP32-C61) does not fit its 6,553,600-byte app
+  partition with the fork's series (7,394,534 bytes on 2026-11-25). The fork
+  does not ship OnePage, so treat only a new error there as a regression.
 - `check --fast` is formatting and Release host tests only.
 - `check` formats the whole tree and compares it with the committed state, so on
   a dirty tree it skips formatting and fails ("commit first"). While editing,
