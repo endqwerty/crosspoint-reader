@@ -657,26 +657,15 @@ struct DedupFrame {
   ~DedupFrame() { state.activeDedupCount = base; }
 };
 
-void walk(WalkState& st, const std::string& path, const int depth) {
+// Each level keeps its directory open while its subfolders are walked, so a
+// folder-per-author card is not reopened and re-seeked after every subfolder.
+// Up to LIBRARY_MAX_DEPTH + 1 directory handles are open on the walked chain,
+// plus the entry being read at the deepest level.
+void walk(WalkState& st, HalFile& dir, const std::string& path, const int depth) {
   if (st.stop != WalkStop::None) return;
-  if (depth > LIBRARY_MAX_DEPTH) {
-    st.limitsReached = true;
-    stopProbe(st);
-    return;
-  }
-  if (isLibrarySkipped(path)) return;
 
   const uint16_t dedupBase = st.activeDedupCount;
   const DedupFrame dedupFrame{st, dedupBase};
-
-  HalFile dir = Storage.open(path.c_str());
-  if (!dir || !dir.isDirectory()) {
-    LOG_ERR("LIBIDX", "cannot scan directory: %s", path.c_str());
-    st.stop = WalkStop::Failed;
-    if (dir) dir.close();
-    return;
-  }
-  dir.rewindDirectory();
 
   // Identities already staged from THIS directory. A damaged FAT can enumerate
   // the same entry twice; the second one would be a phantom book the user cannot
@@ -700,7 +689,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
   for (HalFile entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
     serviceBuilder(st.serviceUnits);
     if (st.stop != WalkStop::None) {
-      entry.close();
+      entry = HalFile();
       break;
     }
     st.nameBuf[0] = '\0';
@@ -708,24 +697,42 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     const bool isDir = entry.isDirectory();
     const uint32_t size = isDir ? 0 : static_cast<uint32_t>(entry.fileSize());
     const uint32_t modificationTime = isDir ? 0 : entry.modificationTime();
-    entry.close();
+    if (!isDir) entry = HalFile();
 
-    if (st.nameBuf[0] == '\0' || isHiddenOrSidecar(st.nameBuf)) continue;
+    if (st.nameBuf[0] == '\0' || isHiddenOrSidecar(st.nameBuf)) {
+      entry = HalFile();
+      continue;
+    }
     const std::string name(st.nameBuf);
 
     if (isDir) {
-      const size_t resumePosition = dir.position();
-      dir.close();
-      walk(st, joinLibraryPath(path, name), depth + 1);
-      if (st.stop != WalkStop::None) return;
-
-      dir = Storage.open(path.c_str());
-      if (!dir || !dir.isDirectory() || !dir.seekSet(resumePosition)) {
-        if (dir) dir.close();
-        LOG_ERR("LIBIDX", "cannot resume directory %s at %u", path.c_str(), static_cast<unsigned>(resumePosition));
-        st.stop = WalkStop::Failed;
-        return;
+      if (depth >= LIBRARY_MAX_DEPTH) {
+        entry = HalFile();
+        st.limitsReached = true;
+        stopProbe(st);
+        if (st.stop != WalkStop::None) return;
+        continue;
       }
+      const std::string childPath = joinLibraryPath(path, name);
+      if (isLibrarySkipped(childPath)) {
+        entry = HalFile();
+        continue;
+      }
+      // SdFat trims leading spaces and trailing spaces or dots during path
+      // lookup; scan the directory that the stored book paths will open. The
+      // lookup cannot tell a missing path from a read error, so, as upstream
+      // does, a folder it cannot reach is skipped.
+      if (name.front() == ' ' || name.back() == ' ' || name.back() == '.') {
+        entry = HalFile();
+        entry = Storage.open(childPath.c_str());
+        if (!entry || !entry.isDirectory()) {
+          entry = HalFile();
+          continue;
+        }
+      }
+      walk(st, entry, childPath, depth + 1);
+      if (st.stop != WalkStop::None) return;
+      entry = HalFile();
       continue;
     }
     if (!isLibraryBookFile(name)) continue;
@@ -798,7 +805,17 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     LOG_ERR("LIBIDX", "directory scan failed: %s", path.c_str());
     st.stop = WalkStop::Failed;
   }
-  dir.close();
+}
+
+void walkRoot(WalkState& st, const char* rootPath) {
+  if (isLibrarySkipped(rootPath)) return;
+  HalFile root = Storage.open(rootPath);
+  if (!root || !root.isDirectory()) {
+    LOG_ERR("LIBIDX", "cannot scan directory: %s", rootPath);
+    st.stop = WalkStop::Failed;
+    return;
+  }
+  walk(st, root, rootPath, 0);
 }
 
 // Shared by the offset and write passes so the name-blob layout has one source of
@@ -1740,7 +1757,7 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
   // detection, the staging walk keeps its degraded-scan handling.
   if (previous.isOpen() && dedupKeys && !previous.limitsReached()) {
     beginWalk(WalkMode::Probe);
-    walk(st, rootPath, 0);
+    walkRoot(st, rootPath);
     switch (st.stop) {
       case WalkStop::Failed:
         LOG_ERR("LIBIDX", "probe failed; keeping the previous index");
@@ -1769,7 +1786,7 @@ bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readM
     {
       serialization::BufferedFileWriter stageOut(st.stage, LIBRARY_IO_BUFFER_SIZE);
       st.stageOut = &stageOut;
-      walk(st, rootPath, 0);
+      walkRoot(st, rootPath);
       st.stageOut = nullptr;
       stageFlushed = stageOut.flush();
     }

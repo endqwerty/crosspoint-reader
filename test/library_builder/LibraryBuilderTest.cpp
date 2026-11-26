@@ -413,10 +413,10 @@ TEST_F(LibraryBuilderTest, UnreadableSubfolderPreservesPreviousIndexAndCanRetry)
   initial();
   const auto old = fake::files[INDEX]->bytes;
   ASSERT_TRUE(Storage.remove("/nested/deleted.epub"));
-  fake::failOpenPath = "/nested";
+  fake::failNextPath = "/nested";
   EXPECT_FALSE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::files[INDEX]->bytes, old);
-  fake::failOpenPath.clear();
+  fake::failNextPath.clear();
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(stats.removed, 1);
   EXPECT_EQ(stats.books, 2);
@@ -450,6 +450,8 @@ TEST_F(LibraryBuilderTest, FolderHeavyUnchangedReconciliationIoScalesLinearly) {
 
 TEST_F(LibraryBuilderTest, DirectoryEntriesAreEnumeratedOnceWithoutReopeningDirectories) {
   fake::add("/folder/c.txt");
+  fake::add("/folder/inner/d.txt");
+  fake::directoryOpens = 0;
 
   ASSERT_TRUE(buildLibraryIndex("/", stats, false));
 
@@ -457,8 +459,8 @@ TEST_F(LibraryBuilderTest, DirectoryEntriesAreEnumeratedOnceWithoutReopeningDire
   EXPECT_EQ(fake::directoryEntriesByPath["/b.epub"], 1u);
   EXPECT_EQ(fake::directoryEntriesByPath["/folder"], 1u);
   EXPECT_EQ(fake::directoryEntriesByPath["/folder/c.txt"], 1u);
-  EXPECT_EQ(fake::directoryOpensByPath.size(), 1u);
-  EXPECT_EQ(fake::directoryOpensByPath["/"], 1u);
+  EXPECT_EQ(fake::directoryEntriesByPath["/folder/inner/d.txt"], 1u);
+  EXPECT_EQ(fake::directoryOpens, 1u);
 }
 
 TEST_F(LibraryBuilderTest, DirectoryWalkResumesAtEachLevelAndStopsAtDepthLimit) {

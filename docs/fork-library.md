@@ -231,7 +231,10 @@ library-sized stays resident.
   macOS `._*` sidecars and the root folders `fonts`, `dictionaries`, `plugins`,
   `sleep` and `sleep-overlay` in any letter case excluded), at most five folder
   levels below the root (a corrupted FAT can contain a self-referencing
-  directory). The probe checks for changes without staging. A rebuild walks
+  directory). Each level keeps its directory handle open while it walks its
+  subfolders, so a folder-per-author card is not reopened and re-seeked after
+  each one (upstream `#4603`, adapted: an unreadable folder still fails the
+  build). The probe checks for changes without staging. A rebuild walks
   again and streams records into
   `/.crosspoint/library.stage` in discovery order. The prior matching table stays
   in memory through reconciliation; full metadata records are not retained.
@@ -407,6 +410,7 @@ state, allocator overhead and temporary strings are additional.
 | Prior-index reconciliation | 16 B/book (64 KiB at 4,096) | Released before sorting |
 | UUID match table | per unmatched prior entry | Rebuild only |
 | Duplicate keys | 8 KiB | Walk only |
+| Open directory handles | one per walked level (at most six) plus the entry being read | Walk only |
 | Title / author sort keys | 14 B/book each (57,344 B), phase-local, sequential | Rebuild only |
 | Series sort keys | 24 B/series book (98,304 B max) | Rebuild only |
 | Worst-case simultaneous series-phase arrays | 147,456 B (series keys, three u16 series maps, title order, arrival order, resolved `firstSeen`) | Rebuild only |

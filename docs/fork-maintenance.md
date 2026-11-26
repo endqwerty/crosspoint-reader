@@ -343,7 +343,17 @@ subsequent imports carry their validation in the task issue and pull request.
 
 ### Imported before upstream merged them
 
-No imported-ahead PR remains. At the 2026-11-16 sync, `#4472` merged upstream
+None at the 2026-11-27 sync.
+
+Earlier imports: at the 2026-11-27 sync, `#4603` merged upstream
+(`fb72db961`). The fork keeps its own copy because its builder replaces
+upstream's walk: each level keeps its directory handle open, and a directory
+read error still fails the build and keeps the previous index. As upstream
+does, a folder whose name SdFat trims is reopened by path and skipped when
+that path cannot be opened. Upstream's merged
+version also stopped re-reading a book's own staged record for its author
+spelling; the fork's emit pass already skips that read and fetches only the
+author fields for other spellings. At the 2026-11-16 sync, `#4472` merged upstream
 (`3c42dfdef`); the three source hunks imported from it (exact spine path
 match, ruby text storage, KOReader read errors) were dropped and the fork keeps
 only their host tests (`test/epub_href_resolve`, `test/koreader_document_id`).
