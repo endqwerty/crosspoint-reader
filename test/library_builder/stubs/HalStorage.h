@@ -33,8 +33,11 @@ inline int failSeek = -1;
 inline int failRemove = -1;
 inline int failNext = -1;
 inline bool failMkdir = false;
-inline bool failDirectorySeek = false;
 inline std::string failOpenPath;
+// Fails enumeration of the directory handle with this path.
+inline std::string failNextPath;
+// SdFat path lookup trims some names; maps a requested path to the opened one.
+inline std::map<std::string, std::string> openPathAliases;
 inline std::string failClosePath;
 inline std::string failWritePath;
 inline std::string failReadPath;
@@ -86,8 +89,9 @@ inline void reset() {
   failRemove = -1;
   failNext = -1;
   failMkdir = false;
-  failDirectorySeek = false;
   failOpenPath.clear();
+  failNextPath.clear();
+  openPathAliases.clear();
   failClosePath.clear();
   failWritePath.clear();
   failReadPath.clear();
@@ -162,7 +166,7 @@ class HalFile {
   void rewindDirectory() { pos = 0; }
   HalFile openNextFile() {
     if (const auto hook = std::exchange(fake::onNextEntry, nullptr)) hook();
-    if (fake::fail(fake::failNext)) {
+    if (fake::fail(fake::failNext) || (!fake::failNextPath.empty() && path == fake::failNextPath)) {
       iterationFailed = true;
       return {};
     }
@@ -198,7 +202,7 @@ class HalFile {
   bool seekSet(const size_t offset) {
     fake::seeks++;
     if (fake::fail(fake::failSeek)) return false;
-    if (!node || (node->directory && fake::failDirectorySeek) || (!node->directory && offset > node->bytes.size())) {
+    if (!node || (!node->directory && offset > node->bytes.size())) {
       return false;
     }
     pos = offset;
@@ -277,6 +281,8 @@ class HalStorage {
     std::string normalized(path);
     while (normalized.size() > 1 && normalized.back() == '/') normalized.pop_back();
     if (fake::failOpenPath == normalized) return file;
+    const auto alias = fake::openPathAliases.find(normalized);
+    if (alias != fake::openPathAliases.end()) normalized = alias->second;
     const auto found = fake::files.find(normalized);
     if (found != fake::files.end()) {
       file.node = found->second;

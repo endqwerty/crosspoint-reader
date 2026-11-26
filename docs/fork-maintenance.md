@@ -343,7 +343,13 @@ subsequent imports carry their validation in the task issue and pull request.
 
 ### Imported before upstream merged them
 
-No imported-ahead PR remains. At the 2026-11-16 sync, `#4472` merged upstream
+- `#4603` (2026-11-26, unreviewed upstream): the Library walk keeps each
+  level's directory handle open instead of reopening and seeking it after every
+  subfolder. Adapted to the fork's builder: an unreadable folder still fails the
+  build and keeps the previous index. Drop the fork's copy when upstream merges
+  it.
+
+Earlier imports: at the 2026-11-16 sync, `#4472` merged upstream
 (`3c42dfdef`); the three source hunks imported from it (exact spine path
 match, ruby text storage, KOReader read errors) were dropped and the fork keeps
 only their host tests (`test/epub_href_resolve`, `test/koreader_document_id`).
