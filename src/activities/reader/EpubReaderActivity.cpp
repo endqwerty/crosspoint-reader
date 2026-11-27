@@ -993,6 +993,8 @@ void EpubReaderActivity::loop() {
 
     if (hasPendingSectionJump() || pendingBuildError) {
       lastPageTurnTime = millis();
+      pendingManualTurn = 0;
+      backgroundBuildTick();
       return;
     }
 

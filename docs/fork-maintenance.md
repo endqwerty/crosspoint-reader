@@ -343,7 +343,13 @@ subsequent imports carry their validation in the task issue and pull request.
 
 ### Imported before upstream merged them
 
-None at the 2026-11-27 sync.
+- `#4636` (2026-11-27, unreviewed upstream): the EPUB reader blocks
+  auto-sleep while Auto Turn runs, so the "Time to Sleep" timeout no longer
+  ends a hands-free session. Adapted: the open toolbar menu, which pauses
+  Auto Turn, no longer keeps the device awake, the flag is atomic because the
+  render task clears it, and a pending chapter jump keeps building while
+  Auto Turn is on. Drop the fork's copy when upstream merges it, keeping
+  whichever of these upstream lacks.
 
 Earlier imports: at the 2026-11-27 sync, `#4603` merged upstream
 (`fb72db961`). The fork keeps its own copy because its builder replaces
@@ -409,6 +415,8 @@ notes:
   <47798010+jstader@users.noreply.github.com>
 - #4472, spine path match, ruby storage and KOReader read errors: Justin
   Mitchell <justin@jmitch.com>
+- #4636, keep the device awake during Auto Turn: A1ZES
+  <71651738+A1ZES@users.noreply.github.com>
 
 Other upstream PRs named above, with authors from the upstream commits in the
 base history:

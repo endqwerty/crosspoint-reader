@@ -53,7 +53,7 @@ class EpubReaderActivity final : public ReaderActivity {
   bool pendingBuildError = false;
   uint8_t pageLoadRetryCount = 0;
   static constexpr uint8_t MAX_PAGE_LOAD_RETRIES = 3;
-  bool automaticPageTurnActive = false;
+  std::atomic<bool> automaticPageTurnActive{false};
   bool showBookmarkMessage = false;
   bool bookmarkSaveFailed = false;
   bool showDictionaryMessage = false;
@@ -289,6 +289,8 @@ class EpubReaderActivity final : public ReaderActivity {
   void onReturnFromEndOfBook() override;
 
   bool skipLoopDelay() override;
+  // Auto page turn is reading without input, so it must not trip the sleep timeout.
+  bool preventAutoSleep() override { return automaticPageTurnActive && overlay == Overlay::None; }
 
   ScreenshotInfo getScreenshotInfo() const override;
   CrossPointPosition getCurrentPosition() const;
